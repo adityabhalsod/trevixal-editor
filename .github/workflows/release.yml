@@ -46,7 +46,13 @@ jobs:
       # The runner ships npm 10; the OIDC exchange landed in 11.5.1. pnpm
       # still runs every other step, it just cannot publish this way: it has
       # no exchange for the npm:registry.npmjs.org audience.
-      - run: npm install --global npm@latest
+      #
+      # Pinned to a major, not `@latest`: npm 12 changed `pack --json` from an
+      # array to an object keyed by package name, which broke `check:pkg` here
+      # while CI stayed green on the runner's npm 10. The script reads both
+      # shapes now, but a floating major is still a build that changes under
+      # you. Raise this deliberately.
+      - run: npm install --global npm@12
 
       - run: pnpm install --frozen-lockfile
 

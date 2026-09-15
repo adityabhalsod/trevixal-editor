@@ -58,7 +58,12 @@ function tarballProblems(dir) {
     shell: process.platform === 'win32',
   })
   if (pack.status !== 0) return [`npm pack --dry-run failed:\n${pack.stderr}`]
-  const paths = JSON.parse(pack.stdout)[0].files.map((file) => file.path)
+  // npm <= 11 prints an array of package objects; npm 12 prints an object keyed
+  // by package name. Both carry the same entries, so take the values either way.
+  const report = JSON.parse(pack.stdout)
+  const [packed] = Array.isArray(report) ? report : Object.values(report)
+  if (!packed?.files) return ['npm pack --dry-run reported no file list']
+  const paths = packed.files.map((file) => file.path)
   const problems = paths
     .filter((path) => path.startsWith('src/'))
     .map((path) => `${path} is source, not build output`)
