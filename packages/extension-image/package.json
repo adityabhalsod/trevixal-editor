@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-image",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Images for the Trevixal editor: pluggable storage backends, drag-and-drop and paste upload, resize, alignment and captions.",
   "license": "Apache-2.0",
   "repository": {
