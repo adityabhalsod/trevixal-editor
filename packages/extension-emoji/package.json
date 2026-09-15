@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-emoji",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Emoji picker for the Trevixal editor: :shortcode trigger with built-in search.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

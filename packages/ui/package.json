@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/ui",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Optional prebuilt UI for Trevixal: accessible toolbar and themes. Headless-first, bring your own UI if you prefer.",
   "license": "Apache-2.0",
   "repository": {
@@ -9,7 +9,10 @@
     "directory": "packages/ui"
   },
   "type": "module",
-  "sideEffects": ["*.css", "*.scss"],
+  "sideEffects": [
+    "*.css",
+    "*.scss"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,7 +30,9 @@
     "./styles.css": "./dist/styles.css",
     "./scss/*": "./dist/scss/*"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

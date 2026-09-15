@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-slash-command",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Slash-command menu for the Trevixal editor: / trigger, fuzzy filtering, keyboard-first execution.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

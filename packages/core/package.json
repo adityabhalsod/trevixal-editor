@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/core",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Framework-agnostic WYSIWYG rich text editing engine. Immutable state, schema-validated documents, invertible transactions.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

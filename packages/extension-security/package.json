@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-security",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Security for the Trevixal editor: password-encrypted documents with expiry, encrypted storage, and copy restrictions.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

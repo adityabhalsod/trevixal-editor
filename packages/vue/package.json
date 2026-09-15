@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/vue",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Vue 3 bindings for the Trevixal editor: useEditor composable, EditorContent component, shallow-ref snapshot.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
