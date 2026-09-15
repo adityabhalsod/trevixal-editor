@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm turbo run build --filter=@trevixal/editor-kit --filter=@trevixal/web-component --filter=@trevixal/ui && pnpm docs:build",
+  "outputDirectory": "docs/.vitepress/dist",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/trevixal/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "max-age=300" }]
+    }
+  ]
+}
