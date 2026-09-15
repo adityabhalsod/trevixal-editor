@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-code-highlight",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Code-block syntax highlighting for the Trevixal editor behind an injectable Highlighter interface.",
   "license": "Apache-2.0",
   "repository": {

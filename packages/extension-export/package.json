@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-export",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Import and export for the Trevixal editor: DOCX and RTF writers, a dependency-free DOCX reader, and file download helpers.",
   "license": "Apache-2.0",
   "repository": {
