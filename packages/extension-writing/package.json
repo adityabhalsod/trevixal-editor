@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-writing",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Writing assistance for the Trevixal editor: readability, passive voice, repeated words, grammar hints and keyword density as decorations and reports.",
   "license": "Apache-2.0",
   "repository": {
@@ -25,7 +25,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

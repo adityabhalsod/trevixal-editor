@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/angular",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Angular bindings for the Trevixal editor: a signal-backed snapshot and view lifecycle, with no Angular compiler required.",
   "license": "Apache-2.0",
   "repository": {
@@ -24,7 +24,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
