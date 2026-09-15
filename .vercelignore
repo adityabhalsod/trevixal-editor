@@ -1,0 +1,43 @@
+# What not to upload when deploying from the CLI.
+#
+# Vercel installs and builds on its own runner, so everything here is either
+# regenerated there or irrelevant to the build. Without this the CLI walks the
+# working tree and sends the turbo cache and node_modules with it: 3.3 GB
+# instead of a few MB.
+#
+# Deploys from the Git integration ignore this file and use the commit, which
+# already excludes all of it.
+
+# Leading-slash-free patterns match at any depth, which matters here: every
+# package and example has its own node_modules and .turbo.
+node_modules
+.turbo
+.git
+.vercel
+
+# Build output, all rebuilt by `vercel.json`'s buildCommand.
+dist
+packages/*/dist
+examples/*/dist
+examples/*/.next
+examples/*/.nuxt
+examples/*/.svelte-kit
+examples/*/.output
+examples/*/.vercel
+examples/*/node_modules/.cache
+.next
+.nuxt
+.svelte-kit
+.output
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/public/api
+docs/public/trevixal
+
+# Test and tooling artefacts.
+coverage
+test-results
+playwright-report
+*.tsbuildinfo
+*.log
+*.tgz
