@@ -25,3 +25,5 @@
 ---
 
 Add `keywords` to every package so npm search can find them by what they do ("rich text editor", "docx", "track changes", "mermaid"), not only by name.
+
+Ship minified ESM and CJS builds. Identifiers and syntax are minified; whitespace is kept so the comments a dynamic import relies on survive.
