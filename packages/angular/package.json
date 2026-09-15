@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/angular",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Angular bindings for the Trevixal editor: a signal-backed snapshot and view lifecycle, with no Angular compiler required.",
   "keywords": [
     "trevixal",

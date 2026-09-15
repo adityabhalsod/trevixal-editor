@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/web-component",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The Trevixal editor as a <trevixal-editor> custom element, including a bundler-free CDN build.",
   "keywords": [
     "trevixal",
