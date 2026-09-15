@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-diagram",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Diagrams for the Trevixal editor: Mermaid (and other text-to-diagram) code blocks rendered to a live preview through a pluggable renderer.",
   "keywords": [
     "trevixal",

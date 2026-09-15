@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-security",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Security for the Trevixal editor: password-encrypted documents with expiry, encrypted storage, and copy restrictions.",
   "keywords": [
     "trevixal",

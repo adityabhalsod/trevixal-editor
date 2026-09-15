@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-workspace",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Workspace for the Trevixal editor: a document store with folders, templates, recents and favourites, a tab strip, a split view and a live preview.",
   "keywords": [
     "trevixal",

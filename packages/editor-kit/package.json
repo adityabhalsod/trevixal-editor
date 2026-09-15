@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/editor-kit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Every Trevixal package, assembled: one call mounts the menubar, toolbar, panels, panes and all twenty extensions.",
   "keywords": [
     "trevixal",
