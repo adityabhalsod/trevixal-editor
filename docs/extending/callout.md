@@ -5,7 +5,7 @@ own. It is the smallest extension that exercises everything: a node type, an
 attribute, commands, a keymap, HTML in both directions, and a menu entry.
 
 About eighty lines, end to end. The finished version ships as part of
-[`@trevixal/extension-blocks`](https://github.com/adityabhalsod/trevixal-editor/tree/main/packages/extension-blocks).
+[`@trevixal/extension-blocks`](https://www.npmjs.com/package/@trevixal/extension-blocks).
 
 ## 1. The node type
 

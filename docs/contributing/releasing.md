@@ -1,8 +1,7 @@
 # Releasing
 
-The full account, with the audit tables and the first-publish checklist, is
-[`RELEASING.md`](https://github.com/adityabhalsod/trevixal-editor/blob/main/RELEASING.md)
-in the repository. This page is the summary.
+The full account, with the audit tables and the first-publish checklist,
+is kept with the maintainers. This page is the summary.
 
 ## What ships
 

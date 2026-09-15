@@ -148,8 +148,7 @@ menu open, with a dialog open, and in the dark theme with contrast included.
 ## The worked example
 
 [`@trevixal/editor-kit`](../guide/full-editor) is the complete worked example
-of everything above: its
-[`mount.ts`](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/editor-kit/src/mount.ts)
+of everything above: its `mount.ts`
 wires the editor and its chrome, and the files beside it hold the shortcut
 table, the security wiring, the suggestion menus, the floating controls, the
 file actions, the split panes and the workspace.

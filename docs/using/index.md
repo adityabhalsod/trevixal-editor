@@ -3,7 +3,7 @@
 These pages describe the assembled editor as a person using it sees it: what
 each part of the screen does, where the commands live, and what the files it
 saves contain. They are written for anyone who has the editor in front of
-them, whether that is the [demo](https://github.com/adityabhalsod/trevixal-editor/tree/main/examples/full-editor),
+them, whether that is the [demo on this site](../full-editor),
 `mountFullEditor` in your own app, or a chrome you assembled yourself from
 `@trevixal/ui`, which shares every menu and shortcut described here.
 

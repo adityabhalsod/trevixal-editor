@@ -39,8 +39,7 @@ decisions behind it that are worth knowing before you rely on them.
 
 Every one has no runtime dependencies, declares `@trevixal/core` as a peer
 dependency, and ships ESM, CJS and type declarations. The assembled
-[`@trevixal/editor-kit`](../guide/full-editor) wires all fifteen together; if
-you want to see every call below made once, in order, read its
-[`mount.ts`](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/editor-kit/src/mount.ts).
+[`@trevixal/editor-kit`](../guide/full-editor) wires all fifteen together; its
+`mount.ts` makes every call below once, in order.
 
 To write one of your own, start with [the callout tutorial](../extending/callout).
