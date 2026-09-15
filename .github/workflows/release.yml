@@ -14,7 +14,10 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write # push the version commit and tags
   pull-requests: write # open and update the "chore: release" PR
-  id-token: write # npm provenance: sign the publish with this run's OIDC identity
+  # Trusted publishing. npm exchanges this run's OIDC identity for a
+  # short-lived credential, so no token is stored anywhere, and mints the
+  # provenance attestation from the same identity.
+  id-token: write
 
 jobs:
   release:
@@ -34,8 +37,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
+          # Trusted publishing needs Node >= 22.14; 22 resolves to the
+          # latest 22.x, which is well past that.
           node-version: 22
           cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      # The runner ships npm 10; the OIDC exchange landed in 11.5.1. pnpm
+      # still runs every other step, it just cannot publish this way: it has
+      # no exchange for the npm:registry.npmjs.org audience.
+      - run: npm install --global npm@latest
 
       - run: pnpm install --frozen-lockfile
 
@@ -49,15 +60,16 @@ jobs:
       - name: Create release PR or publish to npm
         uses: changesets/action@v1
         with:
-          # pnpm rewrites `workspace:` ranges to real versions in the tarball;
-          # a bare `npm publish` would ship them literally.
-          publish: pnpm changeset publish
+          # Not `changeset publish`: that shells out to `pnpm publish`, which
+          # can only authenticate with a token. This script packs with pnpm,
+          # so `workspace:^` is rewritten to a real range, then uploads each
+          # tarball with npm, which is the tool that speaks OIDC.
+          publish: node scripts/publish-packages.mjs
           title: 'chore: release'
           commit: 'chore: release'
         env:
+          # Only for opening the version PR and pushing tags. There is no
+          # NPM_TOKEN: the registry credential comes from OIDC at publish
+          # time. Provenance is automatic for a trusted publish, so there is
+          # no NPM_CONFIG_PROVENANCE either.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Repository secret, added under Settings > Secrets and variables > Actions.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Provenance through OIDC (needs id-token: write above and npm >= 9.5).
-          # Read by npm and pnpm alike; no --provenance flag on the command.
-          NPM_CONFIG_PROVENANCE: true
