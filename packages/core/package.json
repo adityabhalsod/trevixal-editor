@@ -2,6 +2,19 @@
   "name": "@trevixal/core",
   "version": "1.0.1",
   "description": "Framework-agnostic WYSIWYG rich text editing engine. Immutable state, schema-validated documents, invertible transactions.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "contenteditable",
+    "headless",
+    "document-model",
+    "schema",
+    "undo-redo"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

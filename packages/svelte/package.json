@@ -2,6 +2,17 @@
   "name": "@trevixal/svelte",
   "version": "1.0.1",
   "description": "Svelte bindings for the Trevixal editor: a use:trevixalEditor action and a store-contract snapshot.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "svelte",
+    "svelte-action",
+    "bindings"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

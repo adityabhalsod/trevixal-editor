@@ -2,6 +2,17 @@
   "name": "@trevixal/angular",
   "version": "1.0.1",
   "description": "Angular bindings for the Trevixal editor: a signal-backed snapshot and view lifecycle, with no Angular compiler required.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "angular",
+    "signals",
+    "bindings"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

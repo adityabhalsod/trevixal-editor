@@ -2,6 +2,20 @@
   "name": "@trevixal/extension-export",
   "version": "1.0.1",
   "description": "Import and export for the Trevixal editor: DOCX and RTF writers, a dependency-free DOCX reader, and file download helpers.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "docx",
+    "rtf",
+    "word",
+    "export",
+    "import"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

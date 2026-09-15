@@ -2,6 +2,19 @@
   "name": "@trevixal/extension-math",
   "version": "1.0.1",
   "description": "Math for the Trevixal editor: inline and display LaTeX equations rendered to MathML, with an input rule and a pluggable renderer.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "math",
+    "latex",
+    "mathml",
+    "equations"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

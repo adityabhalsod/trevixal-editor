@@ -2,6 +2,17 @@
   "name": "@trevixal/extension-diagram",
   "version": "1.0.1",
   "description": "Diagrams for the Trevixal editor: Mermaid (and other text-to-diagram) code blocks rendered to a live preview through a pluggable renderer.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "mermaid",
+    "diagram"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

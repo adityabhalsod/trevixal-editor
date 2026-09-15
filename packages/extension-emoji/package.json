@@ -2,6 +2,17 @@
   "name": "@trevixal/extension-emoji",
   "version": "1.0.1",
   "description": "Emoji picker for the Trevixal editor: :shortcode trigger with built-in search.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "emoji",
+    "emoji-picker"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

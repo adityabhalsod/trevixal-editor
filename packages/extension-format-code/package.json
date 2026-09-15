@@ -2,6 +2,19 @@
   "name": "@trevixal/extension-format-code",
   "version": "1.0.1",
   "description": "JSON and XML pretty-printing and minification for the Trevixal editor, with an in-place code-block reformat command.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "json",
+    "xml",
+    "pretty-print",
+    "minify"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

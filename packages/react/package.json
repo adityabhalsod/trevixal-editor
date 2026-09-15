@@ -2,6 +2,17 @@
   "name": "@trevixal/react",
   "version": "1.0.1",
   "description": "React bindings for the Trevixal editor: useEditor, EditorContent, snapshot store and portal-based node views.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "react",
+    "react-hooks",
+    "bindings"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

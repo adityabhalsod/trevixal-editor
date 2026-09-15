@@ -2,6 +2,18 @@
   "name": "@trevixal/web-component",
   "version": "1.0.1",
   "description": "The Trevixal editor as a <trevixal-editor> custom element, including a bundler-free CDN build.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "web-component",
+    "custom-element",
+    "cdn",
+    "no-build"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

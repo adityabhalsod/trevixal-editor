@@ -2,6 +2,18 @@
   "name": "@trevixal/extension-image",
   "version": "1.0.1",
   "description": "Images for the Trevixal editor: pluggable storage backends, drag-and-drop and paste upload, resize, alignment and captions.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "image",
+    "upload",
+    "drag-and-drop"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

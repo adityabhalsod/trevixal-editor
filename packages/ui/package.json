@@ -2,6 +2,18 @@
   "name": "@trevixal/ui",
   "version": "1.0.1",
   "description": "Optional prebuilt UI for Trevixal: accessible toolbar and themes. Headless-first, bring your own UI if you prefer.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "toolbar",
+    "themes",
+    "accessible",
+    "a11y"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

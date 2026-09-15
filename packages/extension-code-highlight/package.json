@@ -2,6 +2,17 @@
   "name": "@trevixal/extension-code-highlight",
   "version": "1.0.1",
   "description": "Code-block syntax highlighting for the Trevixal editor behind an injectable Highlighter interface.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "syntax-highlighting",
+    "code-block"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

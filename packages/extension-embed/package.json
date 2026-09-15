@@ -2,6 +2,19 @@
   "name": "@trevixal/extension-embed",
   "version": "1.0.1",
   "description": "Media embeds for the Trevixal editor: video, audio, YouTube/Vimeo and iframe embeds, file attachments and link preview cards.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "embed",
+    "video",
+    "youtube",
+    "attachments"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

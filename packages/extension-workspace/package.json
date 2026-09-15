@@ -2,6 +2,18 @@
   "name": "@trevixal/extension-workspace",
   "version": "1.0.1",
   "description": "Workspace for the Trevixal editor: a document store with folders, templates, recents and favourites, a tab strip, a split view and a live preview.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "workspace",
+    "documents",
+    "tabs"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

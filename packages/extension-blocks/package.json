@@ -2,6 +2,19 @@
   "name": "@trevixal/extension-blocks",
   "version": "1.0.1",
   "description": "Structural blocks for the Trevixal editor: callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes and anchors.",
+  "keywords": [
+    "trevixal",
+    "wysiwyg",
+    "rich-text",
+    "rich-text-editor",
+    "editor",
+    "typescript",
+    "extension",
+    "callout",
+    "columns",
+    "toggle",
+    "footnote"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
