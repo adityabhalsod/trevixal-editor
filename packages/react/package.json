@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/react",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "React bindings for the Trevixal editor: useEditor, EditorContent, snapshot store and portal-based node views.",
   "license": "Apache-2.0",
   "repository": {
