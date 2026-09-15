@@ -2055,6 +2055,7 @@ mentions and sharing. Trevixal is a single-user editor. Tracked changes,
 slash commands, emoji and the security package stayed. They are editing
 features, not collaboration.
 
-## License
+---
 
+## License
 Apache-2.0: see [`LICENSE`](LICENSE).
