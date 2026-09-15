@@ -1,0 +1,204 @@
+@use 'tokens' as t;
+
+// Toolbar: WAI-ARIA toolbar pattern with roving tabindex.
+
+.trevixal-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: t.token('space-1');
+  min-height: t.token('toolbar-height');
+  padding: t.token('space-1') t.token('space-2');
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+  font-family: t.token('font-family');
+  // Nothing may spill outside the bar's own box, whatever it holds.
+  max-width: 100%;
+  box-sizing: border-box;
+  // The insertion bar shown while a group is dragged positions itself here.
+  position: relative;
+
+  &__group {
+    display: flex;
+    gap: t.token('space-1');
+    // A group may shrink rather than push its neighbours out of the bar.
+    min-width: 0;
+    flex-wrap: wrap;
+
+    & + & {
+      margin-left: t.token('space-2');
+      padding-left: t.token('space-2');
+      border-left: 1px solid t.token('color-border');
+    }
+
+    // A group that wraps onto a new row would otherwise start with a stray
+    // divider hanging off its left edge.
+    &:first-child {
+      margin-left: 0;
+      padding-left: 0;
+      border-left: none;
+    }
+  }
+
+  // Selects inside a group carry fixed widths; let them give way first, since
+  // a narrowed select still works while a clipped button does not.
+  .trevixal-select,
+  .trevixal-dropdown {
+    min-width: 0;
+
+    > .trevixal-dropdown__trigger {
+      min-width: 0;
+      max-width: 100%;
+    }
+  }
+
+  &__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 t.token('space-2');
+    background: transparent;
+    color: t.token('color-text');
+    border: none;
+    border-radius: t.token('radius-sm');
+    font-size: 0.875rem;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+
+    // See the note in `_chrome.scss`: a border colour can be the same ink as
+    // the text, which would hide the label of whatever it fills.
+    &:hover:not(:disabled) {
+      background: t.token('color-selection');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+
+    &[aria-pressed='true'] {
+      background: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+
+    &:disabled {
+      color: t.token('color-text-muted');
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+
+  // ---- rearranging groups ----------------------------------------------------
+  // The dots a group is dragged by, present when the bar is reorderable.
+  &__grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: t.token('color-text-muted');
+    border: none;
+    border-radius: t.token('radius-sm');
+    cursor: grab;
+    // The browser must not turn the drag into a scroll or a text selection.
+    touch-action: none;
+    user-select: none;
+
+    svg {
+      width: 14px;
+      height: 14px;
+      // Six dots at the icon stroke are nearly invisible; thicker, they read
+      // as a handle.
+      stroke-width: 3;
+    }
+
+    &:hover {
+      background: t.token('color-selection');
+      color: t.token('color-text');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+
+    // Picked up from the keyboard.
+    &[aria-pressed='true'] {
+      background: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+  }
+
+  // While a grip is being dragged.
+  &--reordering,
+  &--reordering * {
+    cursor: grabbing;
+  }
+
+  &__group--dragging {
+    opacity: 0.45;
+  }
+
+  // Picked up from the keyboard: the whole group shows it is in transit.
+  &__group--grabbed {
+    border-radius: t.token('radius-sm');
+    box-shadow: t.token('focus-ring');
+  }
+
+  // Where the dragged group will land.
+  &__drop {
+    position: absolute;
+    width: 2px;
+    border-radius: 1px;
+    background: t.token('color-accent');
+    pointer-events: none;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // Announcements for keyboard moves: present to screen readers only.
+  &__live {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+// ---- narrow viewports --------------------------------------------------------
+// The bar keeps wrapping here rather than collapsing into one scrolling row.
+// A sideways scroller shows no scrollbar on a touch screen, so everything past
+// the first few controls simply looked cut off. Wrapping costs rows; the
+// tighter spacing and shorter selects below win some of them back.
+@media (max-width: 40rem) {
+  .trevixal-toolbar {
+    padding: t.token('space-1');
+
+    &__group {
+      // Once every group wraps, the dividers land mid-row as often as at a
+      // row's start, so they read as noise. The gap alone separates groups.
+      & + & {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+      }
+    }
+
+    // Labelled selects are the widest controls; at this size their value is
+    // still visible in the document, so the label can go.
+    .trevixal-select > .trevixal-dropdown__trigger {
+      max-width: 6.5rem;
+    }
+  }
+}

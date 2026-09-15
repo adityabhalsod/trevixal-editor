@@ -1,0 +1,29 @@
+{
+  "name": "@trevixal/example-angular",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trevixal in an Angular app: the whole editor mounted from afterNextRender, outside change detection.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+  },
+  "dependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^2.7.2",
+    "@angular/build": "^22.1.0",
+    "@angular/compiler-cli": "^22.1.0",
+    "typescript": "~6.0.0",
+    "vite": "^8.3.0"
+  }
+}

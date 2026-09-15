@@ -1,0 +1,25 @@
+{
+  "name": "@trevixal/example-svelte",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trevixal in a Svelte app: the whole editor mounted from an effect, and a Svelte component rendered inside the document.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trevixal/core": "workspace:*",
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/svelte": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "svelte": "^5.57.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}

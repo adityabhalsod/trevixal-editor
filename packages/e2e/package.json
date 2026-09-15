@@ -1,0 +1,25 @@
+{
+  "name": "@trevixal/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cross-browser end-to-end tests for the Trevixal editor.",
+  "type": "module",
+  "scripts": {
+    "build": "node build-page.mjs",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.49.0",
+    "@trevixal/core": "workspace:*",
+    "@trevixal/extension-image": "workspace:*",
+    "@trevixal/extension-table": "workspace:*",
+    "@trevixal/extension-track-changes": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "@types/node": "^22.10.0",
+    "axe-core": "^4.13.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2"
+  }
+}

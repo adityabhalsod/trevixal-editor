@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        "page/*.js",
+        "page/*.css",
+        "vendor/*.js",
+        "vendor/*.css",
+        "build/**",
+        ".next/**",
+        "!.next/cache/**",
+        ".output/**",
+        ".nuxt/**"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "coverage": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

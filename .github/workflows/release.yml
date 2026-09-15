@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    # This workflow creates those tags. Listening for them would have a
+    # publish start another release run.
+    tags-ignore: ['**']
+
+# One release run at a time; a second push waits rather than racing the first
+# to open the version PR or publish.
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write # push the version commit and tags
+  pull-requests: write # open and update the "chore: release" PR
+  id-token: write # npm provenance: sign the publish with this run's OIDC identity
+
+jobs:
+  release:
+    name: Version PR or publish
+    # Same `[skip cicd]` marker as CI. Only the push event reaches this
+    # workflow, so only the head commit is worth reading.
+    if: "!contains(github.event.head_commit.message || '', '[skip cicd]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Changesets reads history to work out what changed since the last release.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Everything below must pass before the publish step can run. A failing
+      # step fails the job, and the changesets action never starts.
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm check:pkg
+
+      - name: Create release PR or publish to npm
+        uses: changesets/action@v1
+        with:
+          # pnpm rewrites `workspace:` ranges to real versions in the tarball;
+          # a bare `npm publish` would ship them literally.
+          publish: pnpm changeset publish
+          title: 'chore: release'
+          commit: 'chore: release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Repository secret, added under Settings > Secrets and variables > Actions.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance through OIDC (needs id-token: write above and npm >= 9.5).
+          # Read by npm and pnpm alike; no --provenance flag on the command.
+          NPM_CONFIG_PROVENANCE: true

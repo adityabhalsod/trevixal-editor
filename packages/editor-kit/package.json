@@ -1,0 +1,72 @@
+{
+  "name": "@trevixal/editor-kit",
+  "version": "0.0.1",
+  "description": "Every Trevixal package, assembled: one call mounts the menubar, toolbar, panels, panes and all twenty extensions.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adityabhalsod/trevixal-editor.git",
+    "directory": "packages/editor-kit"
+  },
+  "type": "module",
+  "sideEffects": ["*.css", "*.scss", "./dist/trevixal-editor-kit.iife.js"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./styles.css": "./dist/styles.css",
+    "./scss/*": "./dist/scss/*",
+    "./cdn": "./dist/trevixal-editor-kit.iife.js"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup && sass src/styles/editor-kit.scss dist/styles.css --no-source-map --no-charset --style=compressed && node -e \"require('node:fs').cpSync('src/styles','dist/scss',{recursive:true})\"",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@trevixal/core": "workspace:^",
+    "@trevixal/ui": "workspace:^"
+  },
+  "dependencies": {
+    "@trevixal/extension-blocks": "workspace:*",
+    "@trevixal/extension-code-highlight": "workspace:*",
+    "@trevixal/extension-diagram": "workspace:*",
+    "@trevixal/extension-embed": "workspace:*",
+    "@trevixal/extension-emoji": "workspace:*",
+    "@trevixal/extension-export": "workspace:*",
+    "@trevixal/extension-format-code": "workspace:*",
+    "@trevixal/extension-image": "workspace:*",
+    "@trevixal/extension-math": "workspace:*",
+    "@trevixal/extension-security": "workspace:*",
+    "@trevixal/extension-slash-command": "workspace:*",
+    "@trevixal/extension-table": "workspace:*",
+    "@trevixal/extension-track-changes": "workspace:*",
+    "@trevixal/extension-workspace": "workspace:*",
+    "@trevixal/extension-writing": "workspace:*"
+  },
+  "devDependencies": {
+    "@trevixal/core": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "happy-dom": "^15.11.0",
+    "sass": "^1.83.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "unpkg": "./dist/trevixal-editor-kit.iife.js",
+  "jsdelivr": "./dist/trevixal-editor-kit.iife.js"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@trevixal/example-solid",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trevixal in a Solid app: the whole editor mounted from onMount, with no adapter package at all.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "solid-js": "^1.9.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.14"
+  }
+}

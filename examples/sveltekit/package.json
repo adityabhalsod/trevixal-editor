@@ -1,0 +1,26 @@
+{
+  "name": "@trevixal/example-sveltekit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trevixal in a SvelteKit app: the whole editor behind a browser guard, on a prerendered route.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.10",
+    "@sveltejs/kit": "^2.70.3",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.1.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}

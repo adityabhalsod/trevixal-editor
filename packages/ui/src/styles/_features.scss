@@ -1,0 +1,1434 @@
+// Styles for the features added on top of the original chrome: the shortcut
+// manager, source modes, autosave, history, quick tools, page view, and the
+// extension surfaces (media, math, diagrams, track changes, writing checks,
+// workspace tabs and image tools).
+//
+// Extension packages ship no CSS of their own. They render the class names
+// below, and this file is the one place their look is defined, so a host
+// theming the kit themes them too.
+@use 'tokens' as t;
+
+// ------------------------------------------------------- shortcut manager
+
+.trevixal-shortcuts {
+  width: min(38rem, 100%);
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: t.token('space-3');
+    max-height: 50vh;
+    overflow-y: auto;
+    @include t.slim-scrollbar;
+  }
+
+  &__heading {
+    margin: 0 0 t.token('space-1');
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: t.token('space-2');
+    padding: t.token('space-1') 0;
+
+    &--recording {
+      background: t.token('color-selection');
+      border-radius: t.token('radius-sm');
+    }
+  }
+
+  &__keys {
+    padding: 2px 6px;
+    background: t.token('color-code-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: 600 0.75rem/1.4 t.token('font-family-mono');
+    white-space: nowrap;
+
+    &--custom {
+      border-color: t.token('color-accent');
+      color: t.token('color-accent');
+    }
+  }
+
+  &__change,
+  &__reset {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+  }
+
+  &__status {
+    margin: t.token('space-2') 0 0;
+    min-height: 1.2em;
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+}
+
+.trevixal-dialog {
+  &__hint {
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+  }
+
+  &__field--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: t.token('space-2');
+  }
+
+  &__input--checkbox {
+    width: auto;
+    accent-color: t.token('color-accent');
+  }
+
+  &__button--danger {
+    background: t.token('color-danger');
+    border-color: t.token('color-danger');
+    color: #fff;
+  }
+
+  &--preview,
+  &--shortcuts,
+  &--customize,
+  &--backups {
+    width: min(46rem, 100%);
+  }
+}
+
+// ------------------------------------------------------------ source mode
+
+.trevixal-source {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-2');
+  min-height: 18rem;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+  }
+
+  &__label {
+    margin-right: auto;
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+
+  &__button {
+    padding: t.token('space-1') t.token('space-3');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &--primary {
+      background: t.token('color-accent');
+      border-color: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+  }
+
+  &__text {
+    flex: 1;
+    min-height: 16rem;
+    padding: t.token('space-3');
+    background: t.token('color-code-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: 0.85rem/1.6 t.token('font-family-mono');
+    resize: vertical;
+    tab-size: 2;
+  }
+}
+
+// ------------------------------------------- autosave, drafts and backups
+
+.trevixal-autosave {
+  color: t.token('color-text-muted');
+  font-size: 0.75rem;
+  white-space: nowrap;
+
+  &[data-status='error'] {
+    color: t.token('color-danger');
+  }
+
+  &[data-status='saving'],
+  &[data-status='dirty'] {
+    font-style: italic;
+  }
+}
+
+.trevixal-banner {
+  display: flex;
+  align-items: center;
+  gap: t.token('space-2');
+  margin-bottom: t.token('space-2');
+  padding: t.token('space-2') t.token('space-3');
+  background: t.token('color-tone-info-bg');
+  border: 1px solid t.token('color-tone-info-accent');
+  border-radius: t.token('radius-md');
+  color: t.token('color-text');
+  font-size: 0.85rem;
+
+  &__text {
+    margin-right: auto;
+  }
+
+  &__button {
+    padding: t.token('space-1') t.token('space-2');
+    background: transparent;
+    color: inherit;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &--primary {
+      background: t.token('color-accent');
+      border-color: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+  }
+}
+
+.trevixal-backups {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-1');
+  margin: 0 0 t.token('space-3');
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  list-style: none;
+  @include t.slim-scrollbar;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+  }
+
+  &__label {
+    margin-right: auto;
+    font-size: 0.85rem;
+  }
+}
+
+// ---------------------------------------------------------- history panel
+
+.trevixal-history {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-2');
+  font-size: 0.8rem;
+
+  &__bar {
+    display: flex;
+    gap: t.token('space-1');
+  }
+
+  &__button {
+    flex: 1;
+    padding: t.token('space-1');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    &--quiet {
+      flex: 0 0 auto;
+    }
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    max-height: 18rem;
+    overflow-y: auto;
+    list-style: none;
+    @include t.slim-scrollbar;
+  }
+
+  &__entry {
+    display: flex;
+    align-items: baseline;
+    gap: t.token('space-2');
+    width: 100%;
+    padding: 3px t.token('space-2');
+    background: none;
+    color: inherit;
+    border: 0;
+    border-left: 2px solid transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+
+    &[aria-current='step'] {
+      border-left-color: t.token('color-accent');
+      font-weight: 600;
+    }
+  }
+
+  &__meta {
+    margin-left: auto;
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Undone groups stay listed, greyed, so redo has somewhere visible to go.
+  &__item--future &__entry,
+  &__item--future button {
+    opacity: 0.5;
+  }
+
+  &__item--more {
+    padding: 3px t.token('space-2');
+    color: t.token('color-text-muted');
+    font-style: italic;
+  }
+}
+
+// --------------------------------------- quick insert, recents, customize
+
+.trevixal-quickinsert {
+  &__search {
+    width: 100%;
+    margin-bottom: t.token('space-2');
+    padding: t.token('space-1') t.token('space-2');
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    max-height: 20rem;
+    min-width: 16rem;
+    overflow-y: auto;
+    @include t.slim-scrollbar;
+  }
+
+  &__heading {
+    padding: t.token('space-1') t.token('space-2') 2px;
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  &__item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: t.token('space-2');
+    padding: t.token('space-1') t.token('space-2');
+    background: none;
+    color: inherit;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: t.token('color-selection');
+      outline: none;
+    }
+  }
+
+  &__description {
+    grid-column: 2;
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+  }
+
+  &__empty {
+    margin: 0;
+    padding: t.token('space-2');
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+}
+
+.trevixal-recenttools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+
+  &__button[data-trevixal-favorite='true'] {
+    // A pinned tool keeps a dot under it, so the tray reads as two runs.
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: t.token('color-accent');
+      transform: translateX(-50%);
+    }
+  }
+}
+
+.trevixal-customize {
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 t.token('space-3');
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+    padding: 2px 0;
+  }
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+    margin-right: auto;
+    cursor: pointer;
+  }
+
+  &__move {
+    width: 1.75rem;
+    padding: 2px;
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+}
+
+// ---------------------------------------------- print preview & page view
+
+.trevixal-print-preview {
+  &__frame {
+    width: 100%;
+    height: 60vh;
+    margin-bottom: t.token('space-3');
+    background: #fff;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+  }
+}
+
+// The paginated view: the surface becomes a sheet on a desk, with a rule
+// where each page ends. The model has no pages. This is a guide, and the
+// browser still decides the real breaks when printing.
+.trevixal-paged {
+  background: t.token('color-surface');
+  padding: t.token('space-4') 0;
+
+  .trevixal-content {
+    width: var(--tvx-page-width, 210mm);
+    min-height: var(--tvx-page-height, 297mm);
+    max-width: 100%;
+    margin: 0 auto;
+    padding: var(--tvx-page-margin, 20mm);
+    // `background-color`, not `background`: the shorthand holds a `var()` and
+    // the `background-image` below overrides part of it, which is the pair
+    // the CSSOM cannot serialize. See `collect-css.ts`.
+    background-color: t.token('color-bg');
+    box-shadow: t.token('shadow-raised');
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--tvx-page-height, 297mm) - 1px),
+      t.token('color-border') calc(var(--tvx-page-height, 297mm) - 1px),
+      t.token('color-border') var(--tvx-page-height, 297mm)
+    );
+  }
+}
+
+// -------------------------------------------------------- media & embeds
+
+.trevixal-content {
+  .trevixal-video,
+  .trevixal-audio {
+    display: block;
+    max-width: 100%;
+    margin: t.token('space-3') 0;
+    border-radius: t.token('radius-sm');
+  }
+
+  .trevixal-audio {
+    width: 100%;
+  }
+
+  .trevixal-embed {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: t.token('space-3') 0;
+    background: t.token('color-surface');
+    border: 0;
+    border-radius: t.token('radius-sm');
+  }
+
+  // What a saved page shows in place of a player that will not start there.
+  // See `export-script.ts`. It keeps the frame's footprint, so the page does
+  // not reflow around a missing video.
+  a.trevixal-embed--offsite {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: t.token('space-1');
+    padding: t.token('space-3');
+    border: 1px dashed t.token('color-border');
+    color: t.token('color-accent');
+    text-align: center;
+    text-decoration: none;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+  }
+
+  .trevixal-embed__label {
+    font-weight: 600;
+  }
+
+  .trevixal-embed__note {
+    max-width: 42ch;
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+
+  .trevixal-attachment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.1em 0.5em;
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-radius: 999px;
+    color: inherit;
+    text-decoration: none;
+    vertical-align: baseline;
+
+    &__size {
+      color: t.token('color-text-muted');
+      font-size: 0.8em;
+    }
+  }
+
+  [data-trevixal-uploading] {
+    animation: trevixal-pulse 1.2s ease-in-out infinite;
+  }
+
+  .trevixal-linkcard {
+    display: flex;
+    gap: t.token('space-3');
+    margin: t.token('space-3') 0;
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-md');
+    overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+
+    &__image {
+      flex: 0 0 8rem;
+      width: 8rem;
+      object-fit: cover;
+    }
+
+    &__body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: t.token('space-3');
+      min-width: 0;
+    }
+
+    &__title {
+      font-weight: 600;
+    }
+
+    &__description {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      color: t.token('color-text-muted');
+      font-size: 0.85rem;
+    }
+
+    &__site {
+      color: t.token('color-text-muted');
+      font-size: 0.75rem;
+    }
+  }
+}
+
+@keyframes trevixal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+// ------------------------------------------------------- math & diagrams
+
+.trevixal-math {
+  display: inline-block;
+  padding: 0 0.15em;
+  border-radius: t.token('radius-sm');
+  font-size: 1.05em;
+  cursor: default;
+
+  math {
+    font-family: 'Latin Modern Math', 'STIX Two Math', 'Cambria Math', 'Noto Sans Math', serif;
+  }
+
+  &--block {
+    display: block;
+    margin: t.token('space-3') 0;
+    padding: t.token('space-2') t.token('space-3');
+    text-align: center;
+  }
+
+  &__unknown,
+  merror {
+    color: t.token('color-danger');
+  }
+
+  &__empty {
+    color: t.token('color-text-muted');
+  }
+}
+
+// A diagram renderer draws in a palette of its own, Mermaid's is dark ink on
+// nothing at all, and the kit cannot restyle its internals. So the plate
+// under it stays light whatever the page theme is: on a dark one the diagram
+// would otherwise be drawn in near-black on near-black.
+//
+// Sized to the drawing and centred, so it reads as a figure rather than a
+// band across the column. Inside the block it previews, the rules below make
+// it the lower half of that block instead.
+.trevixal-diagram {
+  width: fit-content;
+  max-width: 100%;
+  margin: t.token('space-3') auto;
+  padding: t.token('space-3');
+  background: #ffffff;
+  // Fixed ink for a fixed ground. The plate stays light whatever the theme is,
+  // because the renderer draws in a palette of its own, so the words on it
+  // have to be dark for the same reason. Taking them from the theme instead
+  // put pale text on white the moment anyone picked a dark preset, which is
+  // where this plate's own placeholder and error message live.
+  color: #1a1a2b;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  overflow-x: auto;
+  font-family: t.token('font-family');
+  white-space: normal;
+  user-select: none;
+
+  svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+
+  &--pending {
+    // Muted by colour alone. At 70 % opacity even near-black composites to
+    // about 4.2:1 on white, under the 4.5 the rest of the kit holds to, for
+    // a message whose whole job is to be read while you wait.
+    color: #5f6172;
+    font-style: italic;
+  }
+
+  &--error {
+    color: #b3261e;
+
+    &::before {
+      content: '⚠ ';
+    }
+  }
+}
+
+// Previewing the block it sits in: the drawing belongs to the source above it,
+// so it fills the block's width and closes off its lower corners.
+pre > .trevixal-diagram {
+  width: auto;
+  margin: t.token('space-3') 0 0;
+  border: 0;
+  border-top: 1px dashed t.token('color-border');
+  border-radius: 0 0 t.token('radius-sm') t.token('radius-sm');
+}
+
+// -------------------------------------------------------- writing checks
+
+.trevixal-writing {
+  text-decoration-skip-ink: none;
+
+  &--passive {
+    text-decoration: underline wavy t.token('color-tone-warning-accent');
+  }
+
+  &--repeat {
+    text-decoration: underline wavy t.token('color-danger');
+  }
+
+  &--grammar {
+    text-decoration: underline wavy t.token('color-accent');
+  }
+
+  &--long {
+    background: t.token('color-tone-warning-bg');
+  }
+
+  // A flagged word is something you can act on, so it says so. Only when
+  // there is a pointer to say it to: on a touch screen this would leave every
+  // flagged word looking permanently hovered.
+  @media (hover: hover) {
+    &:hover {
+      background: t.token('color-selection');
+      border-radius: 2px;
+      cursor: pointer;
+    }
+  }
+}
+
+// The hover card and the fix menu. Both float above everything and are
+// positioned from script in viewport coordinates, so both are fixed.
+%trevixal-writing-popover {
+  position: fixed;
+  z-index: 45;
+  max-width: min(22rem, calc(100vw - 16px));
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: 0 6px 20px rgba(16, 16, 32, 0.16);
+
+  // `display` set by a class outranks the user-agent rule for `[hidden]`, so
+  // a floating control has to opt back out explicitly, otherwise it stays
+  // laid out at the origin and widens the page.
+  &[hidden] {
+    display: none;
+  }
+}
+
+// Deliberately small: it is a label on a word, not a panel. It never takes
+// the pointer, so moving towards it does not count as leaving the word.
+.trevixal-writing-card {
+  @extend %trevixal-writing-popover;
+
+  display: flex;
+  align-items: baseline;
+  gap: t.token('space-2');
+  padding: 5px t.token('space-2');
+  font-size: 0.75rem;
+  line-height: 1.45;
+  pointer-events: none;
+
+  &__kind {
+    flex: none;
+    color: t.token('color-accent');
+    font-weight: 600;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+
+    &--passive,
+    &--long {
+      color: t.token('color-tone-warning-accent');
+    }
+
+    &--repeat {
+      color: t.token('color-danger');
+    }
+  }
+
+  &__message {
+    color: t.token('color-text');
+  }
+}
+
+.trevixal-writing-menu {
+  @extend %trevixal-writing-popover;
+
+  display: flex;
+  flex-direction: column;
+  min-width: 13rem;
+  padding: t.token('space-1');
+  font-size: 0.8rem;
+
+  &__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: t.token('space-1') t.token('space-2') t.token('space-2');
+    border-bottom: 1px solid t.token('color-border');
+  }
+
+  &__kind {
+    color: t.token('color-accent');
+    font-weight: 600;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+
+    &--passive,
+    &--long {
+      color: t.token('color-tone-warning-accent');
+    }
+
+    &--repeat {
+      color: t.token('color-danger');
+    }
+  }
+
+  &__message {
+    color: t.token('color-text');
+  }
+
+  &__note {
+    margin: 0;
+    padding: t.token('space-2');
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+  }
+
+  &__item {
+    padding: t.token('space-1') t.token('space-2');
+    margin-top: 2px;
+    background: none;
+    color: t.token('color-text');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: t.token('color-surface');
+      outline: none;
+    }
+
+    &:focus-visible {
+      box-shadow: t.token('focus-ring');
+    }
+
+    // The replacement is the reason the menu opened; it reads first.
+    &--primary {
+      color: t.token('color-accent');
+      font-weight: 600;
+    }
+  }
+}
+
+// -------------------------------------------------------- track changes
+
+.trevixal-trackchanges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: t.token('space-1');
+  padding: t.token('space-1') t.token('space-2');
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  font-size: 0.8rem;
+
+  button {
+    padding: 2px 8px;
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      background: t.token('color-accent');
+      border-color: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  }
+
+  &__count {
+    margin-right: auto;
+    color: t.token('color-text-muted');
+  }
+}
+
+// -------------------------------------------------- tabs, accordion, refs
+
+.trevixal-content {
+  .trevixal-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    margin: t.token('space-3') 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+
+    &__panel {
+      display: contents;
+    }
+
+    &__title {
+      order: 0;
+      margin: 0;
+      padding: 0.4rem 0.9rem;
+      color: t.token('color-text-muted');
+      border-bottom: 2px solid transparent;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    // Written out rather than with `&__title`: inside a nested block `&`
+    // expands to the whole parent selector, which would put the descendant
+    // part back in and match nothing.
+    &__panel[data-active='true'] > .trevixal-tabs__title {
+      border-bottom-color: t.token('color-accent');
+      color: t.token('color-text');
+    }
+
+    &__content {
+      order: 1;
+      flex-basis: 100%;
+      padding: t.token('space-3');
+      border-top: 1px solid t.token('color-border');
+    }
+
+    &__panel:not([data-active='true']) > .trevixal-tabs__content {
+      display: none;
+    }
+  }
+
+  // Paper has no tabs to click, so a printout of the active panel alone
+  // quietly drops the rest of what the document says. This has to sit here,
+  // after the rule it undoes: the two weigh the same, so the later one wins.
+  @media print {
+    .trevixal-tabs__panel:not([data-active='true']) > .trevixal-tabs__content {
+      display: block;
+    }
+  }
+
+  .trevixal-accordion {
+    display: flex;
+    flex-direction: column;
+    margin: t.token('space-3') 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+
+    &__item + &__item {
+      border-top: 1px solid t.token('color-border');
+    }
+
+    &__title {
+      padding: t.token('space-2') t.token('space-3');
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &::before {
+        content: '▸';
+        display: inline-block;
+        margin-right: t.token('space-2');
+        color: t.token('color-text-muted');
+        transition: transform 120ms ease;
+      }
+    }
+
+    &__item[open] > .trevixal-accordion__title::before {
+      transform: rotate(90deg);
+    }
+
+    &__content {
+      padding: 0 t.token('space-3') t.token('space-3');
+    }
+  }
+
+  .trevixal-citation {
+    font-size: 0.75em;
+
+    a {
+      color: t.token('color-accent');
+      text-decoration: none;
+    }
+  }
+
+  .trevixal-references {
+    margin: t.token('space-4') 0 0;
+    padding-left: t.token('space-4');
+    border-top: 1px solid t.token('color-border');
+    padding-top: t.token('space-3');
+    font-size: 0.9em;
+  }
+}
+
+// -------------------------------------------------------------- workspace
+
+.trevixal-tabs-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  // The strip is the top edge of the editor below it, so it sits on a rule
+  // the active tab then breaks through.
+  border-bottom: 1px solid t.token('color-border');
+  @include t.slim-scrollbar($size: 4px);
+
+  &__tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  // One tab is three controls (the title, its menu, its close button) and
+  // they have to read as a single object. Without this the wrapper was a
+  // plain block and they sat in a row of unrelated buttons.
+  &__item {
+    display: flex;
+    align-items: center;
+    max-width: 14rem;
+    padding-right: 2px;
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-bottom: 0;
+    border-radius: t.token('radius-sm') t.token('radius-sm') 0 0;
+    // The active tab joins the page below it; the rest stay behind the rule.
+    margin-bottom: -1px;
+
+    &:hover {
+      background: t.token('color-bg');
+    }
+
+    // Keyed off the wrapper rather than the title's ARIA, so the whole tab
+    // changes together and the markup says which one is open.
+    &[data-active='true'] {
+      background: t.token('color-bg');
+      // The tab and the page it belongs to share an edge: the rule under the
+      // strip is painted over, which is what joins the two.
+      border-bottom: 1px solid t.token('color-bg');
+      box-shadow: inset 0 2px 0 t.token('color-accent');
+    }
+  }
+
+  &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: t.token('space-1');
+    min-width: 0;
+    padding: t.token('space-1') t.token('space-2');
+    background: none;
+    color: t.token('color-text-muted');
+    border: 0;
+    font: inherit;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+
+    [data-active='true'] > & {
+      color: t.token('color-text');
+      font-weight: 600;
+    }
+  }
+
+  // A long title gives way rather than pushing the menu and close button off
+  // the end of the tab, those are how the tab is managed at all.
+  &__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__pin {
+    flex: none;
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  &__rename {
+    width: 8rem;
+    margin: 2px;
+    padding: 2px t.token('space-1');
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-accent');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.8rem;
+  }
+
+  // The `…` menu and the `×`: same shape, so neither reads as the louder of
+  // the two. Both were unstyled, and arrived as default grey browser buttons
+  // with a bevel, the one thing in the chrome that looked like a form.
+  &__more,
+  &__close {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    color: t.token('color-text-muted');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+      color: t.token('color-text');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  // `+` sits outside the tabs, so it is a button in its own right rather than
+  // part of the last one.
+  &__new {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin: 0 t.token('space-1') 2px;
+    padding: 0;
+    background: none;
+    color: t.token('color-text-muted');
+    border: 1px solid transparent;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-surface');
+      border-color: t.token('color-border');
+      color: t.token('color-text');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__menu {
+    position: absolute;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    min-width: 11rem;
+    padding: t.token('space-1');
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    box-shadow: t.token('shadow-raised');
+    font-size: 0.8rem;
+
+    button {
+      padding: t.token('space-1') t.token('space-2');
+      background: none;
+      color: inherit;
+      border: 0;
+      border-radius: t.token('radius-sm');
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        background: t.token('color-selection');
+        outline: none;
+      }
+    }
+  }
+}
+
+.trevixal-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-2');
+  font-size: 0.8rem;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-1');
+    padding: 2px t.token('space-1');
+    border-left: 2px solid transparent;
+    border-radius: t.token('radius-sm');
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+
+    &[aria-current='true'] {
+      border-left-color: t.token('color-accent');
+      font-weight: 600;
+    }
+  }
+
+  &__folder--dragover {
+    background: t.token('color-selection');
+    border-radius: t.token('radius-sm');
+  }
+}
+
+// The split root holds exactly one pane, the preview frame or the mirrored
+// editor, and the host lays that pane out beside or below the editor. It
+// used to declare two equal tracks while holding that single child, so half
+// of every split view was empty and the pane rendered into a column half the
+// width it had been given: a document a few characters wide, wrapping one
+// letter per line.
+.trevixal-split {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+
+  &__pane {
+    display: flex;
+    flex: 1;
+    // Without this a flex item refuses to shrink below its content, and a
+    // preview of a wide document pushes the pane past its container instead
+    // of scrolling inside it.
+    min-width: 0;
+    min-height: 0;
+  }
+
+  // Stacked under the editor rather than beside it: there is no height to
+  // inherit, so the pane asks for one.
+  &--vertical {
+    // Written out rather than nested as `&__pane`: inside a nested block `&`
+    // expands to the whole parent selector, which would put the modifier back
+    // in and match nothing.
+    .trevixal-split__pane {
+      min-height: 14rem;
+    }
+  }
+
+  &__preview {
+    width: 100%;
+    height: 100%;
+    min-height: 20rem;
+    background: #fff;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+  }
+
+  // The mirrored editor scrolls inside its pane rather than running the pane
+  // down the page: a host that gives the split a height means it.
+  &__mirror {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+  }
+}
+
+// ------------------------------------------------------------ image tools
+
+.trevixal-image-toolbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+
+  // `display` on a class outranks the user-agent rule for `[hidden]`, so a
+  // floating control has to opt back out explicitly, otherwise it stays
+  // laid out at the origin and widens the page on a narrow screen.
+  &[hidden] {
+    display: none;
+  }
+
+  align-items: center;
+  // Fourteen controls do not fit a phone in one line. Wrapping keeps the bar
+  // inside the column it floats over; without it the row simply runs off the
+  // side of the page, taking the last controls with it.
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 2px;
+  padding: 2px;
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+
+  button {
+    padding: 3px 6px;
+    background: none;
+    color: t.token('color-text');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+
+    &[aria-pressed='true'] {
+      background: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+    }
+  }
+
+  input {
+    // The field holds the image's alt text, which starts life as the file
+    // name, far longer than any fixed width. It is sized to its content
+    // instead (the `size` attribute, set as the selection changes), so the
+    // name reads in full wherever there is room for it. These bounds are what
+    // finally clip it, and only once the screen has none to spare.
+    width: auto;
+    flex: 0 1 auto;
+    min-width: 5rem;
+    max-width: min(26rem, 100%);
+    padding: 2px 4px;
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.75rem;
+  }
+}
+
+.trevixal-image-crop {
+  position: absolute;
+  z-index: 21;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  outline: 1px solid #fff;
+
+  &__handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    border: 1px solid t.token('color-accent');
+  }
+}
+
+.trevixal-image-handles__handle {
+  position: absolute;
+  z-index: 20;
+  width: 10px;
+  height: 10px;
+  background: t.token('color-accent');
+  border: 1px solid t.token('color-bg');
+  border-radius: 2px;
+}
+
+.trevixal-content .trevixal-image[data-trevixal-selected='true'] {
+  outline: 2px solid t.token('color-accent');
+  outline-offset: 2px;
+}
+
+.trevixal-content .trevixal-figure {
+  margin: t.token('space-3') 0;
+  text-align: center;
+
+  &__caption,
+  figcaption {
+    margin-top: t.token('space-1');
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+}
+
+// ---------------------------------------------- emoji picker & split editor
+
+// The emoji grid reuses the character picker; emoji are wider and there are
+// more of them, so it gets more columns and a larger glyph.
+.trevixal-charpicker--emoji {
+  grid-template-columns: repeat(10, 1fr);
+  max-height: 50vh;
+  overflow-y: auto;
+  @include t.slim-scrollbar;
+
+  .trevixal-charpicker__item {
+    font-size: 1.25rem;
+  }
+}
+
+.trevixal-dialog--chars:has(.trevixal-charpicker--emoji) {
+  width: min(32rem, 100%);
+}
+
+// The mirror pane holds a second live editor; give it the same frame the
+// preview iframe gets, so the two modes look like siblings.
+.trevixal-split__mirror .trevixal-content {
+  min-height: 20rem;
+  padding: t.token('space-4');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+}

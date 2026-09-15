@@ -1,0 +1,26 @@
+{
+  "name": "@trevixal/example-next",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Trevixal in a Next.js App Router app, deployed to Vercel: the whole editor, client-only, inside a server-rendered page.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*",
+    "next": "^16.3.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.2"
+  }
+}

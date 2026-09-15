@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Trevixal track changes e2e page</title>
+    <style>
+      body { font-family: sans-serif; margin: 2rem; }
+      .trevixal-content { border: 1px solid #ccc; padding: 1rem; min-height: 4rem; }
+      ins.trevixal-insertion { background: #dcf5dc; text-decoration: none; }
+      del.trevixal-deletion { background: #fbe3e3; }
+      section { margin-bottom: 2rem; }
+    </style>
+  </head>
+  <body>
+    <section>
+      <h2>Track changes</h2>
+      <div id="editor"></div>
+      <button id="tc-enable">Suggest</button>
+      <button id="tc-accept">Accept all</button>
+      <button id="tc-reject">Reject all</button>
+    </section>
+    <script src="./track-changes.js"></script>
+  </body>
+</html>

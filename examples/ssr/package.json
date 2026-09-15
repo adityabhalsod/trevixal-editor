@@ -1,0 +1,17 @@
+{
+  "name": "@trevixal/example-ssr",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render a Trevixal document on the server, build the whole editor over it in the browser.",
+  "scripts": {
+    "dev": "node render.mjs && node serve.mjs",
+    "build": "node render.mjs",
+    "preview": "node serve.mjs"
+  },
+  "dependencies": {
+    "@trevixal/core": "workspace:*",
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*"
+  }
+}

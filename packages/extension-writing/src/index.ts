@@ -1,0 +1,57 @@
+export {
+  ENGLISH_STOPWORDS,
+  IRREGULAR_PARTICIPLES,
+  type KeywordDensityOptions,
+  type KeywordEntry,
+  type LongSentence,
+  type PassiveMatch,
+  type RepeatedWord,
+  type SentenceSpan,
+  type TextAnalysis,
+  type TextAnalysisOptions,
+  type TimeEstimate,
+  type WordSpan,
+  analyzeText,
+  countSyllables,
+  findLongSentences,
+  findPassiveSentences,
+  findRepeatedWords,
+  fleschKincaidGrade,
+  fleschReadingEase,
+  keywordDensity,
+  readabilityLabel,
+  readingTime,
+  sentenceSpans,
+  speakingTime,
+  splitSentences,
+  splitWords,
+  wordSpans,
+} from './analysis'
+export {
+  GRAMMAR_RULES,
+  type GrammarIssue,
+  type GrammarRuleId,
+  checkGrammar,
+  matchCase,
+  wantsAn,
+} from './grammar'
+export {
+  WRITING_ISSUE_ATTR,
+  WRITING_KIND_LABELS,
+  type WritingAssistant,
+  type WritingAssistantOptions,
+  type WritingIssue,
+  type WritingIssueKind,
+  type WritingReport,
+  blockText,
+  createWritingAssistant,
+} from './assistant'
+export {
+  type WritingInlineMessages,
+  type WritingInlineUI,
+  type WritingInlineUIOptions,
+  createWritingInlineUI,
+  issueTitle,
+} from './inline-ui'
+export { SPELLCHECK_NOTE, isSpellcheckEnabled, setSpellcheck } from './spellcheck'
+export { type GoalProgress, type WritingGoal, goalProgress } from './goals'

@@ -1,0 +1,15 @@
+packages:
+  - packages/*
+  - examples/*
+allowBuilds:
+  '@biomejs/biome': true
+  '@parcel/watcher': true
+  esbuild: true
+  # Both come in under @angular/build, which the Angular example's Vite plugin
+  # loads at runtime. They ship prebuilt binaries for common platforms, but
+  # pnpm treats an unapproved build script as an error rather than a warning,
+  # and that error comes from the dependency check `pnpm exec` runs first, so
+  # leaving them unapproved fails every command in the workspace rather than
+  # just the one example.
+  lmdb: true
+  msgpackr-extract: true

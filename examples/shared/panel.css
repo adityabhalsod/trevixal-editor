@@ -1,0 +1,53 @@
+/* The adapter panel, for the examples that show one.
+ *
+ * react, vue, svelte and solid each mount the bare adapter below the
+ * assembled editor to make a point about re-rendering, and these are the
+ * rules that panel needs. next and nuxt have no panel and do not load this.
+ */
+.bar {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.bar button {
+  min-width: 2rem;
+  padding: 0.25rem 0.6rem;
+  font: inherit;
+  background: var(--tvx-color-surface, #f1f1f4);
+  color: inherit;
+  border: 1px solid var(--tvx-color-border, #d8d8e0);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bar button[aria-pressed='true'] {
+  background: var(--tvx-color-accent, #2f6fed);
+  color: #fff;
+}
+
+.count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--tvx-color-text-muted, #5f6172);
+}
+
+.counter {
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  background: var(--tvx-color-surface, #f1f1f4);
+  border: 1px dashed var(--tvx-color-border, #d8d8e0);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* The panel only. The assembled editor above it brings its own rule for the
+   same class, and an unscoped one here would also catch the surfaces inside
+   its preview and mirror panes. */
+.panel .trevixal-content {
+  min-height: 12rem;
+  padding: 0.8rem;
+  border: 1px solid var(--tvx-color-border, #d8d8e0);
+  border-radius: 6px;
+}

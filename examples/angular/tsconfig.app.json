@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    // Angular's decorators are the TypeScript ones, and its fields are
+    // assigned rather than defined, `useDefineForClassFields` on would wipe
+    // out what a decorator put there.
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    // The shared base turns emit off, which is right for every package that
+    // builds through tsup. Here the Angular compiler *is* the build: with
+    // `noEmit` it produced nothing, the bundle came out at 670 bytes, and the
+    // only hint was "4 modules transformed" where there should have been 255.
+    "noEmit": false,
+    "declaration": false,
+    "emitDeclarationOnly": false
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,43 @@
+/* The page around the editor, shared by every example.
+ *
+ * The editor styles itself: @trevixal/ui dresses what is inside the editor
+ * root and @trevixal/editor-kit dresses the shell around it. What is left
+ * here is the host page: its margin, the measure the content sits in, and the
+ * prose beneath. Every example loads this, so an example's own stylesheet
+ * holds only what that framework's page actually adds.
+ */
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  font-family: system-ui, sans-serif;
+  background: var(--tvx-color-bg, #fff);
+  color: var(--tvx-color-text, #1a1a2b);
+}
+
+/* The same measure and gutter the editor's own shell uses, so what follows it
+   shares a left edge with it instead of floating in the middle of the page.
+   The prose inside is narrower again, because 84rem is a layout width and not
+   a reading one. */
+main {
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.panel {
+  max-width: 46rem;
+  margin-top: 2.5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--tvx-color-border, #d8d8e0);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.note {
+  color: var(--tvx-color-text-muted, #5f6172);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}

@@ -1,0 +1,49 @@
+{
+  "name": "trevixal-editor",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Trevixal: a production-grade WYSIWYG rich text editor engine built from scratch.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adityabhalsod/trevixal-editor.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "coverage": "pnpm --filter @trevixal/core coverage",
+    "bench": "node benchmarks/bench.mjs",
+    "size": "node scripts/size-budget.mjs",
+    "docs:api": "typedoc",
+    "docs:assets": "node scripts/docs-assets.mjs",
+    "docs:dev": "pnpm docs:assets && vitepress dev docs",
+    "docs:build": "pnpm docs:assets && pnpm docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "e2e": "pnpm --filter @trevixal/e2e run test:e2e",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check:pkg": "node scripts/check-packages.mjs",
+    "changeset": "changeset",
+    "build:all": "pnpm -r run build",
+    "test:all": "pnpm -r --no-bail run test",
+    "typecheck:all": "pnpm -r --no-bail run typecheck"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.27.10",
+    "@vitest/coverage-v8": "^3.2.7",
+    "esbuild": "^0.24.2",
+    "happy-dom": "^15.11.7",
+    "publint": "^0.2.12",
+    "turbo": "^2.10.12",
+    "typedoc": "^0.28.20",
+    "typescript": "^5.7.2",
+    "vitepress": "^1.6.4"
+  }
+}

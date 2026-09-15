@@ -1,0 +1,10 @@
+// @trevixal/ui, default styles.
+// Import order matters only for readability; selectors do not overlap.
+@use 'themes';
+@use 'editor';
+@use 'toolbar';
+@use 'extensions';
+@use 'blocks';
+@use 'chrome';
+@use 'navigation';
+@use 'features';

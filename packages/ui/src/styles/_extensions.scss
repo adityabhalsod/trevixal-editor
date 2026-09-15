@@ -1,0 +1,308 @@
+// Styles for the extension packages: suggestion popups, tables, math,
+// diagrams and track changes. All colors run through the token system so
+// themes and consumer overrides apply.
+@use 'tokens' as t;
+
+.trevixal-content {
+  // ---- tables ----------------------------------------------------------------
+  // Tables are plain <table>/<tr>/<td> markup, so they need real styling to be
+  // usable: with none, empty cells collapse and the whole table renders a few
+  // pixels wide.
+  table {
+    // `collapse` makes adjacent cells share one border line, so the grid reads
+    // as a grid rather than as boxes with doubled edges.
+    border-collapse: collapse;
+    width: 100%;
+    // A backstop for a table that arrives wider than the editor, pasted,
+    // or sized on a wider screen: fixed layout scales its columns to fit
+    // rather than spilling over the page. The resize handles clamp before
+    // this is ever needed.
+    max-width: 100%;
+    margin: t.token('space-3') 0;
+
+    td,
+    th {
+      position: relative;
+      // A cell's width is its column's width, padding and border included:
+      // that is what the resize handles measure and what `setTableSizing`
+      // writes, so the two agree without either knowing the padding.
+      box-sizing: border-box;
+      // Keeps a column clickable when it is empty or holds one character.
+      // Without it a freshly inserted table cannot be typed into.
+      min-width: 3rem;
+      padding: t.token('space-2');
+      // The rule colour is a custom property so a table can recolour its
+      // own borders (`setTableBorderColor` writes it inline) without touching
+      // every cell.
+      border: 1px solid var(--tvx-table-border, #{t.token('color-border')});
+      // Text grows downward from the top of a cell, which is what typing
+      // expects; the default middle alignment makes lines jump as they wrap.
+      vertical-align: top;
+      text-align: left;
+
+      // Cells hold block content, so paragraph margins inside them have to go
+      // or every cell gains a blank line above its text.
+      > p {
+        margin: 0;
+      }
+
+      > p + p {
+        margin-top: t.token('space-2');
+      }
+    }
+
+    th {
+      background: t.token('color-code-bg');
+      font-weight: 600;
+    }
+
+    // The cell holding the selection, so the caret's column is visible. An
+    // inset ring rather than a border, which would shift the whole grid.
+    td.trevixal-cell--selected,
+    th.trevixal-cell--selected {
+      box-shadow: inset 0 0 0 2px t.token('color-accent');
+    }
+
+    // Border styles chosen from the Table menu. The cells keep their border
+    // box (so column widths never change), only the colour goes transparent.
+    &[data-borders='none'] {
+      td,
+      th {
+        border-color: transparent;
+      }
+    }
+
+    &[data-borders='outer'] {
+      border: 1px solid var(--tvx-table-border, #{t.token('color-border')});
+
+      td,
+      th {
+        border-color: transparent;
+      }
+    }
+
+    &[data-borders='horizontal'] {
+      td,
+      th {
+        border-left-color: transparent;
+        border-right-color: transparent;
+      }
+    }
+  }
+
+  // A wide table scrolls inside its own wrapper instead of widening the page.
+  // Opt in by wrapping the table; the bare table above stays fluid.
+  .trevixal-table-scroll {
+    overflow-x: auto;
+    margin: t.token('space-3') 0;
+
+    table {
+      margin: 0;
+      min-width: 100%;
+      width: max-content;
+      // The wrapper scrolls, so here the table may be as wide as it likes.
+      max-width: none;
+    }
+  }
+
+  // ---- task lists ------------------------------------------------------------
+  // The checkbox is a `::before` marker in the item's left padding, not an
+  // `<input>`: a real form control inside contenteditable would steal focus,
+  // occupy a position in the model's coordinate space and need syncing. The
+  // view recognises a press on it by geometry, so the gutter width below is
+  // the hit target. Keep the two in step.
+  ul[data-type='taskList'] {
+    list-style: none;
+    // Cancel the browser's default marker indent; the gutter replaces it.
+    padding-left: 0;
+
+    // The box and the gutter are both in `em` so they scale together: a fixed
+    // px gutter leaves the tick crowding the text as soon as the item holds a
+    // heading.
+    --tvx-task-box: 1.05em;
+    --tvx-task-gap: 0.6em;
+
+    li[data-type='taskItem'] {
+      position: relative;
+      padding-left: calc(var(--tvx-task-box) + var(--tvx-task-gap));
+      // Items sat flush against each other, so a list of tasks read as one
+      // block of text rather than as separate, clickable rows.
+      margin: 0.15em 0;
+
+      &::before {
+        content: '';
+        position: absolute;
+        // Centres the box on the first line's cap height, so it lines up with
+        // the text rather than floating above or below it.
+        top: calc((1lh - var(--tvx-task-box)) / 2);
+        left: 0;
+        width: var(--tvx-task-box);
+        height: var(--tvx-task-box);
+        box-sizing: border-box;
+        border: 1.5px solid t.token('color-border');
+        border-radius: t.token('radius-sm');
+        background: t.token('color-bg');
+        cursor: pointer;
+        transition: background-color 120ms ease, border-color 120ms ease;
+      }
+
+      // A hover cue: without one the box does not read as clickable, since it
+      // is a CSS marker rather than a real input.
+      &:hover::before {
+        border-color: t.token('color-accent');
+      }
+
+      // The tick is a second layer so the box keeps its own border and fill:
+      // a rotated, two-sided border draws a checkmark without an SVG asset.
+      &::after {
+        content: '';
+        position: absolute;
+        // Positioned off the box, so the two stay locked together when the
+        // box size changes.
+        top: calc((1lh - var(--tvx-task-box)) / 2 + 0.21em);
+        left: 0.36em;
+        width: 0.3em;
+        height: 0.55em;
+        box-sizing: border-box;
+        border: solid transparent;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        cursor: pointer;
+      }
+
+      &[data-checked='true'] {
+        &::before {
+          border-color: t.token('color-accent');
+          background: t.token('color-accent');
+        }
+
+        &::after {
+          border-color: t.token('color-accent-contrast');
+        }
+
+        // Done work reads as done at a glance, and recedes from the items
+        // still needing attention.
+        color: t.token('color-text-muted');
+        text-decoration: line-through;
+      }
+    }
+  }
+
+  // ---- track changes ---------------------------------------------------------
+  ins.trevixal-insertion {
+    background: t.token('color-insertion-bg');
+    color: t.token('color-insertion-text');
+    text-decoration: none;
+    border-radius: 2px;
+  }
+
+  del.trevixal-deletion {
+    background: t.token('color-deletion-bg');
+    color: t.token('color-deletion-text');
+    text-decoration: line-through;
+    border-radius: 2px;
+  }
+}
+
+// ---- suggestion popup (slash commands / emoji) ------------------------------
+.trevixal-popup {
+  position: absolute;
+  z-index: 50;
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: t.token('space-1');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  background: t.token('color-bg');
+  box-shadow: t.token('shadow-raised');
+  font-family: t.token('font-family');
+  font-size: 0.9rem;
+  color: t.token('color-text');
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__item {
+    display: block;
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-surface');
+    }
+
+    &--selected,
+    &--selected:hover {
+      background: t.token('color-selection');
+      color: t.token('color-accent');
+    }
+  }
+
+  &__empty {
+    display: block;
+    padding: t.token('space-1') t.token('space-2');
+    color: t.token('color-text-muted');
+  }
+}
+
+// ---- table resize guide ------------------------------------------------------
+// A line that follows the pointer while a column or row edge is dragged.
+// Nothing enters the document until the pointer is released, so a resize
+// costs one history entry rather than one per pixel.
+.trevixal-resize-guide {
+  position: absolute;
+  z-index: 20;
+  // Purely a visual guide; it must never swallow the pointer mid-drag.
+  pointer-events: none;
+  background: t.token('color-accent');
+
+  &[hidden] {
+    display: none;
+  }
+
+  // The axis decides which dimension is the hairline.
+  &[data-axis='column'] {
+    width: 2px;
+  }
+
+  &[data-axis='row'] {
+    height: 2px;
+  }
+
+  // Faint over an edge the pointer could grab, so the grab zone is
+  // discoverable; full strength once a drag begins.
+  &[data-state='hover'] {
+    opacity: 0.5;
+  }
+}
+
+// The handle at a table's bottom-right corner while the caret is inside it.
+// Dragging it scales the whole table, columns and rows alike.
+.trevixal-table-resize-handle {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  // Centred on the corner it is positioned at.
+  transform: translate(-50%, -50%);
+  border: 2px solid t.token('color-accent');
+  border-radius: 3px;
+  background: t.token('color-bg');
+  cursor: nwse-resize;
+  touch-action: none;
+
+  &[hidden] {
+    display: none;
+  }
+}

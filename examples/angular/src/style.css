@@ -1,0 +1,9 @@
+/* The page around the editor, not the editor itself. The kit styles that,
+   and @trevixal/editor-kit styles the shell the mounted editor builds. */
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  font-family: system-ui, sans-serif;
+  background: var(--tvx-color-bg, #fff);
+  color: var(--tvx-color-text, #1a1a2b);
+}

@@ -1,0 +1,92 @@
+@use 'tokens' as t;
+
+// Token wiring: light by default, dark via system preference or an explicit
+// `data-trevixal-theme` attribute.
+//
+// The attribute is honoured on the `.trevixal` element AND on any ancestor,
+// because a host naturally sets it on <html> or <body> rather than on the
+// editor root. A nearer attribute wins over a further one, so an editor
+// inside a dark page can still be forced light.
+//
+// Everything but `.trevixal` itself sits in `:where()`, so every rule below
+// weighs exactly one class and they resolve by source order, which is what
+// they already relied on, the theme rules being mutually exclusive. The point
+// is the ceiling that puts on them: a theme preset writes its palette onto
+// the same element from a stylesheet it builds at runtime, and it can only
+// land if it outweighs these. Left at their natural weight, the ancestor
+// rules reach three classes and a preset silently loses every token to the
+// plain light or dark palette underneath it.
+
+.trevixal {
+  @include t.emit-tokens(t.$static);
+  @include t.emit-tokens(t.$light);
+  color-scheme: light;
+}
+
+// System preference, unless something has explicitly asked for light.
+@media (prefers-color-scheme: dark) {
+  .trevixal:where(:not([data-trevixal-theme='light'])) {
+    @include t.emit-tokens(t.$dark);
+    color-scheme: dark;
+  }
+
+  :where([data-trevixal-theme='dark']) .trevixal:where(:not([data-trevixal-theme='light'])),
+  :where(:root:not([data-trevixal-theme='light']))
+    .trevixal:where(:not([data-trevixal-theme='light'])) {
+    @include t.emit-tokens(t.$dark);
+    color-scheme: dark;
+  }
+}
+
+// An explicit dark request, on the editor root or above it.
+.trevixal:where([data-trevixal-theme='dark']),
+:where([data-trevixal-theme='dark']) .trevixal:where(:not([data-trevixal-theme='light'])) {
+  @include t.emit-tokens(t.$dark);
+  color-scheme: dark;
+}
+
+// An explicit light request has to be able to override a dark ancestor, and
+// comes last so it wins on equal specificity.
+.trevixal:where([data-trevixal-theme='light']),
+:where([data-trevixal-theme='light']) .trevixal:where(:not([data-trevixal-theme='dark'])) {
+  @include t.emit-tokens(t.$light);
+  color-scheme: light;
+}
+
+// The editor root paints its own ground. Without this the host page shows
+// through, so switching to dark leaves white behind the document.
+.trevixal {
+  color: t.token('color-text');
+  background: t.token('color-bg');
+
+  // Scrollbars, everywhere inside the editor and in one place.
+  //
+  // `scrollbar-width` and `scrollbar-color` are inherited properties, so
+  // setting them here reaches every scroller below without each one having
+  // to remember; the `::-webkit-scrollbar` half does not inherit, so it is
+  // written against descendants just below. Panels that want the quieter
+  // hover-revealed bar say so themselves and outweigh this.
+  @include t.themed-scrollbar;
+}
+
+// The webkit pseudo-elements for everything that scrolls inside the editor.
+// Kept off `.trevixal *`. A universal selector here would also match the
+// thousands of nodes in a long document, none of which scroll.
+.trevixal :where([class*='trevixal-'], pre) {
+  @include t.themed-scrollbar;
+}
+
+// `color-scheme` on the element the viewport takes its furniture from.
+//
+// The browser paints the page's own scrollbar from the root element's scheme,
+// and inheritance runs downwards, so a `.trevixal` body saying "dark" never
+// reaches it. A host that has put the attribute on <html> has said which way
+// the page goes; this is the kit taking it at its word, and it is the whole
+// reason a dark editor used to sit beside a bright white scrollbar.
+:root[data-trevixal-theme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-trevixal-theme='light'] {
+  color-scheme: light;
+}

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    # `changeset publish` pushes one tag per released package. The commit
+    # they point at was already verified on its way into main, so re-running
+    # the suite on each tag would only repeat that, several times over.
+    tags-ignore: ['**']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build, typecheck, test, package check
+    # `[skip cicd]` in the head commit message, or in the pull request's
+    # title, skips this job. A job-level `if` can read only the github,
+    # needs, vars and inputs contexts, so the two fields are named here
+    # rather than folded into an `env` the condition could not see.
+    #
+    # `head_commit` is null on a pull request and `pull_request` is null on a
+    # push, so each side is defaulted to '' before `contains` reads it.
+    #
+    # GitHub's own `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` and
+    # `[actions skip]` stop the run from ever being created, which is tidier
+    # when one of them will do. This token is a job condition instead, so the
+    # run is still created and reports every job as skipped.
+    if: >-
+      !contains(github.event.head_commit.message || '', '[skip cicd]') &&
+      !contains(github.event.pull_request.title || '', '[skip cicd]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the pinned version from package.json's "packageManager".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      # publint + arethetypeswrong over every publishable package. The same
+      # gate the release workflow runs before it is allowed to publish.
+      - run: pnpm check:pkg

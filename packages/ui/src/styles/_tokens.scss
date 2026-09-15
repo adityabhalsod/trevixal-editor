@@ -1,0 +1,212 @@
+// Design tokens for the Trevixal UI kit.
+// Everything themable is a CSS custom property so consumers can override at
+// runtime; SCSS variables below are build-time defaults only.
+
+$prefix: 'tvx' !default;
+
+// ---------------------------------------------------------------------------
+// Light theme values
+// ---------------------------------------------------------------------------
+$light: (
+  'color-bg': #ffffff,
+  'color-surface': #f7f7f8,
+  'color-border': #d9d9e3,
+  'color-text': #1a1a2b,
+  'color-text-muted': #6b6b80,
+  'color-accent': #4f46e5,
+  'color-accent-contrast': #ffffff,
+  'color-selection': rgba(79, 70, 229, 0.18),
+  'color-code-bg': #f1f1f4,
+  'color-mark-bg': #fff1a8,
+  'color-danger': #dc2626,
+  'color-insertion-bg': #dcf5dc,
+  'color-insertion-text': #14532d,
+  'color-deletion-bg': #fbe3e3,
+  'color-deletion-text': #991b1b,
+  'color-search-active-bg': #ffb454,
+  'color-overlay': rgba(16, 16, 32, 0.35),
+  // Semantic tints for callouts and badges. Each pair is a wash used as a
+  // block background and a saturated edge/text color that stays legible on
+  // it. One accent per variant keeps the two nodes visually consistent.
+  'color-tone-info-bg': #eaf1fe,
+  'color-tone-info-accent': #1d4ed8,
+  'color-tone-success-bg': #e7f6ec,
+  // Two hundredths short of 4.5:1 on its own tone background, which is a
+  // fail however close it looks. Same hue, one notch darker.
+  'color-tone-success-accent': #147c3b,
+  'color-tone-warning-bg': #fdf3e2,
+  'color-tone-warning-accent': #b45309,
+  'color-tone-danger-bg': #fdeaea,
+  'color-tone-danger-accent': #b91c1c,
+  'color-tone-note-bg': #f3f0fd,
+  'color-tone-note-accent': #6d28d9,
+  'color-tone-neutral-bg': #eeeef2,
+  'color-tone-neutral-accent': #4a4a5e,
+  'shadow-raised': (0 1px 3px rgba(16, 16, 32, 0.12)),
+);
+
+// ---------------------------------------------------------------------------
+// Dark theme values
+// ---------------------------------------------------------------------------
+$dark: (
+  'color-bg': #16161f,
+  'color-surface': #1f1f2b,
+  'color-border': #34344a,
+  'color-text': #ececf4,
+  'color-text-muted': #9c9cb4,
+  'color-accent': #818cf8,
+  'color-accent-contrast': #16161f,
+  'color-selection': rgba(129, 140, 248, 0.28),
+  'color-code-bg': #242432,
+  'color-mark-bg': #6d5d00,
+  'color-danger': #f87171,
+  'color-insertion-bg': #103a22,
+  'color-insertion-text': #86efac,
+  'color-deletion-bg': #45161a,
+  'color-deletion-text': #fca5a5,
+  'color-search-active-bg': #b07300,
+  'color-overlay': rgba(0, 0, 0, 0.55),
+  // Dark counterparts: the wash becomes a dim shade of the hue rather than a
+  // light tint, and the accent lightens so it still reads against it.
+  'color-tone-info-bg': #17233d,
+  'color-tone-info-accent': #93b4fd,
+  'color-tone-success-bg': #12301f,
+  'color-tone-success-accent': #86efac,
+  'color-tone-warning-bg': #33260f,
+  'color-tone-warning-accent': #fcd34d,
+  'color-tone-danger-bg': #3a1719,
+  'color-tone-danger-accent': #fca5a5,
+  'color-tone-note-bg': #241d3d,
+  'color-tone-note-accent': #c4b5fd,
+  'color-tone-neutral-bg': #262634,
+  'color-tone-neutral-accent': #b8b8cc,
+  'shadow-raised': (0 1px 3px rgba(0, 0, 0, 0.5)),
+);
+
+// Non-color tokens (shared by both themes)
+$static: (
+  'font-family': (-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif),
+  'font-family-mono': (ui-monospace, SFMono-Regular, Menlo, Consolas, monospace),
+  'font-size': 1rem,
+  'line-height': 1.6,
+  'radius-sm': 4px,
+  'radius-md': 8px,
+  'space-1': 4px,
+  'space-2': 8px,
+  'space-3': 12px,
+  'space-4': 16px,
+  'toolbar-height': 40px,
+  'focus-ring': (0 0 0 2px var(--#{$prefix}-color-accent)),
+);
+
+/// A slim, unobtrusive scrollbar for a panel that scrolls inside the chrome.
+/// The native bar reads heavier than the panel it sits in, and on Windows it
+/// also steals layout width, which shifts the content beside it.
+@mixin slim-scrollbar($size: 6px, $reserve: false) {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  // Firefox has no hover variant for scrollbar-color, so the thumb fades in
+  // on hover of the panel itself.
+  transition: scrollbar-color 160ms ease;
+
+  &:hover,
+  &:focus-within {
+    scrollbar-color: var(--#{$prefix}-color-border) transparent;
+  }
+
+  &::-webkit-scrollbar {
+    width: $size;
+    height: $size;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: calc(#{$size} / 2);
+    transition: background-color 160ms ease;
+  }
+
+  &:hover::-webkit-scrollbar-thumb,
+  &:focus-within::-webkit-scrollbar-thumb {
+    background: var(--#{$prefix}-color-border);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--#{$prefix}-color-text-muted);
+  }
+
+  // A hover-revealed thumb reflows the content under it, so a panel that is
+  // always on screen reserves the space up front. A floating dropdown does
+  // not: the reserved strip is visible down its edge for the whole time it is
+  // open, which costs more than one frame of shift.
+  @if $reserve {
+    scrollbar-gutter: stable;
+  }
+}
+
+/// The scrollbar for a surface that is *meant* to show it scrolls, the
+/// document, a preview pane, a long dialog.
+///
+/// Distinct from `slim-scrollbar` above, which hides the thumb until the
+/// panel is hovered. That is right for a small floating panel and wrong for
+/// the page: a bar you cannot see until you go looking for it is no longer
+/// telling you there is more to read.
+///
+/// Both halves are emitted on purpose. `scrollbar-width`/`scrollbar-color`
+/// are the standard properties, they inherit, and Chrome 121+, Firefox and
+/// Safari 18 honour them. `::-webkit-scrollbar` is what older WebKit and
+/// Chromium understand, and it does not inherit, so it has to be written
+/// against the elements that scroll. Where both apply the standard ones win,
+/// which is why the two can sit side by side without fighting.
+@mixin themed-scrollbar($size: 10px) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--#{$prefix}-color-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: $size;
+    height: $size;
+  }
+
+  // No stepper arrows. They are a fixture of a desktop toolkit rather than of
+  // a document, and at this width there is no room to draw them legibly.
+  // Sized away rather than `display`-ed away: the exported-document rules that
+  // mirror these are checked against a CSS-injection payload whose sentinel is
+  // that declaration, and a cosmetic rule must not blunt a security test.
+  &::-webkit-scrollbar-button {
+    width: 0;
+    height: 0;
+  }
+
+  &::-webkit-scrollbar-track,
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--#{$prefix}-color-border);
+    // Inset by a transparent border rather than by width, so the thumb is a
+    // slim capsule floating in the track instead of filling it edge to edge.
+    border: 3px solid transparent;
+    border-radius: calc(#{$size} / 2);
+    background-clip: padding-box;
+
+    &:hover {
+      background: var(--#{$prefix}-color-text-muted);
+      background-clip: padding-box;
+    }
+  }
+}
+
+@mixin emit-tokens($map) {
+  @each $name, $value in $map {
+    --#{$prefix}-#{$name}: #{$value};
+  }
+}
+
+/// var() accessor: `token('color-text')` → `var(--tvx-color-text)`
+@function token($name) {
+  @return var(--#{$prefix}-#{$name});
+}

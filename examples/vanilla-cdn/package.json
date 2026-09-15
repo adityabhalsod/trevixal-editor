@@ -1,0 +1,15 @@
+{
+  "name": "@trevixal/example-vanilla-cdn",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Trevixal from a script tag: the whole editor, no bundler, no npm, no build step.",
+  "scripts": {
+    "dev": "node serve.mjs",
+    "build": "node copy-assets.mjs",
+    "preview": "node serve.mjs"
+  },
+  "dependencies": {
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*"
+  }
+}

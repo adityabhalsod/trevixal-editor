@@ -1,0 +1,49 @@
+{
+  "name": "@trevixal/angular",
+  "version": "0.0.1",
+  "description": "Angular bindings for the Trevixal editor: a signal-backed snapshot and view lifecycle, with no Angular compiler required.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adityabhalsod/trevixal-editor.git",
+    "directory": "packages/angular"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=17.0.0",
+    "@trevixal/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@angular/core": "^19.0.0",
+    "@trevixal/core": "workspace:*",
+    "happy-dom": "^15.11.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.7"
+  }
+}

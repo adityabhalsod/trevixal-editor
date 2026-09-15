@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trevixal. One script tag</title>
+
+    <!--
+      In a published page these three lines are the whole integration:
+
+        <link rel="stylesheet" href="https://unpkg.com/@trevixal/ui/styles.css">
+        <link rel="stylesheet" href="https://unpkg.com/@trevixal/editor-kit/styles.css">
+        <script src="https://unpkg.com/@trevixal/editor-kit"></script>
+
+      Here they come from `vendor/`, filled by `pnpm build`, so the example
+      exercises the code in this checkout rather than the last release.
+    -->
+    <link rel="stylesheet" href="./vendor/ui-styles.css" />
+    <link rel="stylesheet" href="./vendor/kit-styles.css" />
+    <script src="./vendor/trevixal-editor-kit.js"></script>
+
+    <style>
+      /* The page's own margin, and nothing else. Every rule the editor needs
+         ships with @trevixal/editor-kit and is loaded above. */
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+
+  <!-- `trevixal` on the page as well as on the editor's own root: the theme
+       tokens are inherited, so the margin around the editor follows the theme
+       instead of staying white behind a dark document. -->
+  <body class="trevixal">
+    <!-- The whole editor builds itself in here: menubar, toolbar, panels,
+         side-by-side preview, autosave, themes, the lot. -->
+    <div id="app"></div>
+
+    <script>
+      // One call, and the page above is a complete editor. `TrevixalKit` is
+      // the global the CDN build defines; with a bundler this is
+      // `import { mountFullEditor } from '@trevixal/editor-kit'` instead, and
+      // nothing else changes.
+      TrevixalKit.mountFullEditor({
+        element: document.querySelector('#app'),
+        namespace: 'trevixal:cdn',
+        aboutRows: [
+          { term: 'Example', description: 'vanilla-cdn, every package the workspace ships' },
+          { term: 'Build', description: 'CDN: one script tag, no bundler' },
+        ],
+      })
+    </script>
+  </body>
+</html>

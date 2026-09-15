@@ -1,0 +1,9 @@
+/* The placeholder the island shows while the editor's chunk is fetched.
+ * Given the editor's own measure and gutter so the text does not jump left
+ * when the real thing replaces it. */
+.loading {
+  max-width: 84rem;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+  color: var(--tvx-color-text-muted, #5f6172);
+}

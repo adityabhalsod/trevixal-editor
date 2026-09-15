@@ -1,0 +1,95 @@
+/* The two demo pages only. The kit styles the editor itself. */
+
+/* The full editor uses `layout: page`, so no `.vp-doc` wraps the editor: that
+   scope's table, list and paragraph rules would restyle the document itself
+   (`table { display: block }` alone breaks column resizing). Only the page's
+   own copy opts back in, sized to the kit's box so the edges line up. */
+.full-editor-page .VPPage {
+  padding: 2rem 0 6rem;
+}
+
+.full-editor-page .full-editor-copy {
+  max-width: 84rem;
+  margin: 0 auto;
+}
+
+/* 24px because the theme bleeds code blocks edge to edge on phones with a
+   -24px margin; the editor takes the same so the two boxes share their edges. */
+.full-editor-page .trevixal-full-editor {
+  padding: 2rem 1.5rem 3rem 1.5rem;
+}
+
+/* VitePress's base reset reaches the document surface. Give back the three
+   browser defaults the kit relies on, at zero specificity so this outranks the
+   reset by order alone and any kit class rule (task lists, say) still wins. */
+:where(.full-editor-page .trevixal-content) :is(ul, ol) {
+  list-style: revert;
+}
+
+:where(.full-editor-page .trevixal-content) :is(h1, h2, h3, h4, h5, h6, strong, b) {
+  font-weight: revert;
+}
+
+/* The palette, the dialogs and the writing card mount on <body>, and the kit's
+   tokens live on `.trevixal`, so the page puts that class on the body while
+   the editor is mounted, as the example does. The body keeps the site's own
+   paint, which the class would otherwise replace with the editor's. */
+body.trevixal {
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  color-scheme: inherit;
+}
+
+/* The site's reset reaches the chrome as well: a 24px body line-height made
+   the menubar and status bar a third taller, and border-box sizing moved every
+   padding. The kit's own page has the browser defaults for both, so `revert`
+   rather than a value: buttons and selects are border-box in every browser's
+   own sheet. Zero specificity, so the reset loses on order and the kit's
+   explicit rules win. */
+.full-editor-page .trevixal-full-editor {
+  line-height: normal;
+}
+
+:where(.full-editor-page .trevixal-full-editor),
+:where(.full-editor-page .trevixal-full-editor) *,
+:where(.full-editor-page .trevixal-full-editor) *::before,
+:where(.full-editor-page .trevixal-full-editor) *::after {
+  box-sizing: revert;
+}
+
+/* The kit's sticky panels assume a bare page; VitePress puts a fixed nav above them. */
+.full-editor-page .editor-shell > * {
+  top: calc(var(--vp-nav-height) + 1rem);
+}
+
+.playground {
+  margin: 1.5rem 0;
+}
+
+.playground__editor .trevixal-content {
+  min-height: 10rem;
+  padding: 0.8rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+.playground__json {
+  margin-top: 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--vp-c-bg-soft);
+  border-radius: 8px;
+}
+
+.playground__json summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+}
+
+.playground__json pre {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}

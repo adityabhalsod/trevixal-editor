@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": [
+    "page/entry.ts",
+    "page/ui-entry.ts",
+    "page/track-changes-entry.ts",
+    "tests",
+    "playwright.config.ts"
+  ]
+}

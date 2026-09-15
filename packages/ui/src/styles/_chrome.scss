@@ -1,0 +1,1109 @@
+// Editor chrome: menubar, dropdown-based controls, dialogs and status bar.
+@use 'tokens' as t;
+
+// The stack that wraps menubar + toolbar + status bar.
+.trevixal-ui {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-1');
+  font-family: t.token('font-family');
+}
+
+// ---------------------------------------------------------------- menubar
+
+.trevixal-menubar {
+  display: flex;
+  align-items: center;
+  // Eight menus outgrow a phone; a second row beats spilling past the edge.
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: t.token('space-1');
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+
+  &__trigger {
+    padding: t.token('space-1') t.token('space-2');
+    font-size: 0.875rem;
+    border-radius: t.token('radius-sm');
+  }
+}
+
+// ------------------------------------------------------- dropdown (shared)
+
+.trevixal-dropdown {
+  position: relative;
+  display: inline-flex;
+
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: t.token('space-1');
+    min-height: 28px;
+    padding: 0 t.token('space-2');
+    background: transparent;
+    color: t.token('color-text');
+    border: none;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.875rem;
+    // Not 1: a line box exactly the em size is shorter than the font's
+    // ascent plus descent, so the label's `overflow: hidden` crops the tail
+    // of a g or a y. The flex centring keeps the control's height unchanged.
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+
+    // `color-selection`, not `color-border`: a border colour is free to be the
+    // same ink as the text, the high-contrast palette makes both pure black,
+    // and a control filled with it swallows its own label. The selection tint
+    // is the token that exists to sit behind text.
+    &:hover {
+      background: t.token('color-selection');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &--open > &__trigger {
+    background: t.token('color-selection');
+  }
+
+  &__chevron {
+    display: inline-flex;
+    margin-left: auto;
+    opacity: 0.65;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &__panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 40;
+    // Wide enough for the longest row. An absolutely positioned panel
+    // otherwise shrinks to fit its containing block, the trigger, which is
+    // only as wide as a word like `Edit`, and breaks `Paste without
+    // formatting` across two lines.
+    width: max-content;
+    min-width: 180px;
+    // …but never past the screen edge on a phone.
+    max-width: calc(100vw - #{t.token('space-4')});
+    max-height: 320px;
+    overflow-y: auto;
+    // Every panel, not just the code-language one: the platform default bar
+    // is heavier than the menu it sits inside and breaks the rounded corner.
+    @include t.slim-scrollbar;
+    padding: t.token('space-1');
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-md');
+    box-shadow: t.token('shadow-raised');
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // Set by `createDropdown` when a panel would otherwise open past the right
+  // edge of the window. A menubar trigger can sit anywhere along the row.
+  &__panel--flipped {
+    right: 0;
+    left: auto;
+  }
+}
+
+// ------------------------------------------------------------- menu items
+
+.trevixal-menu {
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    background: transparent;
+    color: t.token('color-text');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    // One line per entry: the panel grows to fit the label rather than the
+    // label wrapping inside a fixed panel.
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: t.token('color-surface');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+
+    &:disabled {
+      color: t.token('color-text-muted');
+      cursor: default;
+      opacity: 0.55;
+    }
+
+    &[aria-checked='true'] {
+      color: t.token('color-accent');
+      font-weight: 600;
+    }
+  }
+
+  &__icon {
+    display: inline-flex;
+    width: 18px;
+    flex: none;
+    color: t.token('color-text-muted');
+  }
+
+  &__label {
+    flex: 1;
+  }
+
+  &__shortcut {
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__separator {
+    height: 1px;
+    margin: t.token('space-1') 0;
+    background: t.token('color-border');
+  }
+
+  &__heading {
+    padding: t.token('space-1') t.token('space-2');
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+}
+
+// ------------------------------------------------------------ select control
+
+.trevixal-select {
+  > .trevixal-dropdown__trigger {
+    justify-content: space-between;
+    border: 1px solid t.token('color-border');
+    background: t.token('color-bg');
+  }
+
+  &__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    // The clip is horizontal only: it exists for the ellipsis, so the box
+    // has to be tall enough for the text it holds.
+    line-height: 1.4;
+    // `overflow: hidden` on an inline-level box aligns by its bottom margin
+    // edge, which pushes the text up off the centre line.
+    display: block;
+  }
+
+  &__option {
+    display: block;
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    background: transparent;
+    color: t.token('color-text');
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-surface');
+    }
+
+    &[aria-selected='true'] {
+      background: t.token('color-selection');
+      color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
+// ------------------------------------------------------------- color control
+
+.trevixal-color {
+  > .trevixal-dropdown__trigger {
+    flex-direction: column;
+    gap: 1px;
+    padding: 0 t.token('space-1');
+  }
+
+  &__indicator {
+    display: block;
+    width: 16px;
+    height: 3px;
+    border-radius: 1px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px t.token('color-border');
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    padding: t.token('space-1');
+  }
+
+  &__swatch {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__custom {
+    display: block;
+    width: calc(100% - #{t.token('space-2')});
+    margin: t.token('space-1');
+    height: 28px;
+    padding: 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    background: none;
+    cursor: pointer;
+  }
+
+  &__clear {
+    display: block;
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    background: transparent;
+    color: t.token('color-text');
+    border: 0;
+    border-top: 1px solid t.token('color-border');
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-surface');
+    }
+  }
+}
+
+// --------------------------------------------------------- table grid picker
+
+.trevixal-tablegrid {
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--tvx-grid-cols, 10), 1fr);
+    gap: 2px;
+    padding: t.token('space-1');
+  }
+
+  &__cell {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: 2px;
+    cursor: pointer;
+
+    &--on {
+      background: t.token('color-accent');
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__readout {
+    padding: t.token('space-1');
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ----------------------------------------------------------------- dialogs
+
+.trevixal-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: t.token('space-4');
+  background: rgba(16, 16, 32, 0.45);
+}
+
+.trevixal-dialog {
+  width: min(28rem, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  @include t.slim-scrollbar;
+  padding: t.token('space-4');
+  background: t.token('color-bg');
+  color: t.token('color-text');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+  font-family: t.token('font-family');
+
+  &--chars {
+    width: min(24rem, 100%);
+  }
+
+  &__title {
+    margin: 0 0 t.token('space-3');
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: t.token('space-3');
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: t.token('space-1');
+  }
+
+  &__label {
+    color: t.token('color-text-muted');
+    font-size: 0.8rem;
+  }
+
+  &__input {
+    padding: t.token('space-2');
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: t.token('space-2');
+  }
+
+  &__button {
+    padding: t.token('space-2') t.token('space-3');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &--primary {
+      background: t.token('color-accent');
+      color: t.token('color-accent-contrast');
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
+.trevixal-charpicker {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+
+  &__item {
+    height: 32px;
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font-size: 1rem;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
+// -------------------------------------------------------------- status bar
+
+.trevixal-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: t.token('space-2');
+  padding: t.token('space-1') t.token('space-2');
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  color: t.token('color-text-muted');
+  font-family: t.token('font-family');
+  font-size: 0.75rem;
+
+  &__path {
+    text-transform: lowercase;
+  }
+
+  &__counts {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ------------------------------------------------------------------ images
+
+.trevixal-content {
+  .trevixal-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: t.token('radius-sm');
+
+    &--left {
+      float: left;
+      margin: 0 t.token('space-3') t.token('space-2') 0;
+    }
+
+    &--right {
+      float: right;
+      margin: 0 0 t.token('space-2') t.token('space-3');
+    }
+
+    &--center {
+      display: block;
+      margin-inline: auto;
+    }
+
+    // Placeholder while the upload is in flight.
+    &[data-trevixal-uploading] {
+      min-width: 120px;
+      min-height: 80px;
+      background: t.token('color-surface');
+      border: 1px dashed t.token('color-border');
+      opacity: 0.7;
+    }
+  }
+
+  .trevixal-figure {
+    margin: t.token('space-3') 0;
+
+    figcaption {
+      margin-top: t.token('space-1');
+      color: t.token('color-text-muted');
+      font-size: 0.85rem;
+      text-align: center;
+    }
+  }
+}
+
+// The format painter's armed state has to be unmistakable: the next click
+// rewrites the selection's formatting.
+.trevixal-toolbar__button[data-painter='armed'] {
+  background: var(--tvx-color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--tvx-color-accent);
+}
+
+.trevixal-toolbar__button[data-painter='locked'] {
+  background: var(--tvx-color-accent);
+  color: #fff;
+}
+
+// ------------------------------------------------- floating table toolbar
+// Appears only while the caret is inside a cell, anchored to that cell's
+// top-right corner. Collapsed it is one grid button; open, the full menu.
+.trevixal-tabletoolbar {
+  position: absolute;
+  z-index: 5;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .trevixal-dropdown__trigger {
+    display: grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    background: var(--tvx-color-surface);
+    border: 1px solid var(--tvx-color-border);
+    border-radius: var(--tvx-radius-sm);
+    box-shadow: var(--tvx-shadow-raised);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--tvx-color-selection);
+      border-color: var(--tvx-color-accent);
+    }
+  }
+
+  // Right-aligned, so a toolbar near the surface's edge opens inward.
+  .trevixal-dropdown__panel {
+    right: 0;
+    left: auto;
+    min-width: 13rem;
+  }
+}
+
+// --------------------------------------------------- bubble menu over text
+// The handful of inline actions, put where the selection is. Never takes
+// focus: every control inside it cancels its own mousedown.
+.trevixal-bubble {
+  position: absolute;
+  z-index: 6;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .trevixal-toolbar {
+    gap: 1px;
+    min-height: 0;
+    padding: 2px;
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-md');
+    box-shadow: t.token('shadow-raised');
+  }
+
+  // The bar inside a bubble is one row of buttons, never a wrapping grid.
+  .trevixal-toolbar__group {
+    gap: 1px;
+    padding: 0;
+    border: 0;
+  }
+
+  .trevixal-toolbar__button {
+    width: 1.7rem;
+    height: 1.7rem;
+  }
+}
+
+// ---------------------------------------------------- link editor popover
+// Editing a link at the link, rather than in a dialog covering the sentence
+// it sits in.
+.trevixal-linkpopover {
+  position: absolute;
+  z-index: 6;
+  max-width: min(24rem, 100%);
+  padding: 2px;
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-linkpopover__view,
+.trevixal-linkpopover__form {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-linkpopover__href {
+  max-width: 16rem;
+  padding: 0 t.token('space-2');
+  overflow: hidden;
+  color: t.token('color-accent');
+  font-size: 0.8rem;
+  // The clip is horizontal only: it exists for the ellipsis, so the box has
+  // to be tall enough for the text it holds.
+  line-height: 1.6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trevixal-linkpopover__field {
+  width: 16rem;
+  max-width: 100%;
+  padding: 2px t.token('space-2');
+  color: t.token('color-text');
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.trevixal-linkpopover__button {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  color: t.token('color-text');
+  background: none;
+  border: 0;
+  border-radius: t.token('radius-sm');
+  cursor: pointer;
+
+  // Never `color-border`: a high-contrast palette makes that the same ink as
+  // the label, and the control swallows its own glyph.
+  &:hover {
+    background: t.token('color-selection');
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.token('focus-ring');
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+// ------------------------------------------------------- block drag handle
+// A grip beside the block under the pointer. Space picks the block up, the
+// arrow keys move it, Enter drops it, Escape puts it back.
+.trevixal-blockgrip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 1.2rem;
+  height: 1.6rem;
+  padding: 0;
+  color: t.token('color-text-muted');
+  background: none;
+  border: 0;
+  border-radius: t.token('radius-sm');
+  cursor: grab;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &:hover {
+    color: t.token('color-text');
+    background: t.token('color-selection');
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.token('focus-ring');
+  }
+
+  &[aria-pressed='true'] {
+    color: t.token('color-accent-contrast');
+    background: t.token('color-accent');
+    cursor: grabbing;
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+// Where a drop would land. Two pixels of accent across the block's width, so
+// it reads as a seam between blocks rather than a border around one.
+.trevixal-blockgrip__drop {
+  position: absolute;
+  z-index: 5;
+  height: 2px;
+  margin-top: -1px;
+  background: t.token('color-accent');
+  border-radius: 1px;
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// ------------------------------------------- floating code-language select
+// Sits over the code block holding the caret, so the control is where the
+// code is rather than in a separate bar above the document.
+.trevixal-codelang {
+  position: absolute;
+  z-index: 5;
+  // The picker, the copy button and the hint sit in one row.
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// The copy button: the same pill as the picker's trigger, so the bar reads as
+// one control strip.
+.trevixal-codelang__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.6rem;
+  padding: 0 0.45rem 0 0.4rem;
+  color: var(--tvx-color-text-muted);
+  background: var(--tvx-color-surface);
+  border: 1px solid var(--tvx-color-border);
+  border-radius: var(--tvx-radius-sm);
+  box-shadow: var(--tvx-shadow-raised);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  &:hover {
+    color: var(--tvx-color-text);
+    border-color: var(--tvx-color-accent);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--tvx-focus-ring);
+  }
+
+  // The transient results, told apart by colour as well as by the label.
+  &[data-state='copied'] {
+    color: var(--tvx-color-accent);
+    border-color: var(--tvx-color-accent);
+  }
+
+  &[data-state='failed'] {
+    color: var(--tvx-color-danger);
+    border-color: var(--tvx-color-danger);
+  }
+}
+
+// What Enter does inside the block, and how to leave it. Muted: it is a
+// reminder, not a control.
+.trevixal-codelang__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  height: 1.6rem;
+  padding: 0 0.45rem;
+  color: var(--tvx-color-text-muted);
+  background: var(--tvx-color-surface);
+  border: 1px solid var(--tvx-color-border);
+  border-radius: var(--tvx-radius-sm);
+  box-shadow: var(--tvx-shadow-raised);
+  font: inherit;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  user-select: none;
+
+  &[hidden] {
+    display: none;
+  }
+
+  kbd {
+    padding: 0 0.3rem;
+    color: var(--tvx-color-text);
+    background: var(--tvx-color-bg);
+    // Longhands: a `var()` shorthand with a width override after it does not
+    // survive being read back out of the CSSOM. See `collect-css.ts`.
+    border-style: solid;
+    border-color: var(--tvx-color-border);
+    border-width: 1px 1px 2px;
+    border-radius: 3px;
+    font: inherit;
+    font-size: 0.64rem;
+    line-height: 1.35;
+  }
+}
+
+.trevixal-codelang__hint-separator {
+  margin: 0 0.15rem;
+  opacity: 0.6;
+}
+
+
+// The picker's trigger: a compact pill that reads as part of the code block
+// rather than an OS control dropped on top of it.
+.trevixal-codelang__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.6rem;
+  padding: 0 0.35rem 0 0.4rem;
+  color: var(--tvx-color-text-muted);
+  background: var(--tvx-color-surface);
+  border: 1px solid var(--tvx-color-border);
+  border-radius: var(--tvx-radius-sm);
+  box-shadow: var(--tvx-shadow-raised);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--tvx-color-text);
+    border-color: var(--tvx-color-accent);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--tvx-focus-ring);
+  }
+
+  // The chevron is the only svg that should shrink; the language glyph keeps
+  // its size so the two never read as one wide icon.
+  > svg:last-child {
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+  }
+}
+
+.trevixal-codelang__icon {
+  display: grid;
+  place-items: center;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.trevixal-codelang__label {
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trevixal-codelang__dropdown {
+  .trevixal-dropdown__panel {
+    // Right-aligned, so a block near the surface edge opens inward.
+    right: 0;
+    left: auto;
+    min-width: 11rem;
+    max-height: 17rem;
+    overflow-y: auto;
+  }
+
+  .trevixal-menu__item[aria-checked='true'] {
+    color: var(--tvx-color-accent);
+    font-weight: 600;
+  }
+}
+
+// The tick beside the active entry. Held in the layout even when hidden, so
+// the labels do not shift as the selection moves.
+.trevixal-menu__check {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding-left: var(--tvx-space-2);
+  visibility: hidden;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.trevixal-menu__item[aria-checked='true'] .trevixal-menu__check {
+  visibility: visible;
+}
+
+// Language glyphs are the one place colour carries meaning: it makes a long
+// list scannable without reading every label. Applied here rather than in
+// `createIcon`, so every other icon keeps inheriting `currentColor`.
+.trevixal-codelang {
+  [data-trevixal-language-icon='javascript'] { color: #e8a33d; }
+  [data-trevixal-language-icon='typescript'] { color: #3178c6; }
+  [data-trevixal-language-icon='python'] { color: #4b8bbe; }
+  [data-trevixal-language-icon='html'] { color: #e34f26; }
+  [data-trevixal-language-icon='css'] { color: #2965f1; }
+  [data-trevixal-language-icon='json'] { color: #8a8a9e; }
+  [data-trevixal-language-icon='sql'] { color: #e38c00; }
+  [data-trevixal-language-icon='shell'] { color: #4eaa25; }
+  [data-trevixal-language-icon='go'] { color: #00acd7; }
+  [data-trevixal-language-icon='rust'] { color: #ce422b; }
+  [data-trevixal-language-icon='java'] { color: #e76f00; }
+  [data-trevixal-language-icon='markdown'] { color: #6b6b80; }
+
+  // Plain text has no brand colour; it stays with the text.
+  [data-trevixal-language-icon=''] {
+    color: var(--tvx-color-text-muted);
+  }
+
+}
+
+@media (prefers-color-scheme: dark) {
+  .trevixal-codelang {
+    [data-trevixal-language-icon='javascript'] { color: #f0c674; }
+    [data-trevixal-language-icon='typescript'] { color: #6aa9e9; }
+    [data-trevixal-language-icon='python'] { color: #7fb3d5; }
+    [data-trevixal-language-icon='html'] { color: #f0785a; }
+    [data-trevixal-language-icon='css'] { color: #6a92f5; }
+    [data-trevixal-language-icon='json'] { color: #a9a9bd; }
+    [data-trevixal-language-icon='sql'] { color: #f0ad4e; }
+    [data-trevixal-language-icon='shell'] { color: #7ec95a; }
+    [data-trevixal-language-icon='go'] { color: #4fc9e8; }
+    [data-trevixal-language-icon='rust'] { color: #e07a5f; }
+    [data-trevixal-language-icon='java'] { color: #f09a4e; }
+    [data-trevixal-language-icon='markdown'] { color: #9a9aae; }
+  }
+}
+
+[data-trevixal-theme='dark'] {
+  .trevixal-codelang {
+    [data-trevixal-language-icon='javascript'] { color: #f0c674; }
+    [data-trevixal-language-icon='typescript'] { color: #6aa9e9; }
+    [data-trevixal-language-icon='python'] { color: #7fb3d5; }
+    [data-trevixal-language-icon='html'] { color: #f0785a; }
+    [data-trevixal-language-icon='css'] { color: #6a92f5; }
+    [data-trevixal-language-icon='json'] { color: #a9a9bd; }
+    [data-trevixal-language-icon='sql'] { color: #f0ad4e; }
+    [data-trevixal-language-icon='shell'] { color: #7ec95a; }
+    [data-trevixal-language-icon='go'] { color: #4fc9e8; }
+    [data-trevixal-language-icon='rust'] { color: #e07a5f; }
+    [data-trevixal-language-icon='java'] { color: #f09a4e; }
+    [data-trevixal-language-icon='markdown'] { color: #9a9aae; }
+  }
+}
+
+
+// ----------------------------------------------------- copy-code button
+// One button per code block, floated over the block's top-right corner by
+// createCopyCodeButtons. It is chrome, not document content, so it lives
+// beside the editor surface and is positioned in the host's coordinate
+// space -- the same approach as the floating table toolbar above.
+.trevixal-copycode {
+  position: absolute;
+  z-index: 5;
+  padding: 0.15rem t.token('space-2');
+  font-family: t.token('font-family');
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: t.token('color-text-muted');
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  cursor: pointer;
+
+  &:hover {
+    color: t.token('color-text');
+    border-color: t.token('color-accent');
+  }
+
+  &:focus-visible {
+    outline: t.token('focus-ring');
+  }
+
+  // The transient result states. Both are announced by the label text as
+  // well as the colour, so the feedback does not depend on colour alone.
+  &[data-state='copied'] {
+    color: t.token('color-accent');
+    border-color: t.token('color-accent');
+  }
+
+  &[data-state='failed'] {
+    color: t.token('color-danger');
+    border-color: t.token('color-danger');
+  }
+}
+
+// ---- informational dialog ---------------------------------------------------
+// Help content rather than a form: prose and term/description rows, so it
+// needs typography rules the form dialog never had.
+.trevixal-dialog--info {
+  width: min(32rem, 100%);
+
+  .trevixal-dialog__body {
+    margin: 0 0 t.token('space-3');
+    color: t.token('color-text-muted');
+    line-height: 1.6;
+  }
+
+  // A two-column grid keeps the descriptions aligned however long the terms
+  // are; `max-content` sizes the first column to the widest shortcut.
+  .trevixal-dialog__rows {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: t.token('space-2') t.token('space-3');
+    margin: 0;
+    align-items: baseline;
+  }
+
+  .trevixal-dialog__term {
+    margin: 0;
+    padding: 0.1rem 0.4rem;
+    justify-self: start;
+    background: t.token('color-code-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font-family: t.token('font-family-mono');
+    font-size: 0.85em;
+    white-space: nowrap;
+  }
+
+  .trevixal-dialog__description {
+    margin: 0;
+    color: t.token('color-text');
+  }
+}
+
+// A language the picker inferred rather than one the block declares: shown
+// in italic so the label does not claim the document carries it.
+.trevixal-codelang[data-trevixal-detected] .trevixal-select__label {
+  font-style: italic;
+  color: t.token("color-text-muted");
+}

@@ -1,0 +1,432 @@
+// Styles for @trevixal/extension-blocks: callouts, toggles, columns, cards,
+// timelines, page breaks, badges, buttons, footnotes and anchors. Every one
+// of these nodes renders as a plain div/span, so without these rules they are
+// invisible. A callout would read as an ordinary paragraph.
+@use 'tokens' as t;
+
+// The variant name paired with the token suffix it draws from. Callouts and
+// badges both walk this list, so a new variant is added in exactly one place.
+$tones: 'info', 'success', 'warning', 'danger', 'note';
+
+.trevixal-content {
+  // ---- callouts --------------------------------------------------------------
+  // A tinted panel with a heavy left edge: the edge is what makes a callout
+  // scannable at a glance, the tint is what separates it from body prose.
+  .trevixal-callout {
+    margin: t.token('space-3') 0;
+    padding: t.token('space-3');
+    border-radius: t.token('radius-md');
+    // The left accent is a border rather than a pseudo-element so it grows
+    // with the panel and needs no positioning context.
+    border-left: 4px solid t.token('color-tone-info-accent');
+    background: t.token('color-tone-info-bg');
+
+    // Block children keep their own margins, which would push the first line
+    // away from the panel's top edge and leave a gap at the bottom.
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    // An author-supplied glyph, echoed from the data attribute so no markup
+    // from the document ever reaches the stylesheet.
+    &[data-icon]::before {
+      content: attr(data-icon) ' ';
+      margin-right: t.token('space-1');
+      font-style: normal;
+    }
+
+    @each $tone in $tones {
+      &--#{$tone} {
+        border-left-color: t.token('color-tone-#{$tone}-accent');
+        background: t.token('color-tone-#{$tone}-bg');
+      }
+    }
+  }
+
+  // ---- toggles ---------------------------------------------------------------
+  // <details> already collapses on its own; these rules only make the summary
+  // look clickable and stop the marker from colliding with the text.
+  .trevixal-toggle {
+    margin: t.token('space-3') 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-md');
+    // The header fills the rounded corners, so the panel has to clip it.
+    overflow: hidden;
+    background: t.token('color-bg');
+
+    &__summary {
+      display: flex;
+      align-items: center;
+      // The chevron needs air on both sides of it: at space-2 against an
+      // 8px glyph the title crowded the arrow.
+      gap: t.token('space-3');
+      // Roomier than the old space-2/space-3: the header is a band of its
+      // own, so it needs vertical presence to read as one.
+      padding: 0.55rem t.token('space-3');
+      cursor: pointer;
+      font-weight: 600;
+      user-select: none;
+      background: t.token('color-surface');
+      transition: background-color 120ms ease;
+      // A bare em-height line box crops descenders, and the title sits too
+      // close to the chevron without it.
+      line-height: 1.5;
+      // The title fills the row, so the whole header is the hit target rather
+      // than just the words.
+      > * {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      // The native marker is inconsistent between browsers and sits at an
+      // offset we cannot control, so the chevron below replaces it.
+      list-style: none;
+
+      &::marker,
+      &::-webkit-details-marker {
+        display: none;
+        content: '';
+      }
+
+      // An owned chevron: the same shape everywhere, rotating on open so the
+      // header says which way it will go.
+      // Longhands, not `border: solid <token>` with a width after it: a
+      // shorthand holding a `var()` cannot be read back out of the CSSOM, so
+      // that spelling survives in the editor and vanishes from every export
+      // and printout. See `collect-css.ts`.
+      &::before {
+        content: '';
+        flex: none;
+        // Slightly larger, so it holds its own beside a bold title.
+        width: 0.56em;
+        height: 0.56em;
+        border-style: solid;
+        border-color: t.token('color-text-muted');
+        border-width: 0 2px 2px 0;
+        transform: rotate(-45deg);
+        transition: transform 150ms ease;
+        // A rotated square's ink sits low-left of its box, so it needs
+        // nudging back onto the text's optical centre.
+        margin: 0 0.1em 0.12em 0.1em;
+      }
+
+      &:hover {
+        background: t.token('color-selection');
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: inset t.token('focus-ring');
+      }
+    }
+
+    // Written out rather than nested: `&[open] > &__summary` re-inserts the
+    // whole parent selector, and a `:where()` prefix attaches to the front of
+    // the entire chain (including `.trevixal-content`) rather than to the
+    // <details> element.
+    &[open] > .trevixal-toggle__summary::before {
+      transform: rotate(45deg);
+    }
+
+    &__content {
+      padding: t.token('space-3');
+      border-top: 1px solid t.token('color-border');
+
+      > :first-child {
+        margin-top: 0;
+      }
+
+      > :last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  // ---- column layouts --------------------------------------------------------
+  // The grid template is also inlined by toHTML so exports survive without
+  // this stylesheet; these rules add the gap and the responsive collapse.
+  .trevixal-columns {
+    display: grid;
+    gap: t.token('space-4');
+    margin: t.token('space-3') 0;
+
+    &--2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    &--3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    &--4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    &__column {
+      // Columns are grid items, so they need min-width: 0 or a long word
+      // inside one blows the whole track past its share.
+      min-width: 0;
+
+      > :first-child {
+        margin-top: 0;
+      }
+
+      > :last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  // Four columns on a phone gives each about five characters, so every
+  // layout becomes a single stack on a narrow viewport.
+  @media (max-width: 40rem) {
+    .trevixal-columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  // ---- cards -----------------------------------------------------------------
+  .trevixal-card {
+    margin: t.token('space-3') 0;
+    padding: t.token('space-4');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-md');
+    background: t.token('color-surface');
+    box-shadow: t.token('shadow-raised');
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // ---- timelines -------------------------------------------------------------
+  // A vertical rail drawn as a left border on the list, with each item's dot
+  // sitting on top of it. The dot is a pseudo-element so the document holds
+  // no presentational nodes.
+  .trevixal-timeline {
+    margin: t.token('space-3') 0;
+    // The rail replaces the list's own numbering, which would compete with
+    // the markers authors put on each item.
+    padding-left: t.token('space-4');
+    border-left: 2px solid t.token('color-border');
+    list-style: none;
+
+    &__item {
+      position: relative;
+      // Room for the dot, which sits outside the item's own box.
+      padding-left: t.token('space-3');
+      padding-bottom: t.token('space-3');
+
+      &:last-child {
+        padding-bottom: 0;
+      }
+
+      // The dot: pulled left by its own size plus the rail offset so its
+      // center lands on the rail regardless of font size.
+      &::before {
+        content: '';
+        position: absolute;
+        left: calc(-1 * (t.token('space-4') + 5px));
+        top: 0.45em;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: t.token('color-accent');
+      }
+
+      // An author's marker (a date, a step number) labels the entry. It uses
+      // ::after with `display: block` and a negative top margin rather than
+      // ::before, which the dot already occupies.
+      &[data-marker]::after {
+        content: attr(data-marker);
+        display: block;
+        margin-top: t.token('space-1');
+        color: t.token('color-text-muted');
+        font-size: 0.85em;
+        font-weight: 600;
+      }
+
+      > :first-child {
+        margin-top: 0;
+      }
+
+      > :last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  // ---- page breaks -----------------------------------------------------------
+  // On screen a page break is only a hint that print will split here, so it
+  // draws as a labelled dashed line rather than as blank space.
+  .trevixal-page-break {
+    position: relative;
+    margin: t.token('space-4') 0;
+    border-top: 2px dashed t.token('color-border');
+
+    &::after {
+      content: 'Page break';
+      position: absolute;
+      top: -0.7em;
+      right: 0;
+      padding: 0 t.token('space-2');
+      background: t.token('color-bg');
+      color: t.token('color-text-muted');
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  }
+
+  // ---- badges ----------------------------------------------------------------
+  // An inline pill. `neutral` is the base; the tone modifiers only swap
+  // colors, so an unknown tone still renders as a readable chip.
+  .trevixal-badge {
+    display: inline-block;
+    padding: 0.1em 0.5em;
+    border-radius: 999px;
+    background: t.token('color-tone-neutral-bg');
+    color: t.token('color-tone-neutral-accent');
+    font-size: 0.8em;
+    font-weight: 600;
+    line-height: 1.5;
+    // A badge is a label, not prose: never let one break across lines.
+    white-space: nowrap;
+    vertical-align: baseline;
+
+    @each $tone in $tones {
+      &--#{$tone} {
+        background: t.token('color-tone-#{$tone}-bg');
+        color: t.token('color-tone-#{$tone}-accent');
+      }
+    }
+  }
+
+  // ---- buttons ---------------------------------------------------------------
+  // An inline call to action, rendered as a <span> because core's link mark
+  // claims every <a> on import. It keeps its styling with no target so an
+  // unsafe link that was dropped at serialize time still looks deliberate.
+  .trevixal-button {
+    cursor: pointer;
+    display: inline-block;
+    padding: t.token('space-1') t.token('space-3');
+    border-radius: t.token('radius-sm');
+    background: t.token('color-accent');
+    color: t.token('color-accent-contrast');
+    font-size: 0.9em;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      // No separate hover token exists, so lift the whole chip slightly
+      // rather than inventing a hardcoded shade.
+      filter: brightness(1.08);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  // ---- footnotes -------------------------------------------------------------
+  // The ref is a <span>, not a <sup> (core's superscript mark owns that tag,
+  // see the node's own comment), so the raised position is set here.
+  .trevixal-footnote-ref {
+    color: t.token('color-accent');
+    cursor: pointer;
+    font-size: 0.75em;
+    font-weight: 600;
+    // Reproduces what <sup> would have done, without the tag.
+    vertical-align: super;
+    line-height: 0;
+
+    // Brackets make a bare number read as a citation rather than an exponent.
+    &::before {
+      content: '[';
+    }
+
+    &::after {
+      content: ']';
+    }
+  }
+
+  .trevixal-footnotes {
+    margin-top: t.token('space-4');
+    padding-top: t.token('space-3');
+    // The list is document apparatus, not body text: a rule sets it apart.
+    border-top: 1px solid t.token('color-border');
+    color: t.token('color-text-muted');
+    font-size: 0.9em;
+
+    &__item {
+      margin-bottom: t.token('space-2');
+
+      // Highlighted when jumped to, so the reader sees which note answered
+      // the marker they clicked.
+      &:target {
+        background: t.token('color-mark-bg');
+        border-radius: t.token('radius-sm');
+      }
+
+      > :first-child {
+        margin-top: 0;
+      }
+
+      > :last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  // ---- anchors ---------------------------------------------------------------
+  // A jump target holds no content, so it must not occupy space or the
+  // paragraph it sits in gains a mysterious gap.
+  .trevixal-anchor {
+    display: inline;
+    width: 0;
+    height: 0;
+    // Keeps the target scrollable-to without pushing the line around.
+    overflow: hidden;
+  }
+}
+
+// ---- print -----------------------------------------------------------------
+// The page break only does its job on paper; on screen it is the dashed line
+// above. Its screen chrome has to go, or it prints as a stray label.
+@media print {
+  .trevixal-content {
+    .trevixal-page-break {
+      page-break-after: always;
+      // The modern spelling; both ship because printer support still varies.
+      break-after: page;
+      margin: 0;
+      border-top: 0;
+
+      &::after {
+        content: none;
+      }
+    }
+
+    // A collapsed toggle would hide its body from the printout entirely, so
+    // print reveals every one.
+    .trevixal-toggle__content {
+      display: block;
+    }
+
+    // Shadows and tints cost ink and often print as muddy grey; keep the
+    // structural borders and drop the fills.
+    .trevixal-card {
+      box-shadow: none;
+    }
+  }
+}

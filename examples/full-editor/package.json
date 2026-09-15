@@ -1,0 +1,21 @@
+{
+  "name": "@trevixal/example-full-editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The complete Trevixal editor, mounted from @trevixal/editor-kit in a dozen lines of configuration.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trevixal/editor-kit": "workspace:*",
+    "@trevixal/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}

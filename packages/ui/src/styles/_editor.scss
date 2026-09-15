@@ -1,0 +1,150 @@
+@use 'tokens' as t;
+
+// Content area typography: the rendered document surface.
+
+.trevixal-content {
+  position: relative;
+  min-height: 8em;
+  padding: t.token('space-4');
+  background: t.token('color-bg');
+  color: t.token('color-text');
+  font-family: t.token('font-family');
+  font-size: t.token('font-size');
+  line-height: t.token('line-height');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  outline: none;
+  // Spaces are kept as typed, and lines still wrap.
+  //
+  // Under the default `normal`, a run of spaces collapses to one and a space
+  // at the end of a line is dropped altogether, so typing a space at the end
+  // of a paragraph moved nothing on screen and the caret sat still until the
+  // next character arrived. The space was in the document the whole time; the
+  // rendering was hiding it, which is the one thing a writing surface must
+  // never do.
+  //
+  // `pre-wrap` rather than `pre`: text still wraps at the edge of the column.
+  // A `<pre>` inside the document keeps its own `pre` from the user-agent
+  // sheet, which applies to that element directly and so outranks this
+  // inherited value.
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+
+  &:focus-visible {
+    box-shadow: t.token('focus-ring');
+  }
+
+  ::selection {
+    background: t.token('color-selection');
+  }
+
+  p {
+    margin: 0 0 0.75em;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 1.2em 0 0.5em;
+    line-height: 1.25;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h1 { font-size: 2em; }
+  h2 { font-size: 1.5em; }
+  h3 { font-size: 1.25em; }
+  h4 { font-size: 1.1em; }
+  h5 { font-size: 1em; }
+  h6 {
+    font-size: 0.9em;
+    color: t.token('color-text-muted');
+  }
+
+  blockquote {
+    margin: 0.75em 0;
+    padding: t.token('space-1') t.token('space-4');
+    border-left: 3px solid t.token('color-accent');
+    color: t.token('color-text-muted');
+  }
+
+  pre {
+    margin: 0.75em 0;
+    padding: t.token('space-3');
+    background: t.token('color-code-bg');
+    border-radius: t.token('radius-sm');
+    font-family: t.token('font-family-mono');
+    font-size: 0.9em;
+    // A code editor's line spacing and tab width: room for the caret to be
+    // found, and pasted tabs matching the two-space indent Tab inserts.
+    line-height: 1.55;
+    tab-size: 2;
+    overflow-x: auto;
+
+    code {
+      background: none;
+      padding: 0;
+    }
+  }
+
+  code {
+    padding: 0.1em 0.35em;
+    background: t.token('color-code-bg');
+    border-radius: t.token('radius-sm');
+    font-family: t.token('font-family-mono');
+    font-size: 0.9em;
+  }
+
+  ul,
+  ol {
+    margin: 0 0 0.75em;
+    padding-left: 1.5em;
+  }
+
+  li > p {
+    margin-bottom: 0.25em;
+  }
+
+  hr {
+    margin: 1.25em 0;
+    border: none;
+    border-top: 1px solid t.token('color-border');
+  }
+
+  a {
+    color: t.token('color-accent');
+    text-decoration: underline;
+  }
+
+  mark {
+    background: t.token('color-mark-bg');
+    color: inherit;
+    border-radius: 2px;
+  }
+
+  // Find & replace highlight decorations (never stored in the document).
+  .trevixal-search-match {
+    background: t.token('color-selection');
+    border-radius: 2px;
+    outline: 1px solid t.token('color-accent');
+  }
+
+  // Read-only surface.
+  &[aria-readonly='true'] {
+    background: t.token('color-surface');
+    cursor: default;
+  }
+
+  // Placeholder text (rendered by the view layer via data attribute).
+  &[data-trevixal-empty='true']::before {
+    content: attr(data-trevixal-placeholder);
+    position: absolute;
+    color: t.token('color-text-muted');
+    pointer-events: none;
+  }
+}

@@ -1,0 +1,366 @@
+// @trevixal/editor-kit, the page around the editor.
+//
+// Load it after `@trevixal/ui/styles.css`: the kit dresses everything inside
+// the editor root, and this dresses the shell that holds the root, the panes
+// beside it and the readouts under it.
+//
+// Two kinds of rule live here, and they are scoped differently on purpose.
+// The shell is scoped to `.trevixal-full-editor`, the class `createLayout`
+// puts on its host, because the host page is not ours to style. A framework
+// owns its own <body>. The syntax-colour palette is deliberately *not*
+// scoped: `collectDocumentCSS` copies every rule whose selector mentions
+// `.tvx-` into an exported or previewed document, and that document is a
+// bare page with no shell around it.
+
+// ---------------------------------------------------------------- the page
+
+// The viewport's own scrollbar is painted from <html>, which sits above the
+// editor root and so never sees its tokens. `color-scheme` from the kit
+// already gets this bar the right ground; this is what makes it the same slim
+// bar as the ones in the panes beside it. A theme preset writes its palette
+// onto every element it dresses, <html> included, so `var()` picks up Nord's
+// or Midnight's own border colour; the literals behind it are for plain light
+// and dark, whose tokens live on the editor root below.
+html:has(.trevixal-full-editor) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tvx-color-border, #d9d9e3) transparent;
+}
+
+html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
+  scrollbar-color: var(--tvx-color-border, #34344a) transparent;
+}
+
+.trevixal-full-editor {
+  font-family: system-ui, sans-serif;
+  // Twelve toolbar groups plus a sidebar; the kit's toolbar already wraps,
+  // this just gives it room before it has to.
+  max-width: 84rem;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+}
+
+// --------------------------------------------------------------- the shell
+
+// `[hidden]` has to win over the layout rule, so every display below is
+// scoped to the visible state rather than fighting the user-agent stylesheet.
+//
+// Flex, not grid. A grid needs its column list written in advance, and the
+// number of children here is not known in advance: the sidebar, the preview
+// and the mirrored editor each come and go. A hidden child is `display: none`
+// and takes no track, so the remaining children slid up the list and the
+// editor landed in the sidebar's `auto` column, which sizes to content, so
+// it took nearly the whole row and squeezed the panes beside it into a few
+// characters' width.
+//
+// With flex there is no list to keep in step: whatever is visible shares the
+// row, and `wrap` is what makes it responsive. A pane that cannot hold its
+// basis moves to its own line instead of overflowing the page sideways.
+.editor-shell:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  // `flex-start` rather than the default stretch: a stretched item is
+  // full-height, and `position: sticky` has nothing to travel within.
+  align-items: flex-start;
+}
+
+// The "a newer draft was found" banner is prepended into the shell, and the
+// shell is a flex row, so without a basis of its own the banner took a column
+// beside the panes and pushed the sidebar and the editor across the page. It
+// is a notice about the document rather than a pane, so it gets the whole
+// first line. `margin-bottom: 0` because the row gap already separates it.
+.editor-shell > .trevixal-banner {
+  // `border-box` because a flex basis is a content width: the banner's own
+  // padding and border would otherwise put it 26px past the row it is sizing
+  // itself to.
+  box-sizing: border-box;
+  flex: 0 0 100%;
+  margin-bottom: 0;
+}
+
+// Each pane takes an equal share of the row, and asks for 20rem before it
+// would rather wrap. 20rem is what lets the editor, the preview and the
+// mirror all three sit on one line at this page's widest, 15rem of sidebar
+// and three gaps out of 84rem leaves just over 21rem each, and still wrap
+// one pane per line by the time the window is a phone's. `min-width: 0`
+// because a flex item otherwise refuses to shrink below its content: one long
+// word would push the row wider than the page.
+#editor,
+.editor-shell > #split:not([hidden]),
+.editor-shell > #mirror:not([hidden]) {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+#sidebar:not([hidden]) {
+  display: flex;
+  flex: 0 0 15rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  // Sticky rather than a fixed-height box: the panels travel with the page
+  // and only scroll themselves once they exceed the viewport, so in the
+  // common case there is no inner scrollbar at all.
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  // Overlay the bar instead of reserving a gutter: a reserved strip is
+  // visible for the panel's whole life, and this panel is always on screen.
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms ease;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: var(--tvx-color-surface, #f7f7fa);
+  border: 1px solid var(--tvx-color-border, #e4e4ec);
+}
+
+#sidebar:not([hidden]):hover,
+#sidebar:not([hidden]):focus-within {
+  scrollbar-color: var(--tvx-color-border, #d9d9e3) transparent;
+}
+
+// WebKit: a 6px overlay thumb, invisible until the panel is hovered.
+#sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+#sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background-color 200ms ease;
+}
+
+#sidebar:hover::-webkit-scrollbar-thumb,
+#sidebar:focus-within::-webkit-scrollbar-thumb {
+  background: var(--tvx-color-border, #d9d9e3);
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--tvx-color-text-muted, #6b6b80);
+}
+
+#sidebar section:not([hidden]) {
+  display: block;
+}
+
+#sidebar h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  // Follows the theme rather than a fixed grey, which was invisible on the
+  // dark surface.
+  color: var(--tvx-color-text-muted, #6b6b80);
+}
+
+// The editor column honours the width the View menu sets, and the floating
+// controls position themselves inside this box.
+#editor {
+  max-width: var(--tvx-editor-width, none);
+  position: relative;
+}
+
+@media (max-width: 60rem) {
+  // No room for a column of its own; the panels stack above the editor at
+  // full width and give back the height they borrow.
+  #sidebar:not([hidden]) {
+    flex: 1 1 100%;
+    max-height: 14rem;
+    position: static;
+  }
+}
+
+#editor .trevixal-content {
+  min-height: 18rem;
+  padding: 1rem;
+  border: 1px solid var(--tvx-color-border, #d9d9e3);
+  border-radius: 8px;
+}
+
+// A pane travels with the reader instead of scrolling away.
+//
+// Side-by-side means side by side: a short box beside a document thousands of
+// pixels tall is off screen by the second paragraph, and a mirrored editor as
+// long as the original is no easier to compare against than the original.
+// Both get a viewport's height and stick to it, so each scrolls its own
+// content while the editor scrolls the page. On a line of their own, a
+// narrow window. There is no travel to have and they simply sit there, which
+// is the right answer too.
+.editor-shell > #split:not([hidden]),
+.editor-shell > #mirror:not([hidden]) {
+  position: sticky;
+  top: 1rem;
+  height: calc(100vh - 2rem);
+  min-height: 24rem;
+}
+
+// ------------------------------------------------------------- the readouts
+
+.statusline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--tvx-color-text-muted, #6b6b80);
+}
+
+// Each segment hides itself when it has nothing to say, so the row does not
+// carry empty gaps.
+#offline:not([hidden]) {
+  color: var(--tvx-color-danger, #dc2626);
+}
+
+#tabs:not(:empty) {
+  margin-bottom: 0.5rem;
+}
+
+#review:not(:empty) {
+  margin: 0.5rem 0;
+}
+
+#upload-status {
+  margin-top: 0.75rem;
+  font: 0.8rem/1.5 ui-monospace, monospace;
+  color: var(--tvx-color-text-muted, #6b6b80);
+}
+
+// The host is the editor root, so the kit already paints it from the theme
+// tokens. Restating that in hex outranks it and pins the page to plain white
+// or plain dark, which is what made every preset beyond Light and Dark look
+// like it did nothing. Anything added here reads the tokens instead.
+#output {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font: 0.75rem/1.5 ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--tvx-color-surface, #f5f5f7);
+  color: var(--tvx-color-text);
+  // A pane, not a wall. This is the whole document serialized, so on a real
+  // one it ran to several screens of markup and pushed everything a host had
+  // put under the editor off the bottom of the page.
+  max-height: 20rem;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+// ---------------------------------------------------- syntax colours
+
+// One palette for every language: the tokenizer emits the same class names
+// whatever the grammar.
+//
+// Every colour here clears 4.5:1 against the code block's background,
+// measured rather than eyeballed. The browser suite runs an axe audit over
+// this page and a comment nobody can read is not a style choice. Four of them
+// were darkened for that: the hue is the one the theme started with, taken
+// down by the least that passes.
+//
+// Unscoped, and it has to stay that way: these are the rules
+// `collectDocumentCSS` copies into a downloaded or previewed document, which
+// has none of the shell around it.
+.tvx-tok-keyword {
+  color: #a626a4;
+  font-weight: 600;
+}
+.tvx-tok-builtin {
+  color: #0172a3;
+}
+.tvx-tok-string {
+  color: #3c783b;
+}
+.tvx-tok-number {
+  color: #986801;
+}
+.tvx-tok-comment {
+  color: #696983;
+  font-style: italic;
+}
+.tvx-tok-function {
+  color: #1f60f0;
+}
+.tvx-tok-operator {
+  color: #666680;
+}
+.tvx-tok-variable,
+.tvx-tok-tag {
+  color: #e45649;
+}
+.tvx-tok-attribute {
+  color: #986801;
+}
+.tvx-tok-selector {
+  color: #a626a4;
+}
+
+// The palette follows the theme that is actually in use, not the operating
+// system's preference: picking Nord or Midnight on a light desktop would
+// otherwise leave light syntax colours on a dark page.
+[data-trevixal-theme='dark'] {
+  .tvx-tok-keyword,
+  .tvx-tok-selector {
+    color: #c678dd;
+  }
+  .tvx-tok-builtin {
+    color: #56b6c2;
+  }
+  .tvx-tok-string {
+    color: #98c379;
+  }
+  .tvx-tok-number,
+  .tvx-tok-attribute {
+    color: #d19a66;
+  }
+  .tvx-tok-comment {
+    color: #888ca3;
+  }
+  .tvx-tok-function {
+    color: #61afef;
+  }
+  .tvx-tok-operator {
+    color: #abb2bf;
+  }
+  .tvx-tok-variable,
+  .tvx-tok-tag {
+    color: #e06c75;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-trevixal-theme='light']) {
+    .tvx-tok-keyword,
+    .tvx-tok-selector {
+      color: #c678dd;
+    }
+    .tvx-tok-builtin {
+      color: #56b6c2;
+    }
+    .tvx-tok-string {
+      color: #98c379;
+    }
+    .tvx-tok-number,
+    .tvx-tok-attribute {
+      color: #d19a66;
+    }
+    .tvx-tok-comment {
+      color: #888ca3;
+    }
+    .tvx-tok-function {
+      color: #61afef;
+    }
+    .tvx-tok-operator {
+      color: #abb2bf;
+    }
+    .tvx-tok-variable,
+    .tvx-tok-tag {
+      color: #e06c75;
+    }
+  }
+}
