@@ -6,6 +6,12 @@ on:
     # This workflow creates those tags. Listening for them would have a
     # publish start another release run.
     tags-ignore: ['**']
+  # Merging the bot's own "chore: release" PR is a push by GITHUB_TOKEN, and
+  # GitHub will not start a workflow from one: "Events triggered by the
+  # GITHUB_TOKEN will not create a new workflow run". So the publish that
+  # should follow that merge never runs. `workflow_dispatch` is one of the two
+  # documented exceptions, so this is the manual way to start it.
+  workflow_dispatch:
 
 # One release run at a time; a second push waits rather than racing the first
 # to open the version PR or publish.
