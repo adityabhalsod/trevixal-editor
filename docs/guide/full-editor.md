@@ -104,6 +104,9 @@ A page with no bundler gets a second build: one file that defines
 </script>
 ```
 
+That page is [running on this site](../drop-in), unchanged, from the released
+packages.
+
 It is 180 kB gzipped, because it has to carry the core, the chrome and all
 fifteen extensions in one request. With a bundler, import the package and let
 it tree-shake instead. The import line is the only difference.

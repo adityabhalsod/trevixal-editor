@@ -57,6 +57,17 @@ body.trevixal {
   box-sizing: revert;
 }
 
+/* The drop-in page's frame. The site paints nothing inside it; the border
+   only says where the page ends and the frame begins. */
+.drop-in {
+  display: block;
+  width: 100%;
+  height: min(80vh, 46rem);
+  margin: 1.5rem 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
 .playground {
   margin: 1.5rem 0;
 }

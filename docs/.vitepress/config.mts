@@ -37,6 +37,7 @@ export default defineConfig({
         items: [
           { text: 'Full editor', link: '/full-editor' },
           { text: 'Playground', link: '/playground' },
+          { text: 'Drop-in page', link: '/drop-in' },
         ],
       },
     ],
