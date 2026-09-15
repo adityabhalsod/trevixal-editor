@@ -67,9 +67,11 @@ function tarballProblems(dir) {
   const problems = paths
     .filter((path) => path.startsWith('src/'))
     .map((path) => `${path} is source, not build output`)
+  // Maps are built for local debugging and stay out of the tarball. They point
+  // at `../src/*.ts`, which is deliberately not published, so a shipped map
+  // resolves to nothing: dead weight a consumer downloads and cannot use.
   for (const path of paths.filter((path) => path.endsWith('.map'))) {
-    const map = JSON.parse(readFileSync(join(dir, path), 'utf8'))
-    if (map.sourcesContent?.some(Boolean)) problems.push(`${path} embeds the source text it maps`)
+    problems.push(`${path} is a source map; maps are not published`)
   }
   return problems
 }

@@ -31,7 +31,8 @@
   "unpkg": "./dist/trevixal-editor.iife.js",
   "jsdelivr": "./dist/trevixal-editor.iife.js",
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public"

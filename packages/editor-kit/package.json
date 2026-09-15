@@ -33,7 +33,8 @@
     "./cdn": "./dist/trevixal-editor-kit.iife.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public"
