@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 627px; overflow: hidden; }
+  body {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #f5f7fb;
+    background:
+      radial-gradient(900px 600px at 78% 30%, rgba(99, 102, 241, 0.35), transparent 60%),
+      radial-gradient(700px 500px at 10% 90%, rgba(56, 189, 248, 0.22), transparent 60%),
+      linear-gradient(135deg, #0b1020 0%, #111a33 55%, #0c1226 100%);
+    position: relative;
+  }
+  .grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(80% 80% at 40% 40%, #000 40%, transparent 100%);
+  }
+  .copy { position: absolute; left: 64px; top: 84px; width: 470px; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 34px; }
+  .brand img { width: 44px; height: 44px; border-radius: 10px; }
+  .brand span { font-size: 22px; font-weight: 600; letter-spacing: 0.02em; color: #c7d2fe; }
+  h1 { font-size: 46px; line-height: 1.08; font-weight: 800; letter-spacing: -0.02em; }
+  h1 em { font-style: normal; color: #a5b4fc; }
+  p.sub { margin-top: 18px; font-size: 18px; line-height: 1.5; color: #b6bdd1; max-width: 430px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .chip {
+    font-size: 13px; font-weight: 500; padding: 7px 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); color: #e2e8f0;
+  }
+  .url { position: absolute; left: 64px; bottom: 52px; font-size: 16px; font-weight: 500; color: #93c5fd; letter-spacing: 0.01em; }
+  .url b { color: #f5f7fb; font-weight: 600; }
+  .shot {
+    position: absolute; left: 560px; top: 104px; width: 920px;
+    border-radius: 14px; overflow: hidden;
+    background: #fff;
+    box-shadow: 0 40px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12);
+    transform: perspective(1600px) rotateY(-9deg) rotateX(2deg);
+    transform-origin: left center;
+  }
+  .bar { height: 38px; background: #1f2937; display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+  .bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .bar .addr { margin-left: 12px; flex: 1; height: 22px; border-radius: 6px; background: #111827; color: #9ca3af; font-size: 12px; display: flex; align-items: center; padding: 0 10px; }
+  .shot img { display: block; width: 100%; }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="copy">
+    <div class="brand"><img src="favicon.svg" alt="" /><span>Trevixal</span></div>
+    <h1>A rich-text editor,<br /><em>written from scratch.</em></h1>
+    <p class="sub">No ProseMirror, Lexical or Slate. No runtime dependencies. One call mounts the whole thing.</p>
+    <div class="chips">
+      <span class="chip">23 packages on npm</span>
+      <span class="chip">React · Vue · Svelte · Angular</span>
+      <span class="chip">Word · RTF · PDF export</span>
+      <span class="chip">Track changes</span>
+      <span class="chip">Tables · Math · Diagrams</span>
+    </div>
+  </div>
+  <div class="url"><b>trevixal-editor.vercel.app</b> &nbsp;·&nbsp; npm: @trevixal</div>
+  <div class="shot">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><div class="addr">trevixal-editor.vercel.app/full-editor</div></div>
+    <img src="editor.png" alt="" />
+  </div>
+</body>
+</html>
