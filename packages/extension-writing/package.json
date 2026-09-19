@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-writing",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Writing assistance for the Trevixal editor: readability, passive voice, repeated words, grammar hints and keyword density as decorations and reports.",
   "keywords": [
     "trevixal",

@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-embed",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Media embeds for the Trevixal editor: video, audio, YouTube/Vimeo and iframe embeds, file attachments and link preview cards.",
   "keywords": [
     "trevixal",

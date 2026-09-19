@@ -1,5 +1,11 @@
 # @trevixal/angular
 
+## 1.0.3
+
+### Patch Changes
+
+- a1747fd: Documentation only: badges, a screenshot, a features list and a measured size in every package README, and absolute links, because a relative link is a 404 on npm.
+
 ## 1.0.2
 
 ### Patch Changes

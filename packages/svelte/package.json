@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/svelte",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Svelte bindings for the Trevixal editor: a use:trevixalEditor action and a store-contract snapshot.",
   "keywords": [
     "trevixal",
