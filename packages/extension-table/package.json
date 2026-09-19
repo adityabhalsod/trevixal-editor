@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-table",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Tables for the Trevixal editor: insert, row/column editing, cell merge/split, header row, alignment, keyboard navigation.",
   "keywords": [
     "trevixal",

@@ -1,5 +1,16 @@
 # @trevixal/extension-table
 
+## 2.0.0
+
+### Major Changes
+
+- a1747fd: Documentation only: badges, a screenshot, a features list and a measured size in every package README, and absolute links, because a relative link is a 404 on npm.
+
+### Patch Changes
+
+- Updated dependencies [a1747fd]
+  - @trevixal/core@2.0.0
+
 ## 1.0.2
 
 ### Patch Changes

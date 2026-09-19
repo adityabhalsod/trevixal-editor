@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-track-changes",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Track changes / suggestion mode for the Trevixal editor: attributed insertion and deletion marks with accept and reject.",
   "keywords": [
     "trevixal",

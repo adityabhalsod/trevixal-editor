@@ -1,6 +1,6 @@
 {
   "name": "@trevixal/extension-blocks",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Structural blocks for the Trevixal editor: callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes and anchors.",
   "keywords": [
     "trevixal",

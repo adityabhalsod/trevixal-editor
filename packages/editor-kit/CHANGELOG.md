@@ -1,5 +1,32 @@
 # @trevixal/editor-kit
 
+## 2.0.0
+
+### Major Changes
+
+- a1747fd: Documentation only: badges, a screenshot, a features list and a measured size in every package README, and absolute links, because a relative link is a 404 on npm.
+
+### Patch Changes
+
+- Updated dependencies [a1747fd]
+  - @trevixal/core@2.0.0
+  - @trevixal/extension-blocks@2.0.0
+  - @trevixal/extension-code-highlight@2.0.0
+  - @trevixal/extension-diagram@2.0.0
+  - @trevixal/extension-embed@2.0.0
+  - @trevixal/extension-emoji@2.0.0
+  - @trevixal/extension-export@2.0.0
+  - @trevixal/extension-format-code@2.0.0
+  - @trevixal/extension-image@2.0.0
+  - @trevixal/extension-math@2.0.0
+  - @trevixal/extension-security@2.0.0
+  - @trevixal/extension-slash-command@2.0.0
+  - @trevixal/extension-table@2.0.0
+  - @trevixal/extension-track-changes@2.0.0
+  - @trevixal/extension-workspace@2.0.0
+  - @trevixal/extension-writing@2.0.0
+  - @trevixal/ui@2.0.0
+
 ## 1.0.2
 
 ### Patch Changes
