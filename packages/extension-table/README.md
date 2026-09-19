@@ -1,5 +1,25 @@
 # @trevixal/extension-table
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/extension-table.svg)](https://www.npmjs.com/package/@trevixal/extension-table)
+[![types](https://img.shields.io/npm/types/@trevixal/extension-table.svg)](https://www.npmjs.com/package/@trevixal/extension-table)
+[![license](https://img.shields.io/npm/l/@trevixal/extension-table.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-table/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Insert, merge, split, sort; row and column editing
+- Column resize, header rows, alignment and borders
+- Keyboard navigation and CSV import/export
+- **10.2 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 Tables: structure, merging, sorting, borders, CSV, and the keyboard.
 
 ```sh
@@ -52,7 +72,7 @@ the base binding wholesale.
 
 **Cells merge across columns only.** `rowspan` is not in the model, which
 keeps every row a flat list of cells and every structural edit simple
-arithmetic ([ADR-0006](../../docs/adr/0006-colspan-only-table-model.md)). A
+arithmetic ([ADR-0006](https://github.com/adityabhalsod/trevixal-editor/blob/main/docs/adr/0006-colspan-only-table-model.md)). A
 column move that would cut through a merged cell declines rather than
 silently rewriting the merge.
 

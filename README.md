@@ -1,5 +1,14 @@
 # Trevixal Editor
 
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
+[![types](https://img.shields.io/npm/types/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
+[![license](https://img.shields.io/npm/l/@trevixal/core.svg)](LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
 **A WYSIWYG rich-text editor engine, written from scratch.** No ProseMirror,
 Lexical, Slate, Quill or Draft.js code anywhere in it, and no runtime
 dependencies in any package it ships.
@@ -26,16 +35,19 @@ const doc = editor.getJSON() // the document, as data you can store and validate
 
 | | |
 | --- | --- |
-| **Packages** | 24 under `@trevixal/*`. A headless core, an optional chrome, an assembled editor, five adapters, fifteen extensions |
-| **Tests** | **2,171 unit** across 121 files · **156 browser** across 18 specs |
+| **Packages** | 23 under `@trevixal/*`. A headless core, an optional chrome, an assembled editor, five adapters, fifteen extensions |
+| **Tests** | **2,210 unit** across 130 files · browser suites across 18 specs |
 | **Engines** | Chromium, Firefox and WebKit, all three driven by the browser suite |
-| **Source** | ~53,700 lines of TypeScript and SCSS |
+| **Size** | **27.3 kB** gzipped for the engine; 180.4 kB for the whole assembled editor |
+| **Dependencies** | None at runtime, in any published package |
+| **Source** | ~60,800 lines of TypeScript and SCSS |
 | **Licence** | Apache-2.0 |
 
 **Where to start**
 
 | If you want to… | Read |
 | --- | --- |
+| compare it with Tiptap | [Trevixal vs Tiptap](#trevixal-vs-tiptap) |
 | decide whether it fits | [Why Trevixal](#why-trevixal) · [Everything it can do](#everything-it-can-do) · [What it deliberately does not do](#what-trevixal-deliberately-does-not-do) |
 | get an editor on screen | [Requirements and installation](#requirements-and-installation) · [Quick start](#quick-start) |
 | the whole editor, in one call | [The whole editor in one call](#the-whole-editor-in-one-call) |
@@ -56,6 +68,7 @@ signposts in this list only. The page itself runs straight through.
 
 **Orientation**
 [Why Trevixal](#why-trevixal) ·
+[Trevixal vs Tiptap](#trevixal-vs-tiptap) ·
 [Everything it can do](#everything-it-can-do) ·
 [What Trevixal deliberately does not do](#what-trevixal-deliberately-does-not-do)
 
@@ -142,6 +155,48 @@ page, and it is what the browser test suite drives.
 - **Single-user by design.** Real-time co-editing, comments and sharing were
   built, measured and then removed; see
   [What Trevixal deliberately does not do](#what-trevixal-deliberately-does-not-do).
+
+## Trevixal vs Tiptap
+
+[Tiptap](https://tiptap.dev) is the editor most people compare this one to, and
+the comparison is fair: both are headless, both are extension-driven, both have
+adapters for every major framework. This section is meant to help you choose
+Tiptap when Tiptap is the right answer.
+
+The one real difference is that Tiptap is a layer over
+[ProseMirror](https://prosemirror.net), and Trevixal is not a layer over
+anything. Everything below follows from that.
+
+Measured on 19 September 2026: `@trevixal/core` against `@tiptap/core` +
+`@tiptap/starter-kit` + `@tiptap/pm`, the smallest install on each side that
+gives an editor with a default schema. Bundles gzipped with the same esbuild
+settings.
+
+| | Trevixal | Tiptap |
+| --- | --- | --- |
+| Engine + default schema | **27.3 kB** gz | 117.2 kB gz |
+| npm packages installed | **1** | 42 |
+| ProseMirror packages | **0** | 13 |
+| `node_modules` on disk | **592 kB** | 12 MB |
+| Runtime dependencies | **none** | ProseMirror |
+| Track changes | In the box | Paid extension |
+| DOCX / RTF export | In the box | Paid extension or your own |
+| Prebuilt UI | Included, optional | None, by design |
+| Collaborative editing | **No** | Yes, first-class |
+| Production maturity | **New** (1.0.0, September 2026) | Years |
+
+**Use Tiptap if** you need collaborative editing, you are shipping on a
+deadline and want years of production hardening, you want an ecosystem of
+community extensions and Stack Overflow answers, or you want commercial
+support. All four are real advantages and none of them are close.
+
+**Use Trevixal if** you want to read the whole stack in one repository, your
+supply chain makes dependency count a constraint, you want Word export and
+track changes without a paid tier, or you need an editor that runs from one
+`<script>` tag.
+
+The [full comparison](https://trevixal-editor.vercel.app/reference/vs-tiptap)
+goes feature by feature, and tells you how to reproduce every number above.
 
 ## Everything it can do
 

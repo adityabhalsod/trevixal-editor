@@ -1,5 +1,24 @@
 # @trevixal/extension-slash-command
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/extension-slash-command.svg)](https://www.npmjs.com/package/@trevixal/extension-slash-command)
+[![types](https://img.shields.io/npm/types/@trevixal/extension-slash-command.svg)](https://www.npmjs.com/package/@trevixal/extension-slash-command)
+[![license](https://img.shields.io/npm/l/@trevixal/extension-slash-command.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-slash-command/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- A `/` menu with fuzzy filtering
+- Keyboard-first execution
+- **0.8 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 The `/` menu: type a slash at the start of a line and pick a block.
 
 ```sh

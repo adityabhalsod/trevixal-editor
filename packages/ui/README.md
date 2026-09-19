@@ -1,6 +1,27 @@
 # @trevixal/ui
 
-The editing chrome for the [Trevixal editor](../../README.md): menubar,
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/ui.svg)](https://www.npmjs.com/package/@trevixal/ui)
+[![types](https://img.shields.io/npm/types/@trevixal/ui.svg)](https://www.npmjs.com/package/@trevixal/ui)
+[![license](https://img.shields.io/npm/l/@trevixal/ui.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/ui/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Menubar, toolbar, status bar, dialogs and sidebar panels
+- An SCSS design system with light, dark and preset themes
+- Accessible by construction: roving tabindex, ARIA state, focus return
+- Entirely optional; the engine ships no UI
+- **50.0 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
+The editing chrome for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): menubar,
 toolbar, dialogs, status bar and an SCSS design system. Entirely optional.
 The engine ships no UI, and you can build your own against the same snapshot
 API.

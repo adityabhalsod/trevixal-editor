@@ -1,6 +1,25 @@
 # @trevixal/angular
 
-Angular bindings for the [Trevixal editor](../../README.md): a signal-backed
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/angular.svg)](https://www.npmjs.com/package/@trevixal/angular)
+[![types](https://img.shields.io/npm/types/@trevixal/angular.svg)](https://www.npmjs.com/package/@trevixal/angular)
+[![license](https://img.shields.io/npm/l/@trevixal/angular.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/angular/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- A signal-backed snapshot and a view lifecycle tied to the component
+- No Angular compiler required: it is a plain library, not a schematic
+- **0.3 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
+Angular bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): a signal-backed
 snapshot and the view lifecycle, with **no Angular compiler required**.
 
 ```sh
@@ -53,7 +72,7 @@ package that ships those has to be built by Angular's own compiler into
 partial-Ivy output, a second toolchain for a few dozen lines of glue, and a
 hand-rolled imitation of that output would be worse than shipping nothing.
 That is why this adapter was deferred for a long time
-([ADR-0007](../../docs/adr/0007-adapter-contract.md)).
+([ADR-0007](https://github.com/adityabhalsod/trevixal-editor/blob/main/docs/adr/0007-adapter-contract.md)).
 
 What the glue actually needs from Angular is `signal`, which is an ordinary
 function. So this ships ordinary functions. Your component owns the

@@ -1,5 +1,23 @@
 # @trevixal/extension-code-highlight
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/extension-code-highlight.svg)](https://www.npmjs.com/package/@trevixal/extension-code-highlight)
+[![types](https://img.shields.io/npm/types/@trevixal/extension-code-highlight.svg)](https://www.npmjs.com/package/@trevixal/extension-code-highlight)
+[![license](https://img.shields.io/npm/l/@trevixal/extension-code-highlight.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-code-highlight/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Syntax highlighting behind an injectable `Highlighter` interface
+- **6.1 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 Syntax highlighting for code blocks, rendered as **decorations**. The
 document itself stays plain text, so copy, paste and export are all
 unaffected by how the code happens to be coloured.

@@ -1,5 +1,24 @@
 # @trevixal/extension-diagram
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/extension-diagram.svg)](https://www.npmjs.com/package/@trevixal/extension-diagram)
+[![types](https://img.shields.io/npm/types/@trevixal/extension-diagram.svg)](https://www.npmjs.com/package/@trevixal/extension-diagram)
+[![license](https://img.shields.io/npm/l/@trevixal/extension-diagram.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-diagram/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Mermaid and other text-to-diagram code blocks
+- Rendered to a live preview through a pluggable renderer
+- **2.4 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 Diagrams drawn from the code block that defines them, through any renderer you
 like.
 

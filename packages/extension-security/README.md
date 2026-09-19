@@ -1,5 +1,24 @@
 # @trevixal/extension-security
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/extension-security.svg)](https://www.npmjs.com/package/@trevixal/extension-security)
+[![types](https://img.shields.io/npm/types/@trevixal/extension-security.svg)](https://www.npmjs.com/package/@trevixal/extension-security)
+[![license](https://img.shields.io/npm/l/@trevixal/extension-security.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-security/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Password-encrypted documents with expiry
+- Encrypted storage and copy restrictions
+- **2.9 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 Password-encrypted documents, expiry, an encrypted storage wrapper, and
 copy/print restrictions.
 
