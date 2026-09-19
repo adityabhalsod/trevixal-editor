@@ -1,6 +1,25 @@
 # @trevixal/svelte
 
-Svelte bindings for the [Trevixal editor](../../README.md): an action and a
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
+[![types](https://img.shields.io/npm/types/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
+[![license](https://img.shields.io/npm/l/@trevixal/svelte.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/svelte/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- A `use:trevixalEditor` action, idiomatic rather than a wrapper component
+- Snapshots follow the store contract, so `$snapshot` just works
+- **0.3 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
+Svelte bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): an action and a
 store.
 
 ```sh
@@ -67,7 +86,7 @@ prefix and Svelte 5's runes both understand, so one build serves both.
 
 `trevixalEditor` is a plain action: it attaches the view on mount and destroys
 it on `destroy()`. The editor's DOM is outside Svelte's control by design
-([ADR-0007](../../docs/adr/0007-adapter-contract.md)).
+([ADR-0007](https://github.com/adityabhalsod/trevixal-editor/blob/main/docs/adr/0007-adapter-contract.md)).
 
 ## License
 

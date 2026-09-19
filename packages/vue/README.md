@@ -1,6 +1,26 @@
 # @trevixal/vue
 
-Vue 3 bindings for the [Trevixal editor](../../README.md).
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/vue.svg)](https://www.npmjs.com/package/@trevixal/vue)
+[![types](https://img.shields.io/npm/types/@trevixal/vue.svg)](https://www.npmjs.com/package/@trevixal/vue)
+[![license](https://img.shields.io/npm/l/@trevixal/vue.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/vue/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- `useEditor` composable and an `EditorContent` component
+- Shallow-ref snapshots, so a keystroke re-renders only what changed
+- Vue components inside the document as node views
+- **0.8 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
+Vue 3 bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md).
 
 ```sh
 npm install @trevixal/core @trevixal/vue
@@ -33,7 +53,7 @@ const snapshot = useEditorSnapshot(editor)
 `useEditor` creates the editor on mount and destroys it on unmount.
 `useEditorSnapshot` is a shallow ref that changes only when the toolbar state
 does, typing does not touch it, because the editor's DOM lives outside Vue's
-reactivity ([ADR-0007](../../docs/adr/0007-adapter-contract.md)).
+reactivity ([ADR-0007](https://github.com/adityabhalsod/trevixal-editor/blob/main/docs/adr/0007-adapter-contract.md)).
 
 ## Vue components inside the document
 

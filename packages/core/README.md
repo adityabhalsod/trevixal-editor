@@ -1,5 +1,26 @@
 # @trevixal/core
 
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
+[![types](https://img.shields.io/npm/types/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
+[![license](https://img.shields.io/npm/l/@trevixal/core.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/core/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- Immutable document model: schema-validated JSON you can store, diff and transform
+- Invertible transactions, so undo is step inversion rather than a second history
+- Runs headless in Node with no DOM, for migrations, tests and server rendering
+- Imported HTML parsed inside an inert template through an allowlist
+- **36.2 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
 The editing engine: an immutable document model, invertible transactions, and
 a contenteditable view that treats the DOM as a render target rather than the
 truth. No framework code, no runtime dependencies, safe to import on a server.
@@ -75,7 +96,7 @@ Four public hooks, and every extension package in this repository is built on
 them alone: `onTransaction`, `addDispatchTransform`, `setDecorationLayer`, and
 the `suggestion` trigger module, plus schema merging, `keymap`, `inputRules`
 and `nodeViews`. If something needs more, the hook set is incomplete; see
-[ADR-0008](../../docs/adr/0008-extension-points.md).
+[ADR-0008](https://github.com/adityabhalsod/trevixal-editor/blob/main/docs/adr/0008-extension-points.md).
 
 ## License
 

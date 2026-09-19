@@ -113,6 +113,7 @@ export default defineConfig({
           { text: 'Styling and theming', link: '/reference/styling' },
           { text: 'What an export carries', link: '/reference/exports' },
           { text: 'Architecture', link: '/reference/architecture' },
+          { text: 'Trevixal vs Tiptap', link: '/reference/vs-tiptap' },
           { text: 'Generated API reference', link: '/api/index.html', target: '_blank' },
         ],
       },

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://trevixal-editor.vercel.app
+    about: Guides, the API reference and a live editor to try.
+  - name: Questions and ideas
+    url: https://github.com/adityabhalsod/trevixal-editor/discussions
+    about: For anything that is not a bug or a specific request.

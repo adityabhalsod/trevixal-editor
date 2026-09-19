@@ -1,0 +1,25 @@
+name: Feature request
+description: Something the editor should be able to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Some things are deliberately out of scope: real-time co-editing,
+        comments and sharing were built, measured and removed. See
+        [what Trevixal deliberately does not do](https://github.com/adityabhalsod/trevixal-editor#what-trevixal-deliberately-does-not-do)
+        before opening one of those.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that you cannot do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried
+      description: Extension points, workarounds, other packages.

@@ -1,6 +1,27 @@
 # @trevixal/editor-kit
 
-Every package the [Trevixal](../../README.md) workspace ships, assembled into
+<!-- generated: header -->
+
+[![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@trevixal/editor-kit.svg)](https://www.npmjs.com/package/@trevixal/editor-kit)
+[![types](https://img.shields.io/npm/types/@trevixal/editor-kit.svg)](https://www.npmjs.com/package/@trevixal/editor-kit)
+[![license](https://img.shields.io/npm/l/@trevixal/editor-kit.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+
+[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/editor-kit/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+
+[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
+
+## Features
+
+- One call mounts the finished editor: `mountFullEditor({ element })`
+- Every extension wired to every other: tables, images, math, diagrams, track changes
+- Autosave, themes, a document workspace and a command palette included
+- A CDN build that runs from one `<script>` tag with no bundler
+- **14.1 kB** minified and gzipped, with TypeScript types in the package
+
+<!-- /generated: header -->
+
+Every package the [Trevixal](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md) workspace ships, assembled into
 one call. Where `@trevixal/core` is the engine and `@trevixal/ui` is the
 chrome, this is the finished editor. The thing the demo page was, with the
 page taken out of it.
@@ -68,7 +89,7 @@ mounted, and a `destroy()` that takes all three back.
 It reaches for `window` and `document` in its first statement, so it has to be
 called from wherever your framework runs browser-only code (a `useEffect`, an
 `onMounted`, an `afterNextRender`, an `onMount`) and never during a server
-render. The [examples](../../examples) do exactly that in eight frameworks;
+render. The [examples](https://github.com/adityabhalsod/trevixal-editor/blob/main/examples) do exactly that in eight frameworks;
 each one is a few lines long.
 
 Call it once per page. Several of the parts it assembles are singletons by
@@ -94,7 +115,7 @@ editor.destroy()
 `createFullSchema()` is the schema `mountFullEditor` builds on, tables,
 images, blocks, embeds, equations and the track-changes marks. `defaultNodes()`
 alone cannot read a document this editor produced.
-[`examples/ssr`](../../examples/ssr) is the runnable version.
+[`examples/ssr`](https://github.com/adityabhalsod/trevixal-editor/blob/main/examples/ssr) is the runnable version.
 
 ## From a script tag, with no bundler
 
@@ -117,7 +138,7 @@ It is the largest artefact this workspace publishes, **180 kB gzipped**
 against 36 kB for the core alone, and that is the trade it exists to make. If
 you have a bundler, import the package instead and let it tree-shake; if you
 need an editor in a page you cannot build, this is the whole integration.
-[`examples/vanilla-cdn`](../../examples/vanilla-cdn) runs it, and is four tags
+[`examples/vanilla-cdn`](https://github.com/adityabhalsod/trevixal-editor/blob/main/examples/vanilla-cdn) runs it, and is four tags
 and a div long.
 
 ## Styles
