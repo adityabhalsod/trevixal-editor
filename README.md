@@ -7,8 +7,6 @@
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 
-[![The Trevixal editor](https://trevixal-editor.vercel.app/media/editor.png)](https://trevixal-editor.vercel.app/full-editor)
-
 **A WYSIWYG rich-text editor engine, written from scratch.** No ProseMirror,
 Lexical, Slate, Quill or Draft.js code anywhere in it, and no runtime
 dependencies in any package it ships.
@@ -2111,6 +2109,7 @@ slash commands, emoji and the security package stayed. They are editing
 features, not collaboration.
 
 ---
+
 
 ## License
 Apache-2.0: see [`LICENSE`](LICENSE).
