@@ -18,6 +18,9 @@ import { fileURLToPath } from 'node:url'
 /** Semver, no range operators: this is a concrete version being stamped in. */
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
+/** The top-level `"version"` field, which sits at one indent. */
+const VERSION_FIELD = /^( {2}"version":\s*)"[^"]*"/m
+
 const [, , raw] = process.argv
 if (!raw) {
   console.error('usage: node scripts/set-version.mjs <version>')
@@ -48,10 +51,12 @@ for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
   if (manifest.private) continue
   if (manifest.version === version) continue
 
-  manifest.version = version
-  // The worktree is CRLF under autocrlf; a file written LF is a whole-file diff.
-  const newline = source.includes('\r\n') ? '\r\n' : '\n'
-  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`.replaceAll('\n', newline))
+  // Replace the one field rather than reserialising the file. `JSON.stringify`
+  // would reformat every manifest into its own idea of the layout, which is
+  // not the one the formatter wants, and the release runs lint after this.
+  const next = source.replace(VERSION_FIELD, `$1"${version}"`)
+  if (next === source) throw new Error(`${path}: no top-level "version" field to replace`)
+  writeFileSync(path, next)
   changed += 1
 }
 
