@@ -26,7 +26,10 @@ const editor = useEditor({
   content: {
     type: 'doc',
     content: [
-      { type: 'paragraph', content: [{ type: 'text', text: 'The block below is a Vue component.' }] },
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'The block below is a Vue component.' }],
+      },
       { type: 'counter', attrs: { count: 0 } },
       { type: 'paragraph', content: [{ type: 'text', text: 'Click it, then press undo.' }] },
     ],

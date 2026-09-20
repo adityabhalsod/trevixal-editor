@@ -8,6 +8,19 @@
       "**/coverage/**",
       "**/test-results/**",
       "**/playwright-report/**",
+      "**/.next/**",
+      "**/.nuxt/**",
+      "**/.output/**",
+      "**/.svelte-kit/**",
+      "**/.data/**",
+      "**/.vercel/**",
+      "**/.vitepress/dist/**",
+      "**/.vitepress/cache/**",
+      "docs/public/api/**",
+      "docs/public/trevixal/**",
+      "examples/*/build/**",
+      "examples/*/vendor/**",
+      "**/next-env.d.ts",
       "packages/e2e/page/bundle.js",
       "packages/e2e/page/track-changes.js",
       "packages/e2e/page/ui.js",
@@ -39,5 +52,11 @@
   },
   "organizeImports": {
     "enabled": true
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/tsconfig*.json", "**/*.jsonc"],
+      "json": { "parser": { "allowComments": true } }
+    }
+  ]
 }

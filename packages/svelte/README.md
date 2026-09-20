@@ -1,7 +1,5 @@
 # @trevixal/svelte
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
 [![types](https://img.shields.io/npm/types/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
@@ -16,8 +14,6 @@
 - A `use:trevixalEditor` action, idiomatic rather than a wrapper component
 - Snapshots follow the store contract, so `$snapshot` just works
 - **0.3 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Svelte bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): an action and a
 store.

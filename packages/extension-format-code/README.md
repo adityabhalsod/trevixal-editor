@@ -1,7 +1,5 @@
 # @trevixal/extension-format-code
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-format-code.svg)](https://www.npmjs.com/package/@trevixal/extension-format-code)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-format-code.svg)](https://www.npmjs.com/package/@trevixal/extension-format-code)
@@ -16,8 +14,6 @@
 - JSON and XML pretty-printing and minification
 - An in-place code-block reformat command
 - **1.9 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Pretty-print or minify the JSON or XML in the code block at the caret.
 

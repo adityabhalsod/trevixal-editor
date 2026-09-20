@@ -1,7 +1,5 @@
 # @trevixal/extension-image
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-image.svg)](https://www.npmjs.com/package/@trevixal/extension-image)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-image.svg)](https://www.npmjs.com/package/@trevixal/extension-image)
@@ -16,8 +14,6 @@
 - Pluggable storage: a fetch endpoint, a data URL, or your own backend
 - Drag-and-drop and paste upload, with resize, alignment and captions
 - **9.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Images for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): drag-and-drop, paste and
 file-picker uploads to **whatever storage you use**, with progress,

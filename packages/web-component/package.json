@@ -21,9 +21,7 @@
     "directory": "packages/web-component"
   },
   "type": "module",
-  "sideEffects": [
-    "./dist/trevixal-editor.iife.js"
-  ],
+  "sideEffects": ["./dist/trevixal-editor.iife.js"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -42,10 +40,7 @@
   },
   "unpkg": "./dist/trevixal-editor.iife.js",
   "jsdelivr": "./dist/trevixal-editor.iife.js",
-  "files": [
-    "dist",
-    "!dist/**/*.map"
-  ],
+  "files": ["dist", "!dist/**/*.map"],
   "publishConfig": {
     "access": "public"
   },

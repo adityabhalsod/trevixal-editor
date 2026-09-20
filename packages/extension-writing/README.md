@@ -1,7 +1,5 @@
 # @trevixal/extension-writing
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-writing.svg)](https://www.npmjs.com/package/@trevixal/extension-writing)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-writing.svg)](https://www.npmjs.com/package/@trevixal/extension-writing)
@@ -16,8 +14,6 @@
 - Readability, passive voice, repeated words and grammar hints
 - Keyword density, as decorations and as a report
 - **8.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Readability, passive voice, repeated words, long sentences, grammar hints and
 keyword density, as marks in the margin and as a report.

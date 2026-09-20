@@ -1,7 +1,5 @@
 # @trevixal/extension-export
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-export.svg)](https://www.npmjs.com/package/@trevixal/extension-export)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-export.svg)](https://www.npmjs.com/package/@trevixal/extension-export)
@@ -17,8 +15,6 @@
 - Exports carry the theme, code colours and diagrams the editor showed
 - File download helpers that work in the browser and in Node
 - **18.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Word and Rich Text, out and in, with its own ZIP, XML, OOXML and RTF
 implementations and no dependencies at all.

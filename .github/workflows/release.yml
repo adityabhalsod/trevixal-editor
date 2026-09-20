@@ -1,87 +1,193 @@
 name: Release
 
+# Publishing is driven by a GitHub release, and nothing else. Draft one, name
+# the version in its tag, publish it, and every package goes to npm at that
+# version. There is no bot, no version pull request, and nothing to merge.
+#
+# The filename matters and cannot change. Each package's npm trusted
+# publisher names `release.yml`; renaming this file would refuse every
+# publish until all 23 are reconfigured by hand, each behind a 2FA prompt.
 on:
-  push:
-    branches: [main]
-    # This workflow creates those tags. Listening for them would have a
-    # publish start another release run.
-    tags-ignore: ['**']
-  # Merging the bot's own "chore: release" PR is a push by GITHUB_TOKEN, and
-  # GitHub will not start a workflow from one: "Events triggered by the
-  # GITHUB_TOKEN will not create a new workflow run". So the publish that
-  # should follow that merge never runs. `workflow_dispatch` is one of the two
-  # documented exceptions, so this is the manual way to start it.
+  release:
+    types: [published]
+  # The same thing without a release, for re-running a publish that half
+  # failed. It uploads but does not touch the release notes.
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish, such as 1.0.4
+        required: true
+        type: string
 
-# One release run at a time; a second push waits rather than racing the first
-# to open the version PR or publish.
-concurrency: ${{ github.workflow }}-${{ github.ref }}
-
+# One release at a time. Two at once would race over the same versions.
+concurrency: release
 permissions:
-  contents: write # push the version commit and tags
-  pull-requests: write # open and update the "chore: release" PR
-  # Trusted publishing. npm exchanges this run's OIDC identity for a
-  # short-lived credential, so no token is stored anywhere, and mints the
-  # provenance attestation from the same identity.
-  id-token: write
+  contents: read
 
 jobs:
-  release:
-    name: Version PR or publish
-    # Same `[skip cicd]` marker as CI. Only the push event reaches this
-    # workflow, so only the head commit is worth reading.
-    if: "!contains(github.event.head_commit.message || '', '[skip cicd]')"
+  prepare:
+    name: Build and pack
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+      packages: ${{ steps.pack.outputs.packages }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Changesets reads history to work out what changed since the last release.
-          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          # Trusted publishing needs Node >= 22.14; 22 resolves to the
-          # latest 22.x, which is well past that.
+          # Trusted publishing needs Node >= 22.14; 22 resolves to the latest
+          # 22.x, which is well past that.
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      # The runner ships npm 10; the OIDC exchange landed in 11.5.1. pnpm
-      # still runs every other step, it just cannot publish this way: it has
-      # no exchange for the npm:registry.npmjs.org audience.
-      #
-      # Pinned to a major, not `@latest`: npm 12 changed `pack --json` from an
-      # array to an object keyed by package name, which broke `check:pkg` here
-      # while CI stayed green on the runner's npm 10. The script reads both
-      # shapes now, but a floating major is still a build that changes under
-      # you. Raise this deliberately.
-      - run: npm install --global npm@12
-
       - run: pnpm install --frozen-lockfile
 
-      # Everything below must pass before the publish step can run. A failing
-      # step fails the job, and the changesets action never starts.
+      # The release tag is the version. `v1.0.4` and `1.0.4` both work; the
+      # script takes the `v` off and refuses anything that is not a version,
+      # so a tag like `latest` stops here rather than at the registry.
+      - name: Take the version from the release
+        run: node scripts/set-version.mjs "${{ github.event.release.tag_name || inputs.version }}"
+
+      # Everything below must pass before anything is packed. A failing step
+      # fails the job, and no publish job is ever created.
+      - run: pnpm lint
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm check:pkg
 
-      - name: Create release PR or publish to npm
-        uses: changesets/action@v1
+      # One pack for all of them: `pnpm pack` is what rewrites `workspace:^`
+      # into a real range, and it needs the whole workspace to do it. What
+      # comes out needs nothing, so the jobs that upload can run in parallel.
+      - name: Pack every package
+        id: pack
+        run: |
+          node scripts/pack-packages.mjs dist-release
+          {
+            echo "version=$(jq -r .version dist-release/packages.json)"
+            echo "packages=$(jq -c '[.packages[] | {name, tarball}]' dist-release/packages.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
         with:
-          # Not `changeset publish`: that shells out to `pnpm publish`, which
-          # can only authenticate with a token. This script packs with pnpm,
-          # so `workspace:^` is rewritten to a real range, then uploads each
-          # tarball with npm, which is the tool that speaks OIDC.
-          publish: node scripts/publish-packages.mjs
-          title: 'chore: release'
-          commit: 'chore: release'
+          name: tarballs
+          path: dist-release/
+          retention-days: 7
+
+  publish:
+    name: ${{ matrix.package.name }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Trusted publishing. npm exchanges this job's OIDC identity for a
+      # short-lived credential, so no token is stored anywhere, and mints the
+      # provenance attestation from the same identity. Every job in the
+      # matrix gets its own.
+      id-token: write
+    strategy:
+      # One package failing must not cancel the other twenty-two. A partial
+      # release is recoverable: re-running skips whatever already published.
+      fail-fast: false
+      # The registry is a shared service and this is 23 uploads at once.
+      max-parallel: 6
+      matrix:
+        package: ${{ fromJSON(needs.prepare.outputs.packages) }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # The runner ships npm 10; the OIDC exchange landed in 11.5.1. Pinned to
+      # a major rather than `@latest`: npm 12 changed `pack --json` from an
+      # array to an object once already, and a floating major is a build that
+      # changes under you. Raise this deliberately.
+      - run: npm install --global npm@12
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: dist-release
+
+      # No checkout and no install: a tarball is self-contained, which is the
+      # point of packing once upstream.
+      - name: Publish ${{ matrix.package.name }}
+        id: publish
         env:
-          # Only for opening the version PR and pushing tags. There is no
-          # NPM_TOKEN: the registry credential comes from OIDC at publish
-          # time. Provenance is automatic for a trusted publish, so there is
-          # no NPM_CONFIG_PROVENANCE either.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NAME: ${{ matrix.package.name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TARBALL: dist-release/${{ matrix.package.tarball }}
+        run: |
+          set -o pipefail
+          mkdir -p outcome
+          outfile="outcome/${NAME/\//__}.txt"
+
+          # A version already on the registry is not a failure: it is what a
+          # re-run of a half-finished release looks like, and npm is immutable
+          # so there is nothing to overwrite.
+          if npm view "$NAME@$VERSION" version --registry https://registry.npmjs.org > /dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on the registry"
+            echo skipped > "$outfile"
+            exit 0
+          fi
+
+          if npm publish "$TARBALL" --access public --registry https://registry.npmjs.org; then
+            echo published > "$outfile"
+          else
+            echo failed > "$outfile"
+            exit 1
+          fi
+
+      # Runs even when the publish failed, so the release table can say so
+      # rather than leaving a blank row.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outcome-${{ strategy.job-index }}
+          path: outcome/
+          retention-days: 7
+
+  report:
+    name: Release notes
+    needs: [prepare, publish]
+    # Whatever happened to the matrix, say what happened.
+    if: always() && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # edit the release body
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: dist-release
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: outcome-*
+          merge-multiple: true
+          path: outcome
+
+      # The release keeps whatever was written by hand or generated from the
+      # commits; the table is appended under it.
+      - name: Append the package table
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release view "$TAG" --json body --jq .body > notes.md
+          printf '\n\n' >> notes.md
+          node scripts/release-report.mjs dist-release/packages.json outcome >> notes.md
+          gh release edit "$TAG" --notes-file notes.md

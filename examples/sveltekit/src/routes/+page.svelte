@@ -1,5 +1,5 @@
 <script lang="ts">
-  import FullEditor from '$lib/FullEditor.svelte'
+import FullEditor from '$lib/FullEditor.svelte'
 </script>
 
 <FullEditor />

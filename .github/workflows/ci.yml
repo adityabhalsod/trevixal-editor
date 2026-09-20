@@ -1,34 +1,38 @@
 name: CI
 
 on:
-  pull_request:
+  # Every branch, so a push is checked whether or not a pull request exists
+  # yet. Tags are skipped: a release tags a commit that was already checked
+  # on its way into main, and re-running the suite would only repeat that.
   push:
-    branches: [main]
-    # `changeset publish` pushes one tag per released package. The commit
-    # they point at was already verified on its way into main, so re-running
-    # the suite on each tag would only repeat that, several times over.
+    branches: ['**']
     tags-ignore: ['**']
+  pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   verify:
-    name: Build, typecheck, test, package check
+    name: Lint, typecheck, test, coverage, package check
+    # A branch in this repository already ran on its push, so the pull request
+    # event would be a second identical run. A fork's branch pushes nothing
+    # here, and the pull request event is the only way to see it at all.
+    #
     # `[skip cicd]` in the head commit message, or in the pull request's
-    # title, skips this job. A job-level `if` can read only the github,
-    # needs, vars and inputs contexts, so the two fields are named here
-    # rather than folded into an `env` the condition could not see.
+    # title, skips the job. A job-level `if` can read only the github, needs,
+    # vars and inputs contexts, so the two fields are named here rather than
+    # folded into an `env` the condition could not see.
     #
     # `head_commit` is null on a pull request and `pull_request` is null on a
     # push, so each side is defaulted to '' before `contains` reads it.
-    #
-    # GitHub's own `[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` and
-    # `[actions skip]` stop the run from ever being created, which is tidier
-    # when one of them will do. This token is a job condition instead, so the
-    # run is still created and reports every job as skipped.
     if: >-
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name != github.repository) &&
       !contains(github.event.head_commit.message || '', '[skip cicd]') &&
       !contains(github.event.pull_request.title || '', '[skip cicd]')
     runs-on: ubuntu-latest
@@ -45,9 +49,24 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Formatting and lint first: it is the fastest of these, so a misplaced
+      # brace fails in seconds rather than after the whole suite has run.
+      - name: Lint and format
+        run: pnpm lint
+
+      # The build has to come before typecheck and the package check: both
+      # read the `dist` a package's siblings emit, not its source.
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-      # publint + arethetypeswrong over every publishable package. The same
-      # gate the release workflow runs before it is allowed to publish.
+
+      # The engine's own gate, and the only package with one: 90% of lines,
+      # functions and statements across the model, state, commands, history
+      # and serializer. Under that, vitest exits non-zero on its own.
+      - name: Coverage thresholds
+        run: pnpm coverage
+
+      # publint + arethetypeswrong over every publishable package: the same
+      # gate the release runs before it is allowed to publish anything.
       - run: pnpm check:pkg

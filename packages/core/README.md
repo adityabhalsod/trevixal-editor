@@ -1,7 +1,5 @@
 # @trevixal/core
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
 [![types](https://img.shields.io/npm/types/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
@@ -18,8 +16,6 @@
 - Runs headless in Node with no DOM, for migrations, tests and server rendering
 - Imported HTML parsed inside an inert template through an allowlist
 - **36.2 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 The editing engine: an immutable document model, invertible transactions, and
 a contenteditable view that treats the DOM as a render target rather than the

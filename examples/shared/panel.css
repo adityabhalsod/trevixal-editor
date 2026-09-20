@@ -22,7 +22,7 @@
   cursor: pointer;
 }
 
-.bar button[aria-pressed='true'] {
+.bar button[aria-pressed="true"] {
   background: var(--tvx-color-accent, #2f6fed);
   color: #fff;
 }

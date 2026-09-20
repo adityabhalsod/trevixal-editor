@@ -1,44 +1,47 @@
 <script lang="ts">
-  import { Schema, createEditor, defaultMarks, defaultNodes } from '@trevixal/core'
-  import { editorStore, trevixalEditor } from '@trevixal/svelte'
-  import FullEditor from './FullEditor.svelte'
-  import { counterView } from './counter-view.svelte'
+import { Schema, createEditor, defaultMarks, defaultNodes } from '@trevixal/core'
+import { editorStore, trevixalEditor } from '@trevixal/svelte'
+import FullEditor from './FullEditor.svelte'
+import { counterView } from './counter-view.svelte'
 
-  // A node type of our own, rendered by a Svelte component. This is the one
-  // thing the assembled editor cannot show you: what your own components look
-  // like inside the document.
-  const schema = new Schema({
-    nodes: {
-      ...defaultNodes(),
-      counter: {
-        group: 'block',
-        atom: true,
-        attrs: { count: { default: 0 } },
-        toHTML: (node) => ({ tag: 'div', attrs: { 'data-counter': String(node.attrs.count) } }),
+// A node type of our own, rendered by a Svelte component. This is the one
+// thing the assembled editor cannot show you: what your own components look
+// like inside the document.
+const schema = new Schema({
+  nodes: {
+    ...defaultNodes(),
+    counter: {
+      group: 'block',
+      atom: true,
+      attrs: { count: { default: 0 } },
+      toHTML: (node) => ({ tag: 'div', attrs: { 'data-counter': String(node.attrs.count) } }),
+    },
+  },
+  marks: defaultMarks(),
+})
+
+const editor = createEditor({
+  schema,
+  ariaLabel: 'Svelte adapter example',
+  content: {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'The block below is a Svelte component.' }],
       },
-    },
-    marks: defaultMarks(),
-  })
+      { type: 'counter', attrs: { count: 0 } },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Click it, then press undo.' }] },
+    ],
+  },
+})
 
-  const editor = createEditor({
-    schema,
-    ariaLabel: 'Svelte adapter example',
-    content: {
-      type: 'doc',
-      content: [
-        { type: 'paragraph', content: [{ type: 'text', text: 'The block below is a Svelte component.' }] },
-        { type: 'counter', attrs: { count: 0 } },
-        { type: 'paragraph', content: [{ type: 'text', text: 'Click it, then press undo.' }] },
-      ],
-    },
-  })
-
-  const snapshot = editorStore(editor)
-  const marks = [
-    { name: 'bold', label: 'B' },
-    { name: 'italic', label: 'I' },
-    { name: 'underline', label: 'U' },
-  ]
+const snapshot = editorStore(editor)
+const marks = [
+  { name: 'bold', label: 'B' },
+  { name: 'italic', label: 'I' },
+  { name: 'underline', label: 'U' },
+]
 </script>
 
 <FullEditor />

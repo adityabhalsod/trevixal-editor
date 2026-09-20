@@ -1,8 +1,8 @@
 # Changelog
 
-Every published package has its own changelog, written by
-[changesets](https://github.com/changesets/changesets) from the changeset
-files in a release, and that is the authoritative record:
+Every release is a [GitHub release](https://github.com/adityabhalsod/trevixal-editor/releases),
+and its page carries the package table: what published, and what each one
+costs. Per-package history lives alongside each package:
 
 - [@trevixal/core](packages/core/CHANGELOG.md) — the engine
 - [@trevixal/ui](packages/ui/CHANGELOG.md) — the chrome

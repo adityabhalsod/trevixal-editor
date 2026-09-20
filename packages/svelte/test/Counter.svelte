@@ -1,8 +1,8 @@
 <script lang="ts">
-  // The interactive counter block, as a Svelte component living inside the
-  // document. It holds no state of its own: the count comes from the node,
-  // and a click is an ordinary editor transaction that redraws it.
-  let { node, updateAttrs } = $props()
+// The interactive counter block, as a Svelte component living inside the
+// document. It holds no state of its own: the count comes from the node,
+// and a click is an ordinary editor transaction that redraws it.
+const { node, updateAttrs } = $props()
 </script>
 
 <button

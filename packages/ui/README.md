@@ -1,7 +1,5 @@
 # @trevixal/ui
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/ui.svg)](https://www.npmjs.com/package/@trevixal/ui)
 [![types](https://img.shields.io/npm/types/@trevixal/ui.svg)](https://www.npmjs.com/package/@trevixal/ui)
@@ -18,8 +16,6 @@
 - Accessible by construction: roving tabindex, ARIA state, focus return
 - Entirely optional; the engine ships no UI
 - **50.0 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 The editing chrome for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): menubar,
 toolbar, dialogs, status bar and an SCSS design system. Entirely optional.
