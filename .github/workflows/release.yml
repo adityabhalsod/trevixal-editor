@@ -117,12 +117,16 @@ jobs:
 
       # No checkout and no install: a tarball is self-contained, which is the
       # point of packing once upstream.
+      #
+      # The tarball path keeps its `./`. Without it npm reads `dir/name.tgz`
+      # as the GitHub shorthand `owner/repo` and refuses to publish it as a
+      # git dependency: "Refusing to fetch github:dist-release/...".
       - name: Publish ${{ matrix.package.name }}
         id: publish
         env:
           NAME: ${{ matrix.package.name }}
           VERSION: ${{ needs.prepare.outputs.version }}
-          TARBALL: dist-release/${{ matrix.package.tarball }}
+          TARBALL: ./dist-release/${{ matrix.package.tarball }}
         run: |
           set -o pipefail
           mkdir -p outcome
