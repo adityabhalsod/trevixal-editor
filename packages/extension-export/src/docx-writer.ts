@@ -740,7 +740,6 @@ function encodeTarget(url: string): string {
   let out = ''
   for (const char of url) {
     const code = char.codePointAt(0) as number
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: controls must be encoded
     if (code > 0x7e || code <= 0x20 || /["<>\\^`{|}]/.test(char)) out += encodeURIComponent(char)
     else out += char
   }

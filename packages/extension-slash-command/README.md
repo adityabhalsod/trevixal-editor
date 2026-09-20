@@ -1,7 +1,5 @@
 # @trevixal/extension-slash-command
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-slash-command.svg)](https://www.npmjs.com/package/@trevixal/extension-slash-command)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-slash-command.svg)](https://www.npmjs.com/package/@trevixal/extension-slash-command)
@@ -16,8 +14,6 @@
 - A `/` menu with fuzzy filtering
 - Keyboard-first execution
 - **0.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 The `/` menu: type a slash at the start of a line and pick a block.
 

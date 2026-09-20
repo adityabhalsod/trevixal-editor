@@ -1,7 +1,5 @@
 # @trevixal/editor-kit
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/editor-kit.svg)](https://www.npmjs.com/package/@trevixal/editor-kit)
 [![types](https://img.shields.io/npm/types/@trevixal/editor-kit.svg)](https://www.npmjs.com/package/@trevixal/editor-kit)
@@ -18,8 +16,6 @@
 - Autosave, themes, a document workspace and a command palette included
 - A CDN build that runs from one `<script>` tag with no bundler
 - **14.1 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Every package the [Trevixal](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md) workspace ships, assembled into
 one call. Where `@trevixal/core` is the engine and `@trevixal/ui` is the

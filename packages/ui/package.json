@@ -21,10 +21,7 @@
     "directory": "packages/ui"
   },
   "type": "module",
-  "sideEffects": [
-    "*.css",
-    "*.scss"
-  ],
+  "sideEffects": ["*.css", "*.scss"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -42,10 +39,7 @@
     "./styles.css": "./dist/styles.css",
     "./scss/*": "./dist/scss/*"
   },
-  "files": [
-    "dist",
-    "!dist/**/*.map"
-  ],
+  "files": ["dist", "!dist/**/*.map"],
   "publishConfig": {
     "access": "public"
   },

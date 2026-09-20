@@ -1,7 +1,7 @@
 <script lang="ts">
-  // A Svelte component inside the document. It holds no state: the count
-  // comes from the node, and a click is an ordinary editor transaction.
-  let { node, updateAttrs } = $props()
+// A Svelte component inside the document. It holds no state: the count
+// comes from the node, and a click is an ordinary editor transaction.
+const { node, updateAttrs } = $props()
 </script>
 
 <button

@@ -1,7 +1,5 @@
 # @trevixal/extension-table
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-table.svg)](https://www.npmjs.com/package/@trevixal/extension-table)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-table.svg)](https://www.npmjs.com/package/@trevixal/extension-table)
@@ -17,8 +15,6 @@
 - Column resize, header rows, alignment and borders
 - Keyboard navigation and CSV import/export
 - **10.2 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Tables: structure, merging, sorting, borders, CSV, and the keyboard.
 

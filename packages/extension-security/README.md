@@ -1,7 +1,5 @@
 # @trevixal/extension-security
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-security.svg)](https://www.npmjs.com/package/@trevixal/extension-security)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-security.svg)](https://www.npmjs.com/package/@trevixal/extension-security)
@@ -16,8 +14,6 @@
 - Password-encrypted documents with expiry
 - Encrypted storage and copy restrictions
 - **2.9 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Password-encrypted documents, expiry, an encrypted storage wrapper, and
 copy/print restrictions.

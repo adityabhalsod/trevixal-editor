@@ -1,7 +1,5 @@
 # @trevixal/extension-blocks
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-blocks.svg)](https://www.npmjs.com/package/@trevixal/extension-blocks)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-blocks.svg)](https://www.npmjs.com/package/@trevixal/extension-blocks)
@@ -16,8 +14,6 @@
 - Callouts, toggles, columns, cards and timelines
 - Page breaks, badges, buttons, footnotes and anchors
 - **6.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 The structural blocks a document needs beyond paragraphs and lists: callouts,
 toggles, columns, cards, timelines, tabs, accordions, footnotes and citations.

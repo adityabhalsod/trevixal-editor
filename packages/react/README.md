@@ -1,7 +1,5 @@
 # @trevixal/react
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/react.svg)](https://www.npmjs.com/package/@trevixal/react)
 [![types](https://img.shields.io/npm/types/@trevixal/react.svg)](https://www.npmjs.com/package/@trevixal/react)
@@ -17,8 +15,6 @@
 - Typing does not re-render your tree: the editor DOM lives outside reconciliation
 - React components inside the document through portal-based node views
 - **1.0 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 React bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): a hook, a
 component, and portal-based node views.

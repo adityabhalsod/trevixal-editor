@@ -1,7 +1,5 @@
 # @trevixal/web-component
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/web-component.svg)](https://www.npmjs.com/package/@trevixal/web-component)
 [![types](https://img.shields.io/npm/types/@trevixal/web-component.svg)](https://www.npmjs.com/package/@trevixal/web-component)
@@ -17,8 +15,6 @@
 - A CDN build: one stylesheet, one script, no build step
 - Server-rendered children survive upgrade, so SSR content is not lost
 - **1.1 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 The [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md) as `<trevixal-editor>`, including a
 build that runs from a single `<script>` tag with no bundler.

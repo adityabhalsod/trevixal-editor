@@ -1,7 +1,5 @@
 # @trevixal/extension-math
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-math.svg)](https://www.npmjs.com/package/@trevixal/extension-math)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-math.svg)](https://www.npmjs.com/package/@trevixal/extension-math)
@@ -16,8 +14,6 @@
 - Inline and display LaTeX, rendered to MathML
 - An input rule and a pluggable renderer
 - **7.7 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 LaTeX equations rendered to MathML, inline and display, with no runtime
 dependency and nothing to download.

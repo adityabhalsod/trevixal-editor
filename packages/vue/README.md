@@ -1,7 +1,5 @@
 # @trevixal/vue
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/vue.svg)](https://www.npmjs.com/package/@trevixal/vue)
 [![types](https://img.shields.io/npm/types/@trevixal/vue.svg)](https://www.npmjs.com/package/@trevixal/vue)
@@ -17,8 +15,6 @@
 - Shallow-ref snapshots, so a keystroke re-renders only what changed
 - Vue components inside the document as node views
 - **0.8 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Vue 3 bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md).
 

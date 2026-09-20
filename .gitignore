@@ -19,3 +19,6 @@ examples/nuxt/dist
 .claude/
 *.local.md
 .vercel
+
+# Tarballs and metrics the release workflow packs; rebuilt every run.
+dist-release/

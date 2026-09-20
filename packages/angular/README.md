@@ -1,7 +1,5 @@
 # @trevixal/angular
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/angular.svg)](https://www.npmjs.com/package/@trevixal/angular)
 [![types](https://img.shields.io/npm/types/@trevixal/angular.svg)](https://www.npmjs.com/package/@trevixal/angular)
@@ -16,8 +14,6 @@
 - A signal-backed snapshot and a view lifecycle tied to the component
 - No Angular compiler required: it is a plain library, not a schematic
 - **0.3 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Angular bindings for the [Trevixal editor](https://github.com/adityabhalsod/trevixal-editor/blob/main/README.md): a signal-backed
 snapshot and the view lifecycle, with **no Angular compiler required**.

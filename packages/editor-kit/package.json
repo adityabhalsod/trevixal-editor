@@ -21,11 +21,7 @@
     "directory": "packages/editor-kit"
   },
   "type": "module",
-  "sideEffects": [
-    "*.css",
-    "*.scss",
-    "./dist/trevixal-editor-kit.iife.js"
-  ],
+  "sideEffects": ["*.css", "*.scss", "./dist/trevixal-editor-kit.iife.js"],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -44,10 +40,7 @@
     "./scss/*": "./dist/scss/*",
     "./cdn": "./dist/trevixal-editor-kit.iife.js"
   },
-  "files": [
-    "dist",
-    "!dist/**/*.map"
-  ],
+  "files": ["dist", "!dist/**/*.map"],
   "publishConfig": {
     "access": "public"
   },

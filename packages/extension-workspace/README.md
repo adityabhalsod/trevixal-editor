@@ -1,7 +1,5 @@
 # @trevixal/extension-workspace
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-workspace.svg)](https://www.npmjs.com/package/@trevixal/extension-workspace)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-workspace.svg)](https://www.npmjs.com/package/@trevixal/extension-workspace)
@@ -16,8 +14,6 @@
 - A document store with folders, templates, recents and favourites
 - A tab strip, a split view and a live preview
 - **11.4 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Several documents: a store with folders and templates, a tab strip, a sidebar,
 and a second view of what you are editing.

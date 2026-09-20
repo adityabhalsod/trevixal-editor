@@ -1,7 +1,5 @@
 # @trevixal/extension-emoji
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-emoji.svg)](https://www.npmjs.com/package/@trevixal/extension-emoji)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-emoji.svg)](https://www.npmjs.com/package/@trevixal/extension-emoji)
@@ -15,8 +13,6 @@
 
 - A `:shortcode` trigger with built-in search
 - **1.9 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 `:` and a few letters, then the emoji.
 

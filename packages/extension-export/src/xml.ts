@@ -116,6 +116,7 @@ function codePoint(code: number, fallback: string): string {
  * containing any of them, so they are dropped rather than escaped.
  */
 const INVALID_XML_CHARS =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point; the doc comment above says which and why
   /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g
 
 /**

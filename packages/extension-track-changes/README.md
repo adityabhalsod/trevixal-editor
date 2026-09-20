@@ -1,7 +1,5 @@
 # @trevixal/extension-track-changes
 
-<!-- generated: header -->
-
 [![CI](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/adityabhalsod/trevixal-editor/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-track-changes.svg)](https://www.npmjs.com/package/@trevixal/extension-track-changes)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-track-changes.svg)](https://www.npmjs.com/package/@trevixal/extension-track-changes)
@@ -16,8 +14,6 @@
 - Attributed insertion and deletion marks
 - Accept and reject, one change or all of them
 - **3.1 kB** minified and gzipped, with TypeScript types in the package
-
-<!-- /generated: header -->
 
 Suggestion mode: edits become attributed, timestamped marks to accept or
 reject, instead of changes to the document.

@@ -37,10 +37,7 @@
       }
     }
   },
-  "files": [
-    "dist",
-    "!dist/**/*.map"
-  ],
+  "files": ["dist", "!dist/**/*.map"],
   "publishConfig": {
     "access": "public"
   },
