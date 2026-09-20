@@ -1,4 +1,9 @@
-import { exitPreformatted, indentInPreformatted, outdentInPreformatted } from '../commands/commands'
+import {
+  exitEnclosingBlock,
+  exitPreformatted,
+  indentInPreformatted,
+  outdentInPreformatted,
+} from '../commands/commands'
 import type { Editor } from '../editor/editor'
 
 /** A key binding runs against the editor; returning true consumes the event. */
@@ -56,6 +61,26 @@ export function keydownHandler(
   }
 }
 
+/**
+ * Combine keymaps so a key bound by more than one of them tries each binding
+ * in turn, earliest first, until one consumes the event.
+ *
+ * Spreading them into one object instead would keep only the last binding for
+ * a shared key, which is silent: the editor still works, one extension's
+ * handling of that key simply never runs again. Enter is bound by both the
+ * table and the block keymaps, and that is exactly how it would go missing.
+ */
+export function mergeKeymaps(...keymaps: readonly Keymap[]): Keymap {
+  const merged: Record<string, KeyBinding> = {}
+  for (const keymap of keymaps) {
+    for (const [key, binding] of Object.entries(keymap)) {
+      const existing = merged[key]
+      merged[key] = existing ? (editor) => existing(editor) || binding(editor) : binding
+    }
+  }
+  return merged
+}
+
 /** The stock shortcuts: marks, undo/redo, list indent. Enter/Backspace ride on beforeinput. */
 export function baseKeymap(): Keymap {
   return {
@@ -71,7 +96,9 @@ export function baseKeymap(): Keymap {
     // focus out of the editor the way keyboard users expect.
     Tab: (editor) => editor.exec(indentInPreformatted) || editor.commands.sinkListItem(),
     'Shift-Tab': (editor) => editor.exec(outdentInPreformatted) || editor.commands.liftListItem(),
-    // Out of a code block from anywhere inside it; elsewhere the key is free.
-    'Mod-Enter': (editor) => editor.exec(exitPreformatted),
+    // Out of a code block from anywhere inside it, and out of any other
+    // structure from anywhere inside that: a blockquote, a table cell, a
+    // callout. In a top-level block the key stays free.
+    'Mod-Enter': (editor) => editor.exec(exitPreformatted) || editor.exec(exitEnclosingBlock),
   }
 }

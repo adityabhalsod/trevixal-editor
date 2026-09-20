@@ -17,6 +17,7 @@ export {
   deleteColumn,
   deleteRow,
   deleteTable,
+  escapeTableOnEnter,
   goToNextCell,
   type InsertTableOptions,
   insertTable,

@@ -1,5 +1,5 @@
 import { type Keymap, indentInPreformatted, outdentInPreformatted } from '@trevixal/core'
-import { goToNextCell } from './commands'
+import { escapeTableOnEnter, goToNextCell } from './commands'
 
 /**
  * Table key bindings. Pass to `createEditor({ keymap: tableKeymap() })`; they
@@ -21,5 +21,8 @@ export function tableKeymap(): Keymap {
       editor.exec(goToNextCell(-1)) ||
       editor.exec(outdentInPreformatted) ||
       editor.commands.liftListItem(),
+    // Out of the bottom-right cell, where there is nowhere further to go.
+    // Everywhere else Enter makes a paragraph in the cell, as it should.
+    Enter: (editor) => editor.exec(escapeTableOnEnter),
   }
 }
