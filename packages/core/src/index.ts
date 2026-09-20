@@ -91,6 +91,8 @@ export {
   deleteCharBackward,
   deleteCharForward,
   deleteSelection,
+  escapeWrapperOnEnter,
+  exitEnclosingBlock,
   exitPreformatted,
   insertBlockAfter,
   insertInlineNode,
@@ -242,6 +244,7 @@ export {
   baseKeymap,
   type KeyBinding,
   keydownHandler,
+  mergeKeymaps,
   type Keymap,
   normalizeKeyName,
 } from './view/keymap'

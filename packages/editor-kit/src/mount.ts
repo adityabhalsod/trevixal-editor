@@ -12,6 +12,7 @@ import {
   FormatPainter,
   createEditor,
   describeFormat,
+  mergeKeymaps,
   paragraphCount,
   sentenceCount,
   serializeToHTMLDocument,
@@ -131,7 +132,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     schema,
     content: options.content ?? initialContent,
     element: editorHost,
-    keymap: { ...tableKeymap(), ...blockKeymap() },
+    // Both bind Enter. Spreading them would keep only the last one, and the
+    // other extension would quietly stop answering the key.
+    keymap: mergeKeymaps(tableKeymap(), blockKeymap()),
     placeholder: options.placeholder ?? 'Write something…',
     onChange: () => {
       renderOutput()

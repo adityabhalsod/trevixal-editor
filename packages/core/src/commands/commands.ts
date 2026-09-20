@@ -685,6 +685,94 @@ export const exitPreformatted: Command = (state) => {
 }
 
 /**
+ * Whether `parent` would still satisfy its own content rule with the child at
+ * `index` taken out, and whether `grandparent` accepts that child beside it.
+ * Both have to hold or the escape would build a document the schema rejects.
+ */
+function canLiftChildOut(
+  parent: EditorNode,
+  index: number,
+  grandparent: EditorNode,
+  parentIndex: number,
+  child: EditorNode,
+): boolean {
+  const kept = parent.content.children.filter((_, at) => at !== index)
+  if (!parent.type.validContent(Fragment.from(kept))) return false
+  const siblings = [...grandparent.content.children]
+  siblings.splice(parentIndex + 1, 0, child)
+  return grandparent.type.validContent(Fragment.from(siblings))
+}
+
+/**
+ * Enter on the empty last block of a wrapper leaves the wrapper, the way a
+ * second Enter leaves a code block. Without it a blockquote at the end of the
+ * document traps the cursor: every Enter makes another paragraph inside it
+ * and there is no way back out to the body.
+ *
+ * The empty block the gesture was made on is carried out rather than left
+ * behind, so the wrapper does not keep a blank line where the cursor was.
+ *
+ * Declines unless the schema allows it on both sides, which is what keeps it
+ * away from fixed-structure nodes: the single slot of a toggle or a tab is
+ * not something to empty out, and its own extension handles those.
+ */
+export const escapeWrapperOnEnter: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  // A top-level block has nothing to leave.
+  if (path.length < 2) return null
+  const block = nodeAtPath(state.doc, path)
+  // Only an empty block is the gesture; Enter in written text must split.
+  if (!block?.isTextblock || inlineLength(block.content) > 0) return null
+
+  const wrapperPath = path.slice(0, -1)
+  const wrapper = nodeAtPath(state.doc, wrapperPath)
+  if (!wrapper) return null
+  const index = path[path.length - 1] as number
+  // Only the last child can leave without splitting the wrapper in two.
+  if (index !== wrapper.childCount - 1) return null
+
+  const outerPath = wrapperPath.slice(0, -1)
+  const outer = nodeAtPath(state.doc, outerPath)
+  if (!outer) return null
+  const wrapperIndex = wrapperPath[wrapperPath.length - 1] as number
+  if (!canLiftChildOut(wrapper, index, outer, wrapperIndex, block)) return null
+
+  const tr = state.tr
+  tr.step(new ReplaceNodesStep(wrapperPath, index, index + 1, Fragment.empty))
+  tr.step(new ReplaceNodesStep(outerPath, wrapperIndex + 1, wrapperIndex + 1, Fragment.of(block)))
+  tr.setSelection(new TextSelection(pos([...outerPath, wrapperIndex + 1], 0)))
+  return tr
+}
+
+/**
+ * Mod-Enter from anywhere nested: a new paragraph after the whole outermost
+ * block, with the caret in it.
+ *
+ * The two-Enter gesture needs a blank last line, which not every structure
+ * has one of: a table cell, a diagram, a timeline entry. This leaves from
+ * wherever the caret is, and lands at the top level, where a paragraph is
+ * always allowed, so it works the same way out of every one of them.
+ *
+ * Declines when the caret is already in a top-level block, leaving the key
+ * free for anything else bound to it there.
+ */
+export const exitEnclosingBlock: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection)) return null
+  const path = selection.from.path
+  if (path.length < 2) return null
+  const paragraph = state.schema.nodes.paragraph
+  if (!paragraph) return null
+  const index = (path[0] as number) + 1
+  const tr = state.tr
+  tr.step(new ReplaceNodesStep([], index, index, Fragment.of(paragraph.create())))
+  tr.setSelection(new TextSelection(pos([index], 0)))
+  return tr
+}
+
+/**
  * Shift-Enter inside a code block: a plain newline, with none of the
  * indentation Enter adds. A hard break is not allowed in a code block, so
  * without this the key did nothing there.

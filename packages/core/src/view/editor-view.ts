@@ -6,6 +6,7 @@ import {
   deleteCharBackward,
   deleteCharForward,
   deleteSelection,
+  escapeWrapperOnEnter,
   insertContent,
   insertInlineNode,
   insertNewlineInPreformatted,
@@ -572,7 +573,9 @@ export class EditorView {
         break
       }
       case 'insertParagraph':
-        consume(chainCommands(splitBlockInPreformatted, splitListItem, splitBlock))
+        consume(
+          chainCommands(splitBlockInPreformatted, splitListItem, escapeWrapperOnEnter, splitBlock),
+        )
         break
       case 'insertLineBreak':
         consume(chainCommands(insertNewlineInPreformatted, insertInlineNode('hardBreak')))

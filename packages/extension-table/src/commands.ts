@@ -9,6 +9,7 @@ import {
   type Schema,
   SetNodeAttrsStep,
   TextSelection,
+  nodeAtPath,
   pos,
   replaceNodeAt,
 } from '@trevixal/core'
@@ -440,6 +441,56 @@ export const splitCell: Command = (state) => {
 }
 
 /** Tab navigation: move to the next/previous cell; Tab past the end adds a row. */
+/**
+ * Enter on the empty last paragraph of the bottom-right cell: a new paragraph
+ * after the table, with the caret in it.
+ *
+ * A table at the end of the document otherwise traps the caret. Nothing can
+ * follow it, and Enter inside a cell only ever makes another paragraph in
+ * that cell. This is the same gesture a blockquote and a callout answer to,
+ * in the one cell where there is nowhere further to go.
+ *
+ * The blank paragraph is taken along, unless it is all the cell has: a cell
+ * holds `block+`, so emptying it would leave the table invalid.
+ */
+export const escapeTableOnEnter: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  const context = cellContextAt(state.doc, selection.from)
+  if (!context) return null
+
+  const { table, tablePath, row, rowIndex, cell, cellIndex } = context
+  // Only the bottom-right cell: anywhere else there is still table to move
+  // through, and Tab is how you move through it.
+  if (rowIndex !== table.childCount - 1 || cellIndex !== row.childCount - 1) return null
+
+  const blockIndex = path[path.length - 1] as number
+  if (blockIndex !== cell.childCount - 1) return null
+  const block = nodeAtPath(state.doc, path)
+  if (!block?.isTextblock || block.textContent.length > 0) return null
+
+  const paragraph = state.schema.nodes.paragraph
+  if (!paragraph) return null
+  const tableIndex = tablePath[tablePath.length - 1] as number
+  const parentPath = tablePath.slice(0, -1)
+
+  const tr = state.tr
+  if (cell.childCount > 1) {
+    tr.step(new ReplaceNodesStep(path.slice(0, -1), blockIndex, blockIndex + 1, Fragment.empty))
+  }
+  tr.step(
+    new ReplaceNodesStep(
+      parentPath,
+      tableIndex + 1,
+      tableIndex + 1,
+      Fragment.of(paragraph.create()),
+    ),
+  )
+  tr.setSelection(new TextSelection(pos([...parentPath, tableIndex + 1], 0)))
+  return tr
+}
+
 export function goToNextCell(direction: 1 | -1): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
