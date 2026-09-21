@@ -68,6 +68,56 @@ body.trevixal {
   border-radius: 8px;
 }
 
+/* The download total, beside the star. Same breakpoint: below it the nav
+   collapses into the hamburger and the social icons go with it. */
+.npm-downloads {
+  display: none;
+  margin-left: 0.75rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--vp-c-text-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.npm-downloads:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.npm-downloads__count {
+  display: inline-block;
+  padding: 4px 8px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+}
+
+@media (min-width: 768px) {
+  .npm-downloads {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* The star count sits with the social icons, and drops out on the narrow
+   layout where the nav collapses into the hamburger menu and those icons go
+   with it. */
+.github-stars {
+  display: none;
+  margin-left: 0.5rem;
+}
+
+.github-stars img {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .github-stars {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 .playground {
   margin: 1.5rem 0;
 }
