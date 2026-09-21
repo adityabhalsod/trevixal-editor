@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
 [![types](https://img.shields.io/npm/types/@trevixal/core.svg)](https://www.npmjs.com/package/@trevixal/core)
 [![license](https://img.shields.io/npm/l/@trevixal/core.svg)](LICENSE)
+[![stars](https://img.shields.io/github/stars/adityabhalsod/trevixal-editor?style=social)](https://github.com/adityabhalsod/trevixal-editor/stargazers)
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 
@@ -334,39 +335,39 @@ once the packages are published.
 
 ## Packages
 
-Twenty-three publishable packages, each at `0.0.1`, each shipping ESM + CJS +
+Twenty-three publishable packages, all released together, each shipping ESM + CJS +
 `.d.ts` from `tsup`, each with **no runtime dependencies** (framework adapters
 declare their framework as a peer, and `@trevixal/editor-kit` declares the
 extensions it assembles). Test counts are from the run at the top of this
 file.
 
-| Package | Tests | What it is |
-| --- | ---: | --- |
-| [`@trevixal/core`](packages/core) | 511 | The engine: immutable `EditorState`, schema-validated documents, nine invertible step types, position mapping, undo history, commands, input rules, sanitizing HTML import, HTML/Markdown/text serializers, clipboard, find & replace, decoration layers, suggestion triggers, format painter, the `beforeinput` + IME view with MutationObserver repair. SSR-safe, `sideEffects: false`. |
-| [`@trevixal/editor-kit`](packages/editor-kit) | 14 | Every package below, assembled: one call builds the menubar, toolbar, status bar, sidebar panels, preview and mirror panes, and wires all twenty extensions to each other. The finished editor, for hosts that do not want to assemble one. |
-| [`@trevixal/ui`](packages/ui) | 179 | The editing chrome: menubar, grouped toolbar, controls, dialogs, status bar, suggestion popup, command palette, shortcut manager, find & replace, TOC and outline, history panel, autosave and backups, themes/fonts/custom CSS/page view, view modes, source modes, export/import/print plumbing, and the SCSS design system. |
-| [`@trevixal/react`](packages/react) | 17 | `useEditor`, `useEditorSnapshot`, `<EditorContent>`, `EditorProvider`, portal node views. |
-| [`@trevixal/vue`](packages/vue) | 19 | `useEditor` composable, `useEditorSnapshot`, `<EditorContent>`. |
-| [`@trevixal/svelte`](packages/svelte) | 8 | `use:trevixalEditor` action and an `editorStore` store contract. |
-| [`@trevixal/angular`](packages/angular) | 12 | `createAngularEditor` and `editorSnapshotSignal`. A signal-backed snapshot and view lifecycle. Functions rather than decorators, so it needs no Angular compiler. Zoneless. |
-| [`@trevixal/web-component`](packages/web-component) | 28 | `<trevixal-editor>` custom element plus a bundler-free IIFE CDN build. |
-| [`@trevixal/extension-table`](packages/extension-table) | 104 | Tables: structure, merge/split (colspan), header row, alignment, background, borders, sort, resize, CSV in and out, text ↔ table. |
-| [`@trevixal/extension-image`](packages/extension-image) | 95 | Images: pluggable storage, drag/paste/pick upload with progress and cancellation, resize handles, crop, rotate, compress, captions, alignment, a floating toolbar. |
-| [`@trevixal/extension-blocks`](packages/extension-blocks) | 105 | Callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes, tabs, accordions, citations and reference lists, anchors. |
-| [`@trevixal/extension-embed`](packages/extension-embed) | 110 | Video, audio, YouTube/Vimeo and allowlisted iframes, file attachments with pluggable storage, link preview cards. |
-| [`@trevixal/extension-math`](packages/extension-math) | 118 | LaTeX → MathML for inline and display equations, `$…$` input rule, pluggable renderer. |
-| [`@trevixal/extension-diagram`](packages/extension-diagram) | 32 | Live diagram previews under code blocks through any renderer; Mermaid adapter and lazy CDN loader included. |
-| [`@trevixal/extension-export`](packages/extension-export) | 301 | DOCX and RTF writers and a DOCX reader, with their own ZIP and XML implementations; themed, with highlighted code and embedded diagrams. |
-| [`@trevixal/extension-security`](packages/extension-security) | 61 | PBKDF2 + AES-GCM document encryption with expiry, an encrypted key-value storage wrapper, copy/cut/paste/print/download/context-menu restrictions. |
-| [`@trevixal/extension-writing`](packages/extension-writing) | 121 | Readability, passive voice, repeated words, long sentences, grammar rules, keyword density, reading/speaking time, goals, spell-check toggle. |
-| [`@trevixal/extension-workspace`](packages/extension-workspace) | 142 | A document store with folders, templates, recents and favourites; a tab strip; a workspace panel; a split preview or mirrored second editor. |
-| [`@trevixal/extension-track-changes`](packages/extension-track-changes) | 50 | Suggestion mode: attributed, timestamped `ins`/`del` marks; accept and reject one or all; a review bar. |
-| [`@trevixal/extension-code-highlight`](packages/extension-code-highlight) | 70 | Twelve bundled languages behind one `Highlighter` interface, language detection, copy-code buttons. Rendered as decorations. |
-| [`@trevixal/extension-format-code`](packages/extension-format-code) | 34 | JSON and XML pretty-printing and minification, in place, for the code block at the caret. |
-| [`@trevixal/extension-slash-command`](packages/extension-slash-command) | 20 | The `/` menu: fuzzy filtering, keyboard-first, an extensible item list. |
-| [`@trevixal/extension-emoji`](packages/extension-emoji) | 20 | The `:` picker with 114 built-in emoji and search. |
-| `@trevixal/e2e` *(private)* | 156 browser | The Playwright suite and its self-contained test pages. |
-| `@trevixal/example-*` *(private)* | — | [Eleven example apps](examples/README.md), each running the assembled editor, nine from a framework's lifecycle, two from none. |
+| Package | Downloads | Tests | What it is |
+| --- | --- | ---: | --- |
+| [`@trevixal/core`](packages/core) | ![](https://img.shields.io/npm/dm/@trevixal/core.svg?label=&color=blue) | 511 | The engine: immutable `EditorState`, schema-validated documents, nine invertible step types, position mapping, undo history, commands, input rules, sanitizing HTML import, HTML/Markdown/text serializers, clipboard, find & replace, decoration layers, suggestion triggers, format painter, the `beforeinput` + IME view with MutationObserver repair. SSR-safe, `sideEffects: false`. |
+| [`@trevixal/editor-kit`](packages/editor-kit) | ![](https://img.shields.io/npm/dm/@trevixal/editor-kit.svg?label=&color=blue) | 14 | Every package below, assembled: one call builds the menubar, toolbar, status bar, sidebar panels, preview and mirror panes, and wires all twenty extensions to each other. The finished editor, for hosts that do not want to assemble one. |
+| [`@trevixal/ui`](packages/ui) | ![](https://img.shields.io/npm/dm/@trevixal/ui.svg?label=&color=blue) | 179 | The editing chrome: menubar, grouped toolbar, controls, dialogs, status bar, suggestion popup, command palette, shortcut manager, find & replace, TOC and outline, history panel, autosave and backups, themes/fonts/custom CSS/page view, view modes, source modes, export/import/print plumbing, and the SCSS design system. |
+| [`@trevixal/react`](packages/react) | ![](https://img.shields.io/npm/dm/@trevixal/react.svg?label=&color=blue) | 17 | `useEditor`, `useEditorSnapshot`, `<EditorContent>`, `EditorProvider`, portal node views. |
+| [`@trevixal/vue`](packages/vue) | ![](https://img.shields.io/npm/dm/@trevixal/vue.svg?label=&color=blue) | 19 | `useEditor` composable, `useEditorSnapshot`, `<EditorContent>`. |
+| [`@trevixal/svelte`](packages/svelte) | ![](https://img.shields.io/npm/dm/@trevixal/svelte.svg?label=&color=blue) | 8 | `use:trevixalEditor` action and an `editorStore` store contract. |
+| [`@trevixal/angular`](packages/angular) | ![](https://img.shields.io/npm/dm/@trevixal/angular.svg?label=&color=blue) | 12 | `createAngularEditor` and `editorSnapshotSignal`. A signal-backed snapshot and view lifecycle. Functions rather than decorators, so it needs no Angular compiler. Zoneless. |
+| [`@trevixal/web-component`](packages/web-component) | ![](https://img.shields.io/npm/dm/@trevixal/web-component.svg?label=&color=blue) | 28 | `<trevixal-editor>` custom element plus a bundler-free IIFE CDN build. |
+| [`@trevixal/extension-table`](packages/extension-table) | ![](https://img.shields.io/npm/dm/@trevixal/extension-table.svg?label=&color=blue) | 104 | Tables: structure, merge/split (colspan), header row, alignment, background, borders, sort, resize, CSV in and out, text ↔ table. |
+| [`@trevixal/extension-image`](packages/extension-image) | ![](https://img.shields.io/npm/dm/@trevixal/extension-image.svg?label=&color=blue) | 95 | Images: pluggable storage, drag/paste/pick upload with progress and cancellation, resize handles, crop, rotate, compress, captions, alignment, a floating toolbar. |
+| [`@trevixal/extension-blocks`](packages/extension-blocks) | ![](https://img.shields.io/npm/dm/@trevixal/extension-blocks.svg?label=&color=blue) | 105 | Callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes, tabs, accordions, citations and reference lists, anchors. |
+| [`@trevixal/extension-embed`](packages/extension-embed) | ![](https://img.shields.io/npm/dm/@trevixal/extension-embed.svg?label=&color=blue) | 110 | Video, audio, YouTube/Vimeo and allowlisted iframes, file attachments with pluggable storage, link preview cards. |
+| [`@trevixal/extension-math`](packages/extension-math) | ![](https://img.shields.io/npm/dm/@trevixal/extension-math.svg?label=&color=blue) | 118 | LaTeX → MathML for inline and display equations, `$…$` input rule, pluggable renderer. |
+| [`@trevixal/extension-diagram`](packages/extension-diagram) | ![](https://img.shields.io/npm/dm/@trevixal/extension-diagram.svg?label=&color=blue) | 32 | Live diagram previews under code blocks through any renderer; Mermaid adapter and lazy CDN loader included. |
+| [`@trevixal/extension-export`](packages/extension-export) | ![](https://img.shields.io/npm/dm/@trevixal/extension-export.svg?label=&color=blue) | 301 | DOCX and RTF writers and a DOCX reader, with their own ZIP and XML implementations; themed, with highlighted code and embedded diagrams. |
+| [`@trevixal/extension-security`](packages/extension-security) | ![](https://img.shields.io/npm/dm/@trevixal/extension-security.svg?label=&color=blue) | 61 | PBKDF2 + AES-GCM document encryption with expiry, an encrypted key-value storage wrapper, copy/cut/paste/print/download/context-menu restrictions. |
+| [`@trevixal/extension-writing`](packages/extension-writing) | ![](https://img.shields.io/npm/dm/@trevixal/extension-writing.svg?label=&color=blue) | 121 | Readability, passive voice, repeated words, long sentences, grammar rules, keyword density, reading/speaking time, goals, spell-check toggle. |
+| [`@trevixal/extension-workspace`](packages/extension-workspace) | ![](https://img.shields.io/npm/dm/@trevixal/extension-workspace.svg?label=&color=blue) | 142 | A document store with folders, templates, recents and favourites; a tab strip; a workspace panel; a split preview or mirrored second editor. |
+| [`@trevixal/extension-track-changes`](packages/extension-track-changes) | ![](https://img.shields.io/npm/dm/@trevixal/extension-track-changes.svg?label=&color=blue) | 50 | Suggestion mode: attributed, timestamped `ins`/`del` marks; accept and reject one or all; a review bar. |
+| [`@trevixal/extension-code-highlight`](packages/extension-code-highlight) | ![](https://img.shields.io/npm/dm/@trevixal/extension-code-highlight.svg?label=&color=blue) | 70 | Twelve bundled languages behind one `Highlighter` interface, language detection, copy-code buttons. Rendered as decorations. |
+| [`@trevixal/extension-format-code`](packages/extension-format-code) | ![](https://img.shields.io/npm/dm/@trevixal/extension-format-code.svg?label=&color=blue) | 34 | JSON and XML pretty-printing and minification, in place, for the code block at the caret. |
+| [`@trevixal/extension-slash-command`](packages/extension-slash-command) | ![](https://img.shields.io/npm/dm/@trevixal/extension-slash-command.svg?label=&color=blue) | 20 | The `/` menu: fuzzy filtering, keyboard-first, an extensible item list. |
+| [`@trevixal/extension-emoji`](packages/extension-emoji) | ![](https://img.shields.io/npm/dm/@trevixal/extension-emoji.svg?label=&color=blue) | 20 | The `:` picker with 114 built-in emoji and search. |
+| `@trevixal/e2e` *(private)* | — | 156 browser | The Playwright suite and its self-contained test pages. |
+| `@trevixal/example-*` *(private)* | — | — | [Eleven example apps](examples/README.md), each running the assembled editor, nine from a framework's lifecycle, two from none. |
 
 **What it costs** (`pnpm size`, minified and gzipped as a bundler would ship
 it). Every row has a budget in

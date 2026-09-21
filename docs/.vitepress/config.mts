@@ -140,9 +140,7 @@ export default defineConfig({
       },
     ],
 
-    // The repository is private, so the icon led every reader to a 404.
-    // Restore this line when it goes public.
-    // socialLinks: [{ icon: 'github', link: 'https://github.com/adityabhalsod/trevixal-editor' }],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/adityabhalsod/trevixal-editor' }],
 
     search: { provider: 'local' },
 
