@@ -5,12 +5,13 @@ import {
   Fragment,
   type Path,
   ReplaceNodesStep,
+  SetNodeAttrsStep,
   TextSelection,
   type Transaction,
   nodeAtPath,
   replaceNodeAt,
 } from '@trevixal/core'
-import { showingSides, sidesOfColumnPart } from './cell-borders'
+import { hidesSide, showingSides, sidesOfColumnPart } from './cell-borders'
 import {
   cellAtColumn,
   colspanOf,
@@ -191,6 +192,78 @@ export function insertDrawnTable(box: DrawnTable): Command {
     tr.setSelection(cursorIn([at], 0, 0))
     return tr
   }
+}
+
+/**
+ * Word's Border Painter: draw one of a cell's lines again. A shared line is
+ * hidden while either cell has it erased, so this clears the cell's side and
+ * the side facing it on every neighbour across the line.
+ *
+ * Declines for a path that is not a cell, and for a line nothing hides.
+ */
+export function showCellBorder(cellPath: Path, side: CellSide): Command {
+  return (state) => {
+    const cell = nodeAtPath(state.doc, cellPath)
+    if (cell?.type.name !== 'tableCell') return null
+    const tr = state.tr
+    for (const target of [{ path: cellPath, side }, ...facing(state.doc, cellPath, side)]) {
+      const node = nodeAtPath(state.doc, target.path)
+      if (!node || !hidesSide(node, target.side)) continue
+      const hiddenBorders = showingSides(node, [target.side])
+      tr.step(new SetNodeAttrsStep(target.path, { ...node.attrs, hiddenBorders }))
+    }
+    return tr.docChanged ? tr : null
+  }
+}
+
+/** Whether one of a cell's lines is hidden, by the cell or by a neighbour across it. */
+export function cellSideHidden(doc: EditorNode, cellPath: Path, side: CellSide): boolean {
+  const cell = nodeAtPath(doc, cellPath)
+  if (!cell) return false
+  if (hidesSide(cell, side)) return true
+  return facing(doc, cellPath, side).some((target) => {
+    const node = nodeAtPath(doc, target.path)
+    return node !== null && hidesSide(node, target.side)
+  })
+}
+
+const OPPOSITE: Readonly<Record<CellSide, CellSide>> = {
+  top: 'bottom',
+  right: 'left',
+  bottom: 'top',
+  left: 'right',
+}
+
+/** The cells across one side of a cell, each with its side that faces it. */
+function facing(doc: EditorNode, cellPath: Path, side: CellSide): { path: Path; side: CellSide }[] {
+  const tablePath = cellPath.slice(0, -2)
+  const rowIndex = cellPath[cellPath.length - 2] as number
+  const cellIndex = cellPath[cellPath.length - 1] as number
+  const table = nodeAtPath(doc, tablePath)
+  const row = table?.content.maybeChild(rowIndex)
+  const cell = row?.content.maybeChild(cellIndex)
+  if (!table || !row || !cell) return []
+  const opposite = OPPOSITE[side]
+  if (side === 'left' || side === 'right') {
+    const index = cellIndex + (side === 'left' ? -1 : 1)
+    return row.content.maybeChild(index)
+      ? [{ path: [...tablePath, rowIndex, index], side: opposite }]
+      : []
+  }
+  // Across a row line, every cell of the next row that shares a column with this one.
+  const otherIndex = rowIndex + (side === 'top' ? -1 : 1)
+  const other = table.content.maybeChild(otherIndex)
+  if (!other) return []
+  const start = columnStart(row, cellIndex)
+  const end = start + colspanOf(cell)
+  const found: { path: Path; side: CellSide }[] = []
+  other.content.children.forEach((candidate, index) => {
+    const from = columnStart(other, index)
+    if (from < end && from + colspanOf(candidate) > start) {
+      found.push({ path: [...tablePath, otherIndex, index], side: opposite })
+    }
+  })
+  return found
 }
 
 /**

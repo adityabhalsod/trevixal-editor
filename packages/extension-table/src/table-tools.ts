@@ -4,15 +4,17 @@ import {
   bandAt,
   boundariesOf,
   boundaryNear,
+  cellSideHidden,
   drawColumnLine,
   drawRowLine,
   insertDrawnTable,
+  showCellBorder,
 } from './draw-table'
 import type { CellSide } from './schema'
 import { type TableGeometry, contentWidth, geometryOf } from './table-geometry'
 
-/** Word's two table tools: Draw Table's pencil, and the Eraser. */
-export type TableTool = 'draw' | 'erase'
+/** Word's table tools: Draw Table's pencil, the Eraser and the Border Painter. */
+export type TableTool = 'draw' | 'erase' | 'paint'
 
 export interface TableToolsOptions {
   /**
@@ -30,14 +32,14 @@ export interface TableTools {
   destroy(): void
 }
 
-/** How near a cell's side the Eraser has to be to take it, in px. */
-const ERASER_REACH = 6
+/** How near a cell's side the Eraser or the Border Painter has to be to take it, in px. */
+const SIDE_REACH = 6
 /** Travel below this is a click, not a stroke. */
 const DEAD_ZONE = 4
 /** The smallest box that draws a table, each way, in px. */
 const SMALLEST_BOX = 16
-/** How thick the Eraser's mark over a side is, in px. */
-const ERASER_MARK = 4
+/** How thick the mark over the side a tool would take is, in px. */
+const SIDE_MARK = 4
 
 /** The table a stroke began in, as the page showed it then. */
 interface StrokeTable {
@@ -76,7 +78,7 @@ type Shape =
       readonly height: number
     }
 
-/** The side of a cell under the Eraser. */
+/** The side of a cell under the Eraser or the Border Painter. */
 interface Target {
   readonly path: Path
   readonly side: CellSide
@@ -94,6 +96,9 @@ interface Target {
  *
  * **Eraser.** Point at one of a cell's sides, its left, right, top or bottom
  * line, and click to stop drawing it.
+ *
+ * **Border Painter.** The Eraser's opposite: point at a line the Eraser took
+ * out and click to draw it again, with the table's pen.
  *
  * While a tool is held it has the pointer to itself over the page: a click
  * moves no caret and starts no selection, resize or cell selection. Escape,
@@ -126,7 +131,7 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
 
   /** Show the guide over a rectangle given in viewport px. */
   const place = (
-    shape: 'line' | 'box' | 'erase',
+    shape: 'line' | 'box' | 'erase' | 'paint',
     left: number,
     top: number,
     width: number,
@@ -240,9 +245,12 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
     }
   }
 
-  // ---- erasing -----------------------------------------------------------------
+  // ---- erasing and painting -----------------------------------------------------
 
-  /** The side of a cell the pointer is on, unless it is already erased. */
+  /**
+   * The side of a cell the pointer is on, when the tool held can act on it:
+   * one still drawn for the Eraser, one taken out for the Border Painter.
+   */
   const targetAt = (event: PointerEvent): Target | null => {
     const cell = (event.target as Element | null)?.closest?.('td, th') as HTMLElement | null
     if (!cell || !surface.contains(cell)) return null
@@ -254,11 +262,13 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
       ['left', event.clientX - box.left],
     ]
     const [side, distance] = reach.reduce((best, next) => (next[1] < best[1] ? next : best))
-    if (distance > ERASER_REACH) return null
+    if (distance > SIDE_REACH) return null
     const node = view.renderer.modelOf.get(cell)
     const path = pathOfElement(surface, view.renderer, cell)
-    if (!node || !path || hidesSide(node, side)) return null
-    return { path, side, box }
+    if (!node || !path) return null
+    const actionable =
+      tool === 'paint' ? cellSideHidden(editor.state.doc, path, side) : !hidesSide(node, side)
+    return actionable ? { path, side, box } : null
   }
 
   /** Mark the side the Eraser would take, or clear the mark. */
@@ -269,13 +279,14 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
       return
     }
     const { box, side } = next
-    const half = ERASER_MARK / 2
+    const half = SIDE_MARK / 2
+    const shape = tool === 'paint' ? 'paint' : 'erase'
     if (side === 'top' || side === 'bottom') {
       const at = side === 'top' ? box.top : box.bottom
-      place('erase', box.left, at - half, box.width, ERASER_MARK)
+      place(shape, box.left, at - half, box.width, SIDE_MARK)
     } else {
       const at = side === 'left' ? box.left : box.right
-      place('erase', at - half, box.top, ERASER_MARK, box.height)
+      place(shape, at - half, box.top, SIDE_MARK, box.height)
     }
   }
 
@@ -293,9 +304,10 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
     if (!held(event)) return
     claim(event)
     if (event.button !== 0) return
-    if (tool === 'erase') {
+    if (tool === 'erase' || tool === 'paint') {
       const hit = targetAt(event)
-      if (hit) editor.exec(hideCellBorder(hit.path, hit.side))
+      const command = tool === 'erase' ? hideCellBorder : showCellBorder
+      if (hit) editor.exec(command(hit.path, hit.side))
       showTarget(null)
       return
     }
@@ -326,7 +338,7 @@ export function createTableTools(editor: Editor, options: TableToolsOptions = {}
     }
     // Nothing else on the page answers the pointer while a tool is held.
     event.stopPropagation()
-    if (tool === 'erase') showTarget(targetAt(event))
+    if (tool === 'erase' || tool === 'paint') showTarget(targetAt(event))
   }
 
   const onPointerUp = (event: PointerEvent): void => {

@@ -4,6 +4,14 @@ import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } fro
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
 import type { ShortcutLabels } from './shortcuts'
+import {
+  TABLE_LINE_STYLE_ENTRIES,
+  TABLE_LINE_WEIGHT_ENTRIES,
+  TABLE_STYLE_OPTION_ENTRIES,
+  type TableDesignEntry,
+  type TableStyleTile,
+  tableStyleEntryName,
+} from './table-design'
 
 /** One entry in a menu. A `separator` draws a rule and takes no action. */
 export interface MenuItem {
@@ -56,11 +64,25 @@ export interface Menubar {
 
 const separator = (name: string): MenuItem => ({ name, label: '', separator: true })
 
+/** Menu entries for a set of Table design choices. */
+const designEntries = <Value>(entries: readonly TableDesignEntry<Value>[]): MenuItem[] =>
+  entries.map(({ entry, label, icon }) => ({ name: entry, label, icon }))
+
+export interface DefaultMenusOptions {
+  /**
+   * The table package's styles gallery, `tableUICommands().tableStyles`.
+   * With it, Table ▸ Table style lists every style; `createEditorUI` passes
+   * it on from its `tableCommands`.
+   */
+  readonly tableStyles?: readonly TableStyleTile[]
+}
+
 /**
  * The stock menu set. Pass your own `menus` to add, remove or reorder.
  * Nothing here is special-cased by {@link createMenubar}.
  */
-export function defaultMenus(): readonly Menu[] {
+export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[] {
+  const tableStyles = options.tableStyles ?? []
   return [
     {
       name: 'file',
@@ -631,6 +653,7 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'insertTable', label: 'Insert table', icon: 'table' },
         { name: 'drawTable', label: 'Draw table', icon: 'tableDraw' },
         { name: 'tableEraser', label: 'Eraser', icon: 'tableEraser' },
+        { name: 'borderPainter', label: 'Border painter', icon: 'borderPainter' },
         separator('table-sep-1'),
         { name: 'addRowBefore', icon: 'tableRowAbove', label: 'Row above' },
         { name: 'addRowAfter', icon: 'tableRowBelow', label: 'Row below' },
@@ -642,7 +665,28 @@ export function defaultMenus(): readonly Menu[] {
         separator('table-sep-3'),
         { name: 'mergeCells', icon: 'tableMerge', label: 'Merge cells' },
         { name: 'splitCell', icon: 'tableSplit', label: 'Split cells…' },
-        { name: 'toggleHeaderRow', icon: 'tableHeaderRow', label: 'Header row' },
+        separator('table-sep-design'),
+        // Word's Table Design tab: its gallery, then its style options.
+        ...(tableStyles.length > 0
+          ? [
+              {
+                name: 'tableStyles',
+                icon: 'tableDesign',
+                label: 'Table style',
+                items: tableStyles.map((tile) => ({
+                  name: tableStyleEntryName(tile),
+                  label: tile.label,
+                  icon: 'tableDesign',
+                })),
+              },
+            ]
+          : []),
+        {
+          name: 'tableStyleOptions',
+          icon: 'tableHeaderRow',
+          label: 'Style options',
+          items: designEntries(TABLE_STYLE_OPTION_ENTRIES),
+        },
         separator('table-sep-cell'),
         { name: 'cellBackground', icon: 'cellBackground', label: 'Cell background…' },
         {
@@ -667,6 +711,18 @@ export function defaultMenus(): readonly Menu[] {
             { name: 'bordersNone', label: 'No borders', icon: 'tableBorders' },
             { name: 'borderColor', label: 'Border colour…', icon: 'textColor' },
           ],
+        },
+        {
+          name: 'tableLineStyle',
+          icon: 'lineSolid',
+          label: 'Line style',
+          items: designEntries(TABLE_LINE_STYLE_ENTRIES),
+        },
+        {
+          name: 'tableLineWeight',
+          icon: 'lineWeight',
+          label: 'Line weight',
+          items: designEntries(TABLE_LINE_WEIGHT_ENTRIES),
         },
         {
           name: 'tableSort',

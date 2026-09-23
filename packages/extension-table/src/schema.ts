@@ -13,6 +13,82 @@ export function tableBorders(value: unknown): TableBorders | null {
   return TABLE_BORDERS.includes(value as TableBorders) ? (value as TableBorders) : null
 }
 
+/**
+ * Word's table styles, as two looks: `grid` draws the lines in the style's
+ * colour and rules off the header row, `header` fills the header row with it.
+ * No style is Word's plain Table Grid.
+ */
+export type TableStyle = 'grid' | 'header'
+
+export const TABLE_STYLES: readonly TableStyle[] = ['grid', 'header']
+
+/** Coerce a value to a known table style, or null. */
+export function tableStyle(value: unknown): TableStyle | null {
+  return TABLE_STYLES.includes(value as TableStyle) ? (value as TableStyle) : null
+}
+
+/**
+ * Word's Table Style Options, one table attribute each. The header row is
+ * the exception: it is the first row's cells being header cells, which is
+ * what it has always been here.
+ */
+export type TableStyleOption =
+  | 'firstColumn'
+  | 'lastColumn'
+  | 'totalRow'
+  | 'bandedRows'
+  | 'bandedColumns'
+
+export const TABLE_STYLE_OPTIONS: readonly TableStyleOption[] = [
+  'firstColumn',
+  'lastColumn',
+  'totalRow',
+  'bandedRows',
+  'bandedColumns',
+]
+
+/** The attribute each option is written to HTML as, present when it is on. */
+const OPTION_ATTRIBUTES: Readonly<Record<TableStyleOption, string>> = {
+  firstColumn: 'data-first-column',
+  lastColumn: 'data-last-column',
+  totalRow: 'data-total-row',
+  bandedRows: 'data-banded-rows',
+  bandedColumns: 'data-banded-columns',
+}
+
+/** How a table's lines are drawn. Solid, the default, is stored as null. */
+export type TableBorderStyle = 'solid' | 'dashed' | 'dotted' | 'double'
+
+export const TABLE_BORDER_STYLES: readonly TableBorderStyle[] = [
+  'solid',
+  'dashed',
+  'dotted',
+  'double',
+]
+
+/** A line style as a table stores it: null for solid, the default, and for anything unknown. */
+export function tableBorderStyle(value: unknown): TableBorderStyle | null {
+  return value !== 'solid' && TABLE_BORDER_STYLES.includes(value as TableBorderStyle)
+    ? (value as TableBorderStyle)
+    : null
+}
+
+/**
+ * How heavy a table's lines are, in Word's points. ½ pt, the default, is
+ * stored as null; the others map to 2, 3 and 4 pixels on screen, so each
+ * weight is one the eye can tell from the next.
+ */
+export type TableBorderWidth = '0.5pt' | '1.5pt' | '2.25pt' | '3pt'
+
+export const TABLE_BORDER_WIDTHS: readonly TableBorderWidth[] = ['0.5pt', '1.5pt', '2.25pt', '3pt']
+
+/** A line weight as a table stores it: null for ½ pt, the default, and for anything unknown. */
+export function tableBorderWidth(value: unknown): TableBorderWidth | null {
+  return value !== '0.5pt' && TABLE_BORDER_WIDTHS.includes(value as TableBorderWidth)
+    ? (value as TableBorderWidth)
+    : null
+}
+
 /** A side of a table cell. */
 export type CellSide = 'top' | 'right' | 'bottom' | 'left'
 
@@ -88,6 +164,19 @@ export function tableNodes(): Record<string, NodeSpec> {
         // draws them without any per-cell inline styles.
         borders: { default: null },
         borderColor: { default: null },
+        // The pen every line is drawn with, beside its colour above.
+        borderStyle: { default: null },
+        borderWidth: { default: null },
+        // Word's table style, and the colour a style is drawn in (null draws
+        // it in the text colour).
+        tableStyle: { default: null },
+        accentColor: { default: null },
+        // Word's Table Style Options, bar the header row (see TableStyleOption).
+        firstColumn: { default: false },
+        lastColumn: { default: false },
+        totalRow: { default: false },
+        bandedRows: { default: false },
+        bandedColumns: { default: false },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
@@ -100,17 +189,45 @@ export function tableNodes(): Record<string, NodeSpec> {
           attrs['data-border-color'] = borderColor
           addStyle(attrs, '--tvx-table-border', borderColor)
         }
+        const borderStyle = tableBorderStyle(node.attrs.borderStyle)
+        if (borderStyle) attrs['data-border-style'] = borderStyle
+        const borderWidth = tableBorderWidth(node.attrs.borderWidth)
+        if (borderWidth) attrs['data-border-width'] = borderWidth
+        const style = tableStyle(node.attrs.tableStyle)
+        if (style) attrs['data-table-style'] = style
+        const accent = style ? safeColor(node.attrs.accentColor) : null
+        if (accent) {
+          attrs['data-accent-color'] = accent
+          addStyle(attrs, '--tvx-table-accent', accent)
+        }
+        for (const option of TABLE_STYLE_OPTIONS) {
+          if (node.attrs[option] === true) attrs[OPTION_ATTRIBUTES[option]] = ''
+        }
         return { tag: 'table', attrs }
       },
       parseHTML: [
         {
           tag: 'table',
-          getAttrs: (element) => ({
-            width: styleValue(element, 'width'),
-            layout: element.style.tableLayout === 'fixed' ? 'fixed' : null,
-            borders: tableBorders(element.getAttribute('data-borders')),
-            borderColor: safeColor(element.getAttribute('data-border-color')),
-          }),
+          getAttrs: (element) => {
+            const style = tableStyle(element.getAttribute('data-table-style'))
+            const options = Object.fromEntries(
+              TABLE_STYLE_OPTIONS.map((option) => [
+                option,
+                element.hasAttribute(OPTION_ATTRIBUTES[option]),
+              ]),
+            )
+            return {
+              width: styleValue(element, 'width'),
+              layout: element.style.tableLayout === 'fixed' ? 'fixed' : null,
+              borders: tableBorders(element.getAttribute('data-borders')),
+              borderColor: safeColor(element.getAttribute('data-border-color')),
+              borderStyle: tableBorderStyle(element.getAttribute('data-border-style')),
+              borderWidth: tableBorderWidth(element.getAttribute('data-border-width')),
+              tableStyle: style,
+              accentColor: style ? safeColor(element.getAttribute('data-accent-color')) : null,
+              ...options,
+            }
+          },
         },
       ],
     },

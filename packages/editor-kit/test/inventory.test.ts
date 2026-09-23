@@ -39,7 +39,7 @@ test('registers every menu and menu entry it did before', () => {
     Insert: 35,
     Format: 20,
     Tools: 21,
-    Table: 32,
+    Table: 37,
     View: 22,
     Help: 3,
   })
@@ -57,8 +57,8 @@ test('renders the whole chrome, not just the menus', () => {
   }).toEqual({
     menuTriggers: 8,
     toolbarGroups: 13,
-    toolbarItems: 62,
-    everythingNamed: 321,
+    toolbarItems: 63,
+    everythingNamed: 351,
   })
 })
 

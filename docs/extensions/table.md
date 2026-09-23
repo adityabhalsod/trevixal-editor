@@ -33,10 +33,11 @@ replaces the base binding wholesale.
 | Area | Commands |
 | --- | --- |
 | Structure | `insertTable`, `addRow`, `addColumn`, `deleteRow`, `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `splitCellInto`, `toggleHeaderRow`, `goToNextCell` |
-| Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor`, `hideCellBorder` |
+| Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor`, `setTableBorderStyle`, `setTableBorderWidth`, `hideCellBorder`, `showCellBorder` |
+| Design | `setTableStyle`, `toggleTableStyleOption`, `tableDesignAt`, `TABLE_STYLE_GALLERY` |
 | Data | `sortTable`, `convertTextToTable`, `convertTableToText`, `parseCSV`, `insertTableFromCSV`, `tableToCSV`, `csvAtSelection`, `detectDelimiter` |
 | Sizing | `createTableResizeHandles` for drag handles, plus `setColumnWidth`, `setRowHeight`, `setTableWidth`, `autoFitContents`, `autoFitWindow`, `fixColumnWidths`, `distributeRowsEvenly`, `distributeColumnsEvenly`, `clearTableSizing` |
-| Drawing | `createTableTools` for Draw table and the Eraser, plus `drawColumnLine`, `drawRowLine`, `insertDrawnTable` |
+| Drawing | `createTableTools` for Draw table, the Eraser and the Border Painter, plus `drawColumnLine`, `drawRowLine`, `insertDrawnTable` |
 | Moving | `moveRow`, `moveColumn`, `swapCellContent` |
 
 ```ts
@@ -124,15 +125,50 @@ its text, so that is the one height they can all have. Without `measure`,
 `distributeColumnsEvenly()` shares out the whole table whatever is selected.
 `tableUICommands({ editor })` wires all of this up for you.
 
+## Table design
+
+Word's Table Design tab. In the editor kit it is the **Table design** button
+beside the table button, a dropdown enabled while the caret is in a table,
+and every choice in it is also under the Table menu.
+
+| Part | What it does | Command |
+| --- | --- | --- |
+| Table style options | Header row, first column, last column, total row, banded rows, banded columns | `toggleTableStyleOption(option)` |
+| Table styles | The plain Table grid, then two looks, **grid** (lines in the colour, the header row ruled off) and **header** (the header row filled), each in the text colour and six accents | `setTableStyle(style, accentColor)` |
+| Shading | A cell's fill | `setCellBackground(color)` |
+| Borders | All, outside only, rows only, none | `setTableBorders(borders)` |
+| Pen | Line style (solid, dashed, dotted, double), weight (½, 1½, 2¼, 3 pt) and colour, for every line of the table | `setTableBorderStyle`, `setTableBorderWidth`, `setTableBorderColor` |
+| Border painter | Click a line the Eraser took out to draw it again | `createTableTools`, tool `'paint'` |
+
+```ts
+editor.exec(setTableStyle('header', '#156082'))
+editor.exec(toggleTableStyleOption('bandedRows'))
+editor.exec(setTableBorderStyle('dashed'))
+tableDesignAt(editor.state) // what the table has now, for a UI to show
+```
+
+A style, its colour, the five options and the pen are table attributes, written
+to HTML as `data-table-style`, `data-accent-color`, `data-banded-rows` and the
+like. The stylesheet draws the look from them, with tints mixed against
+`transparent` so a style reads on a dark page too. The header row is the one
+option that is not an attribute: it is the first row's cells being header
+cells, as it always was. A new table starts with only that ticked, so tables
+look as they did until you choose otherwise.
+
+Word and RTF exports get the look spelt out cell by cell (fills, bold, the
+header's ink, the style's rules and the pen), since their own table style
+stays the plain grid. A cell's own shading wins over its style's, as a direct
+format does in Word.
+
 ## Drawing and erasing
 
-`createTableTools(editor, { container })` adds Word's Draw table and Eraser,
-tools the pointer holds rather than commands that run once:
+`createTableTools(editor, { container })` adds Word's Draw table, Eraser and
+Border Painter, tools the pointer holds rather than commands that run once:
 
 ```ts
 const tools = createTableTools(editor, { container })
-tools.toggle('draw') // or 'erase'; the same again puts it down
-tools.tool // 'draw', 'erase' or null, for a menu's tick
+tools.toggle('draw') // or 'erase' or 'paint'; the same again puts it down
+tools.tool // 'draw', 'erase', 'paint' or null, for a menu's tick
 ```
 
 | Held | Gesture | What happens |
@@ -142,6 +178,7 @@ tools.tool // 'draw', 'erase' or null, for a menu's tick
 | Draw table | Drag across a table | The row it crosses splits in two where it was drawn |
 | Draw table | Drag along an existing line | A merged cell splits back along it, and an erased line comes back |
 | Eraser | Click one side of a cell | That line (left, right, top or bottom) is no longer drawn |
+| Border painter | Click a line the Eraser took out | The line is drawn again, with the table's pen |
 
 While a tool is held, a press on the page belongs to it: the caret stays put,
 and neither the resize handles nor the cell selection react. `Escape` puts
@@ -160,9 +197,10 @@ because a cell cannot span rows here (below).
 ## Wiring the chrome
 
 `tableUICommands()` returns the set `createEditorUI` expects, which turns on
-the Table menu, the grid picker and the floating cell toolbar. Given the
-editor, it also measures the page for splitting, Fixed column width and
-distributing, and the tools join the Table menu with a tick while held:
+the Table menu, the grid picker, the Table design dropdown and the floating
+cell toolbar. Given the editor, it also measures the page for splitting,
+Fixed column width and distributing, and the tools join the Table menu with a
+tick while held:
 
 ```ts
 const tools = createTableTools(editor, { container })

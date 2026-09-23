@@ -29,6 +29,13 @@ import {
   tableColumns,
   taskGlyph,
 } from './shared'
+import {
+  type CellLook,
+  type TableColors,
+  type TableLine,
+  type TableLook,
+  tableLook,
+} from './table-look'
 import { type DocumentPalette, type ThemeTokens, documentPalette } from './theme'
 import { EMU_PER_PX, lengthToHalfPoints, lengthToPx, lengthToTwips } from './units'
 import { escapeXML } from './xml'
@@ -92,6 +99,10 @@ interface Context {
   readonly numbers: NumberingInstance[]
   /** Each multilevel scheme the document uses, with its `w:abstractNum` id. */
   readonly schemes: Map<ListNumberingScheme, number>
+  /** The page and ink a table style's tints are mixed against. */
+  readonly tableColors: TableColors
+  /** The colour a table line left to the default takes, as `w:color` wants it. */
+  readonly rule: string
   drawingId: number
 }
 
@@ -110,6 +121,8 @@ interface NumberingInstance {
 interface RunContext {
   readonly bold?: boolean
   readonly italic?: boolean
+  /** Ink for runs without a colour of their own, as `RRGGBB`: a styled table's header. */
+  readonly color?: string
 }
 
 /**
@@ -137,6 +150,12 @@ export async function serializeToDOCX(
     mediaExtensions: new Set(),
     numbers: [],
     schemes: new Map(),
+    tableColors: {
+      page: parseColor(palette.background ? `#${palette.background}` : null) ?? WHITE,
+      ink: parseColor(palette.text ? `#${palette.text}` : null) ?? BLACK,
+    },
+    // `auto` asks Word to pick, and on a dark page it picks against the theme.
+    rule: palette.border ?? 'auto',
     drawingId: 0,
   }
   const body = writeBlocks(doc.content.children, context, {}).join('')
@@ -349,6 +368,9 @@ function styleHyperlink(palette: DocumentPalette): string {
 }
 const STYLE_TABLE_NORMAL =
   '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
+const WHITE = { r: 255, g: 255, b: 255 }
+const BLACK = { r: 0, g: 0, b: 0 }
+
 function styleTableGrid(palette: DocumentPalette): string {
   // `auto` asks Word to pick, and on a dark page it picks against the theme.
   const rule = palette.border ?? 'auto'
@@ -746,21 +768,18 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
   const columns = tableColumns(table)
   const unit = Math.floor(TABLE_WIDTH / columns)
   const rows = table.content.children.filter((row) => row.type.name === NODE.tableRow)
-  const borders = attrString(table.attrs, 'borders')
-  const borderColor = parseColor(table.attrs.borderColor)
+  // Word has the style's look spelt out, since its own table style is the
+  // plain grid: the lines here, the fills and bold on each cell below.
+  const look = tableLook(table, context.tableColors)
   let tblPr = '<w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
-  if (borders === 'none') {
-    tblPr +=
-      '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
-  } else if (borderColor) {
-    const edge = (name: string): string =>
-      `<w:${name} w:val="single" w:sz="4" w:space="0" w:color="${toHex(borderColor)}"/>`
-    tblPr += `<w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-      .map(edge)
+  if (look.styled) {
+    const edges = look.edges
+    const sides = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as const
+    tblPr += `<w:tblBorders>${sides
+      .map((side) => (edges[side] ? border(side, look.line, context) : `<w:${side} w:val="nil"/>`))
       .join('')}</w:tblBorders>`
   }
-  tblPr +=
-    '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>'
+  tblPr += tableLookElement(table, look)
   const grid = Array.from({ length: columns }, () => `<w:gridCol w:w="${unit}"/>`).join('')
 
   const body = rows
@@ -771,7 +790,7 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
       const rendered = cells
         .map((cell, cellIndex) => {
           const hidden = hiddenCellSides(table, rowIndex, cellIndex)
-          return writeCell(cell, context, run, unit, hidden)
+          return writeCell(cell, context, run, unit, hidden, look.cell(rowIndex, cellIndex))
         })
         .join('')
       return `<w:tr>${trPr}${rendered}</w:tr>`
@@ -786,21 +805,34 @@ function writeCell(
   run: RunContext,
   unit: number,
   hidden: ReadonlySet<CellSide>,
+  look: CellLook,
 ): string {
   const span = cellSpan(cell)
   let tcPr = `<w:tcW w:w="${unit * span}" w:type="dxa"/>`
   if (span > 1) tcPr += `<w:gridSpan w:val="${span}"/>`
-  // An erased line: `nil` wins over the table's own rule for this side.
+  // An erased line is `nil`, which wins over the table's own rule; a style's
+  // rule under the header or over the total row is drawn here in its place.
   // The schema wants the sides in this order.
-  const erased = (['top', 'left', 'bottom', 'right'] as const).filter((side) => hidden.has(side))
-  if (erased.length > 0) {
-    tcPr += `<w:tcBorders>${erased.map((side) => `<w:${side} w:val="nil"/>`).join('')}</w:tcBorders>`
+  const rules: Readonly<Partial<Record<CellSide, TableLine>>> = {
+    ...(look.top ? { top: look.top } : {}),
+    ...(look.bottom ? { bottom: look.bottom } : {}),
   }
-  const background = parseColor(cell.attrs.background)
-  if (background) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(background)}"/>`
+  const sides = (['top', 'left', 'bottom', 'right'] as const).flatMap((side) => {
+    if (hidden.has(side)) return [`<w:${side} w:val="nil"/>`]
+    const rule = rules[side]
+    return rule ? [border(side, rule, context)] : []
+  })
+  if (sides.length > 0) tcPr += `<w:tcBorders>${sides.join('')}</w:tcBorders>`
+  // The cell's own shading wins over its style's, as a direct format does in Word.
+  const fill = parseColor(cell.attrs.background) ?? look.fill
+  if (fill) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(fill)}"/>`
   const align = attrString(cell.attrs, 'align')
   const jc = align === 'center' || align === 'right' || align === 'left' ? align : undefined
-  const cellRun: RunContext = cell.attrs.header === true ? { ...run, bold: true } : run
+  const cellRun: RunContext = {
+    ...run,
+    ...(look.bold ? { bold: true } : {}),
+    ...(look.ink ? { color: toHex(look.ink) } : {}),
+  }
   const blocks = cell.content.children.flatMap((block) =>
     writeBlock(block, context, cellRun, jc ? { jc } : {}),
   )
@@ -808,6 +840,41 @@ function writeCell(
   const last = blocks[blocks.length - 1]
   if (!last || !last.endsWith('</w:p>')) blocks.push('<w:p/>')
   return `<w:tc><w:tcPr>${tcPr}</w:tcPr>${blocks.join('')}</w:tc>`
+}
+
+/** One edge of a table or cell, drawn with a line. Word weighs lines in eighths of a point. */
+function border(side: string, line: TableLine, context: Context): string {
+  const color = line.color ? toHex(line.color) : context.rule
+  return `<w:${side} w:val="${line.style}" w:sz="${Math.round(line.points * 8)}" w:space="0" w:color="${color}"/>`
+}
+
+/** Word's own Table Style Options, set to the table's, so they carry on if a Word style is applied. */
+function tableLookElement(table: EditorNode, look: TableLook): string {
+  // The plain grid keeps the look it has always been written with.
+  if (!look.styled) {
+    return '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>'
+  }
+  const firstRow = table.content.maybeChild(0)
+  const flags = {
+    firstRow: firstRow?.content.children.some((cell) => cell.attrs.header === true) ?? false,
+    lastRow: table.attrs.totalRow === true,
+    firstColumn: table.attrs.firstColumn === true,
+    lastColumn: table.attrs.lastColumn === true,
+    noHBand: table.attrs.bandedRows !== true,
+    noVBand: table.attrs.bandedColumns !== true,
+  }
+  // The same flags as the bitmask older readers go by.
+  const mask =
+    (flags.firstRow ? 0x20 : 0) |
+    (flags.lastRow ? 0x40 : 0) |
+    (flags.firstColumn ? 0x80 : 0) |
+    (flags.lastColumn ? 0x100 : 0) |
+    (flags.noHBand ? 0x200 : 0) |
+    (flags.noVBand ? 0x400 : 0)
+  const bits = Object.entries(flags)
+    .map(([name, on]) => ` w:${name}="${on ? 1 : 0}"`)
+    .join('')
+  return `<w:tblLook w:val="${mask.toString(16).toUpperCase().padStart(4, '0')}"${bits}/>`
 }
 
 /**
@@ -1021,7 +1088,7 @@ function runProperties(
   let strike = false
   let smallCaps = false
   let font: string | null = null
-  let color: string | null = null
+  let color: string | null = run.color ?? null
   let size: number | null = null
   let spacing: number | null = null
   let highlight: string | null = null

@@ -297,6 +297,29 @@ const PATHS: Readonly<Record<string, string>> = {
     'M4 10h16v9.5H4zM12 10v9.5M4 14.75h16M4 5.5h16M4 5.5 6.5 3M4 5.5 6.5 8M20 5.5 17.5 3M20 5.5 17.5 8',
   // Draw table: a small grid with a pencil beside its corner.
   tableDraw: 'M3 3.5h11v10H3zM8.5 3.5v10M3 8.5h11M11.5 21l.9-3.3 7.1-7.1 2.4 2.4-7.1 7.1z',
+  // Table design: a table whose header row is filled, the look a style gives.
+  tableDesign:
+    'M4 5h16v14H4zM4 9.5h16M9.3 9.5V19M14.6 9.5V19M7 5 4.5 7.5M11 5 7.5 8.5M15 5l-4.5 4.5M19 5l-4.5 4.5M20 7.5 18 9.5',
+  // Border painter: a brush laying down the line under it.
+  borderPainter:
+    'M13.5 3.5l7 7-3 3-7-7zM10.5 6.5 4.8 12.2a2.2 2.2 0 0 0 0 3.1l.4.4a2.2 2.2 0 0 0 3.1 0l5.7-5.7M3 21h10',
+  // The Table Style Options: the part of the table each one sets apart.
+  tableFirstColumn:
+    'M4 5.5h16v13H4zM9.3 5.5v13M14.6 5.5v13M4 9l3.5-3.5M4 13.5l5.3-5.3M4 18l5.3-5.3',
+  tableLastColumn:
+    'M4 5.5h16v13H4zM9.3 5.5v13M14.6 5.5v13M14.6 9l3.5-3.5M14.6 13.5 20 8.1M14.6 18l5.4-5.4',
+  // The total row sits under Word's double rule.
+  tableTotalRow: 'M4 5.5h16v13H4zM4 9.8h16M4 13.4h16M4 15.2h16M9.3 5.5v4.3M14.6 5.5v4.3',
+  tableBandedRows: 'M4 5.5h16v13H4zM4 9.8h16M4 14.2h16M6 14.2l4-4.4M10.5 14.2l4-4.4M15 14.2l4-4.4',
+  tableBandedColumns:
+    'M4 5.5h16v13H4zM9.3 5.5v13M14.6 5.5v13M9.3 10l5.3-4.5M9.3 14.5l5.3-5.3M9.3 18.5l5.3-5.3',
+  // The pen's line styles, each drawn the way it draws.
+  lineSolid: 'M3 12h18',
+  lineDashed: 'M3 12h4M10 12h4M17 12h4',
+  lineDotted: 'M3.5 12h.01M7.75 12h.01M12 12h.01M16.25 12h.01M20.5 12h.01',
+  lineDouble: 'M3 10h18M3 14h18',
+  // The pen's weight: three lines, each heavier than the one above.
+  lineWeight: 'M3 6h18M3 11h18v1H3zM3 16.5h18v2.5H3z',
   // Eraser: a block eraser, its sleeve marked off, resting on the line it rubs out.
   tableEraser:
     'M7.5 19.5 3 15a1.5 1.5 0 0 1 0-2.1l9.4-9.4a1.5 1.5 0 0 1 2.1 0L19 8a1.5 1.5 0 0 1 0 2.1l-9.4 9.4zM6.6 9.4l6.6 6.6M7.5 19.5H21',

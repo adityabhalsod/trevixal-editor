@@ -24,6 +24,7 @@ import {
   createTranslator,
 } from './i18n'
 import { type IconName, createIcon } from './icons'
+import { type TableDesignCommands, createTableDesignControl } from './table-design'
 import { applyGroupOrder, bindGroupReorder, groupOrder } from './toolbar-reorder'
 
 /**
@@ -85,6 +86,11 @@ export interface ToolbarOptions {
   readonly onImage?: (editor: Editor) => void
   /** Called by the table grid with the chosen dimensions. */
   readonly onInsertTable?: (editor: Editor, rows: number, cols: number) => void
+  /**
+   * Word's Table Design tab, as a dropdown beside the table grid; left out
+   * without it. `createEditorUI` supplies it from its `tableCommands`.
+   */
+  readonly tableDesign?: TableDesignCommands
   /**
    * Items to add to the default groups, keyed by group name. Prefer this
    * over rebuilding `groups`: the built-in link, image and table controls
@@ -347,6 +353,17 @@ const commandItem = (
     : null
 
 /** Drops the entries a host did not wire, so no dead buttons are rendered. */
+/** The Table design dropdown, when the host supplied what it drives. */
+function tableDesignItem(commands: TableDesignCommands | undefined): readonly ToolbarControl[] {
+  if (!commands) return []
+  return [
+    {
+      name: 'tableDesign',
+      create: (editor, document) => createTableDesignControl({ document, editor, commands }),
+    },
+  ]
+}
+
 function present(
   items: readonly (ToolbarItem | ToolbarControl | null)[],
 ): readonly (ToolbarItem | ToolbarControl)[] {
@@ -655,6 +672,7 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
               onSelect: (rows, cols) => options.onInsertTable?.(editor, rows, cols),
             }),
         },
+        ...tableDesignItem(options.tableDesign),
         {
           name: 'blockquote',
           label: 'Quote',

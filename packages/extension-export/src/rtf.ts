@@ -29,6 +29,7 @@ import {
   tableColumns,
   taskGlyph,
 } from './shared'
+import { type TableColors, type TableLine, type TableLook, tableLook } from './table-look'
 import { type ThemeTokens, documentPalette } from './theme'
 import { lengthToHalfPoints, lengthToTwips } from './units'
 
@@ -75,6 +76,8 @@ interface Context {
   readonly accent: RGB | null
   /** Colour-table index for rules: table cells and horizontal rules. */
   readonly border: number | null
+  /** The page and ink a table style's tints are mixed against. */
+  readonly tableColors: TableColors
   readonly rendered: RenderedDocument
 }
 
@@ -90,6 +93,8 @@ interface ParagraphState {
   readonly listTree: ListTree | null
   readonly italic: boolean
   readonly bold: boolean
+  /** Colour-table index for ink other than the page's: a styled table's header. */
+  readonly ink?: number
   readonly inTable: boolean
   readonly align: string | null
 }
@@ -140,6 +145,10 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
     code: register(palette.code),
     accent: palette.accent ? parseColor(`#${palette.accent}`) : null,
     border: register(palette.border),
+    tableColors: {
+      page: parseColor(palette.background ? `#${palette.background}` : null) ?? WHITE,
+      ink: parseColor(palette.text ? `#${palette.text}` : null) ?? BLACK,
+    },
     rendered: options.rendered ?? new Map(),
   }
   // The body is written first so the font and colour tables list exactly
@@ -299,6 +308,7 @@ function paragraphStart(context: Context, state: ParagraphState, node: EditorNod
   if (state.inTable) out += '\\intbl'
   if (context.background !== null) out += `\\cbpat${context.background}`
   if (context.text !== null) out += `\\cf${context.text}`
+  if (state.ink !== undefined) out += `\\cf${state.ink}`
   const layout = node ? blockLayout(node, context.basePt) : null
   const align = layout?.align ?? state.align
   if (align === 'center') out += '\\qc'
@@ -489,6 +499,45 @@ function writeList(list: EditorNode, context: Context, state: ParagraphState): s
   return out
 }
 
+const WHITE: RGB = { r: 255, g: 255, b: 255 }
+const BLACK: RGB = { r: 0, g: 0, b: 0 }
+
+/** RTF's control word for each line style. */
+const RTF_LINE_STYLES: Readonly<Record<TableLine['style'], string>> = {
+  single: '\\brdrs',
+  dashed: '\\brdrdash',
+  dotted: '\\brdrdot',
+  double: '\\brdrdb',
+}
+
+/** A cell border's style, weight (in twips) and colour. */
+function rtfLine(line: TableLine, context: Context): string {
+  // A rule left uncoloured is drawn in the reader's automatic black, which on
+  // a dark page is a table with no visible grid at all.
+  const color = line.color ? `\\brdrcf${colorIndex(context, line.color)}` : rule(context)
+  return `${RTF_LINE_STYLES[line.style]}\\brdrw${Math.round(line.points * 20)}${color}`
+}
+
+/**
+ * Which sides of a cell the table's own lines run along: RTF draws each
+ * cell's border itself, so the table's border style is worked out per cell.
+ */
+function drawnSides(
+  look: TableLook,
+  rowIndex: number,
+  cellIndex: number,
+  rowCount: number,
+  cellCount: number,
+): Readonly<Record<'top' | 'left' | 'bottom' | 'right', boolean>> {
+  const { edges } = look
+  return {
+    top: rowIndex === 0 ? edges.top : edges.insideH,
+    bottom: rowIndex === rowCount - 1 ? edges.bottom : edges.insideH,
+    left: cellIndex === 0 ? edges.left : edges.insideV,
+    right: cellIndex === cellCount - 1 ? edges.right : edges.insideV,
+  }
+}
+
 /** RTF's letter for each side of a cell's border, in the order it lists them. */
 const RTF_SIDES: readonly (readonly [string, CellSide])[] = [
   ['t', 'top'],
@@ -500,7 +549,8 @@ const RTF_SIDES: readonly (readonly [string, CellSide])[] = [
 function writeTable(table: EditorNode, context: Context, state: ParagraphState): string[] {
   const columns = tableColumns(table)
   const unit = Math.floor(TABLE_WIDTH / columns)
-  const borders = attrString(table.attrs, 'borders') !== 'none'
+  const look = tableLook(table, context.tableColors)
+  const rowCount = table.childCount
   const rows: string[] = []
   for (const [rowIndex, row] of table.content.children.entries()) {
     if (row.type.name !== NODE.tableRow) continue
@@ -510,18 +560,22 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
     for (const [cellIndex, cell] of row.content.children.entries()) {
       if (cell.type.name !== NODE.tableCell) continue
       right += unit * cellSpan(cell)
-      const background = parseColor(cell.attrs.background)
-      if (borders) {
-        // A rule left uncoloured is drawn in the reader's automatic black,
-        // which on a dark page is a table with no visible grid at all.
-        const edge = rule(context)
-        // A line the Eraser took out is simply not written.
-        const hidden = hiddenCellSides(table, rowIndex, cellIndex)
-        definition += RTF_SIDES.filter(([, side]) => !hidden.has(side))
-          .map(([code]) => `\\clbrdr${code}\\brdrs\\brdrw10${edge}`)
-          .join('')
+      const cellLook = look.cell(rowIndex, cellIndex)
+      // A line the Eraser took out is simply not written; a style's rule
+      // under the header or over the total row takes the table's line's place.
+      const hidden = hiddenCellSides(table, rowIndex, cellIndex)
+      const drawn = drawnSides(look, rowIndex, cellIndex, rowCount, row.childCount)
+      for (const [code, side] of RTF_SIDES) {
+        if (hidden.has(side)) continue
+        const line =
+          (side === 'top' && cellLook.top) ||
+          (side === 'bottom' && cellLook.bottom) ||
+          (drawn[side] ? look.line : null)
+        if (line) definition += `\\clbrdr${code}${rtfLine(line, context)}`
       }
-      if (background) definition += `\\clcbpat${colorIndex(context, background)}`
+      // The cell's own shading wins over its style's, as a direct format does in Word.
+      const fill = parseColor(cell.attrs.background) ?? cellLook.fill
+      if (fill) definition += `\\clcbpat${colorIndex(context, fill)}`
       definition += `\\cellx${right}`
 
       const align = attrString(cell.attrs, 'align')
@@ -533,7 +587,8 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
         listNumbers: [],
         listTree: null,
         inTable: true,
-        bold: state.bold || cell.attrs.header === true,
+        bold: state.bold || cellLook.bold,
+        ...(cellLook.ink ? { ink: colorIndex(context, cellLook.ink) } : {}),
         align: align === 'center' || align === 'right' ? align : null,
       }
       const paragraphs = writeBlocks(cell.content.children, context, cellState)

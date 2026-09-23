@@ -227,8 +227,11 @@ exports · eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`,
 table pencil and split its cells by drawing lines · add and delete rows and
 columns · merge cells, and split them into any number of columns as Word does ·
 header row · per-cell alignment · cell
-background · border styles (all, outside, rows only, none) and border colour ·
-an Eraser that takes out any one line of a cell · sort by column, ascending or
+background · Word's Table Design: a gallery of table styles, the six table
+style options (header row, total row, banded rows, first and last column,
+banded columns) and a border pen (line style, weight and colour) · border
+styles (all, outside, rows only, none) · an Eraser that takes out any one line
+of a cell, and a Border Painter that puts it back · sort by column, ascending or
 descending · resize columns and rows by dragging · AutoFit to the contents or
 the window, or fixed column widths · distribute rows and columns evenly ·
 convert text to a table and back · import CSV · copy as CSV · `Tab` and
@@ -1912,11 +1915,15 @@ Markdown · Edit as HTML · Format JSON · Format XML · Minify · Copy code blo
 Grammar / Passive voice / Repeated words / Long sentences · Spell check ·
 Word count
 
-**Table**: Insert table · Draw table · Eraser · Row above · Row below · Delete
-row · Column left · Column right · Delete column · Merge cells · Split cells… ·
-Header row · Cell background… · **Cell alignment ▸** Left / Center / Right /
-Default · **Borders ▸** All / Outside only / Rows only / No borders / Border
-colour… · **Sort by this column ▸** Ascending / Descending · Convert text to
+**Table**: Insert table · Draw table · Eraser · Border painter · Row above ·
+Row below · Delete row · Column left · Column right · Delete column · Merge
+cells · Split cells… · **Table style ▸** Table grid / Grid / Blue grid … /
+Header / Blue header … · **Style options ▸** Header row / Total row / Banded
+rows / First column / Last column / Banded columns · Cell background… ·
+**Cell alignment ▸** Left / Center / Right / Default · **Borders ▸** All /
+Outside only / Rows only / No borders / Border colour… · **Line style ▸**
+Solid / Dashed / Dotted / Double · **Line weight ▸** ½ pt / 1½ pt / 2¼ pt /
+3 pt · **Sort by this column ▸** Ascending / Descending · Convert text to
 table · Convert table to text · Import CSV… · Copy as CSV · **AutoFit ▸**
 AutoFit contents / AutoFit window / Fixed column width · Distribute rows evenly
 · Distribute columns evenly · Reset column sizes · Delete table

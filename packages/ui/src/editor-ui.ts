@@ -20,6 +20,18 @@ import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
 import type { ShortcutLabels } from './shortcuts'
 import { type StatusBar, createStatusBar } from './status-bar'
+import {
+  TABLE_LINE_STYLE_ENTRIES,
+  TABLE_LINE_WEIGHT_ENTRIES,
+  TABLE_STYLE_OPTION_ENTRIES,
+  type TableDesignCommands,
+  type TableDesignState,
+  type TableLineStyle,
+  type TableLineWeight,
+  type TableStyleOptionName,
+  type TableStyleTile,
+  tableStyleEntryName,
+} from './table-design'
 import { openSplitCellsDialog } from './table-toolbar'
 import {
   type BlockCommands,
@@ -69,13 +81,26 @@ export interface TableCommands {
   readonly fixColumnWidths?: Command
   readonly distributeRows?: Command
   /**
-   * Word's Draw Table and Eraser, which the pointer holds rather than runs:
-   * picking one from the Table menu takes it up, picking it again puts it
-   * down. `createTableTools` from the table package supplies both.
+   * Word's Draw Table, Eraser and Border Painter, which the pointer holds
+   * rather than runs: picking one from the Table menu takes it up, picking
+   * it again puts it down. `createTableTools` from the table package
+   * supplies all three.
    */
-  readonly toggleTableTool?: (tool: 'draw' | 'erase') => void
+  readonly toggleTableTool?: (tool: 'draw' | 'erase' | 'paint') => void
   /** The tool held now, so its menu entry shows a tick. */
-  readonly activeTableTool?: () => 'draw' | 'erase' | null
+  readonly activeTableTool?: () => 'draw' | 'erase' | 'paint' | null
+  // Word's Table Design tab, from `tableUICommands()`. With all of them, the
+  // toolbar gains the Table design dropdown; each also has Table-menu entries.
+  /** The styles gallery, in order. */
+  readonly tableStyles?: readonly TableStyleTile[]
+  readonly setTableStyle?: (style: string | null, accentColor: string | null) => Command
+  /** Word's Table Style Options, the header row included. */
+  readonly toggleStyleOption?: (option: TableStyleOptionName) => Command
+  /** The pen every line is drawn with; its colour is `setTableBorderColor`. */
+  readonly setTableBorderStyle?: (style: TableLineStyle | null) => Command
+  readonly setTableBorderWidth?: (width: TableLineWeight | null) => Command
+  /** The design of the table at the selection, for the toolbar and the ticks; a reader. */
+  readonly tableDesignAt?: (state: EditorState) => TableDesignState | null
 }
 
 /** Media and embed commands, from `@trevixal/extension-embed`. */
@@ -326,10 +351,13 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     findReplace.open()
   }
 
-  const actions = createActions(options, openFindReplace)
+  const actions = createActions(editor, options, openFindReplace)
   // Wired once and kept: the command palette is built from exactly what the
   // menus ended up offering, so the two can never drift apart.
-  const wiredMenus = withActions(options.menus ?? defaultMenus(), actions)
+  const wiredMenus = withActions(
+    options.menus ?? defaultMenus({ tableStyles: options.tableCommands?.tableStyles }),
+    actions,
+  )
   const menubar =
     options.showMenubar === false
       ? null
@@ -346,6 +374,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     onImage: options.toolbar?.onImage ?? actions.image,
     onInsertTable:
       options.toolbar?.onInsertTable ?? ((target, rows, cols) => actions.table(target, rows, cols)),
+    tableDesign: options.toolbar?.tableDesign ?? tableDesignCommands(options.tableCommands),
   })
 
   const statusBar = options.showStatusBar === false ? null : createStatusBar(editor, root)
@@ -387,6 +416,7 @@ interface WiredActions {
 }
 
 function createActions(
+  editor: Editor,
   options: EditorUIOptions,
   openFindReplace: (editor: Editor) => void,
 ): WiredActions {
@@ -981,9 +1011,10 @@ function createActions(
     }
     const toggleTool = commands.toggleTableTool
     if (toggleTool) {
-      const tools: readonly [string, 'draw' | 'erase'][] = [
+      const tools: readonly [string, 'draw' | 'erase' | 'paint'][] = [
         ['drawTable', 'draw'],
         ['tableEraser', 'erase'],
+        ['borderPainter', 'paint'],
       ]
       const activeTool = commands.activeTableTool
       for (const [name, tool] of tools) {
@@ -995,6 +1026,7 @@ function createActions(
         if (activeTool) activeByName.set(name, () => activeTool() === tool)
       }
     }
+    wireTableDesign(editor, commands, byName, activeByName)
     // Word's Split Cells asks how many columns; without it, Split un-merges.
     const splitInto = commands.splitCellInto
     if (splitInto) {
@@ -1155,6 +1187,112 @@ function applyLink(target: Editor, values: Readonly<Record<string, string>>): vo
   const href = values.kind === 'anchor' ? `#${values.anchor ?? ''}` : (values.href ?? '').trim()
   if (href === '#' || !safeHref(href)) return
   if (target.commands.setLink(href, title)) target.exec(setLinkTarget(tab))
+}
+
+/**
+ * Table ▸ Table style, Style options, Line style and Line weight, each entry
+ * ticked while the table at the selection has it. Header row keeps its own
+ * wiring above; here it only gains its tick.
+ */
+function wireTableDesign(
+  editor: Editor,
+  commands: TableCommands,
+  byName: Map<string, (editor: Editor) => void>,
+  activeByName: Map<string, () => boolean>,
+): void {
+  const read = commands.tableDesignAt
+  const design = (): TableDesignState | null => (read ? read(editor.state) : null)
+  const tick = (name: string, isOn: (current: TableDesignState) => boolean): void => {
+    if (!read || !byName.has(name)) return
+    activeByName.set(name, () => {
+      const current = design()
+      return current !== null && isOn(current)
+    })
+  }
+
+  const setStyle = commands.setTableStyle
+  if (setStyle) {
+    for (const tile of commands.tableStyles ?? []) {
+      const name = tableStyleEntryName(tile)
+      byName.set(name, (target) => target.exec(setStyle(tile.style, tile.accentColor)))
+      tick(
+        name,
+        (current) => current.style === tile.style && current.accentColor === tile.accentColor,
+      )
+    }
+  }
+  const toggleOption = commands.toggleStyleOption
+  for (const { value, entry } of TABLE_STYLE_OPTION_ENTRIES) {
+    if (toggleOption && !byName.has(entry)) {
+      byName.set(entry, (target) => target.exec(toggleOption(value)))
+    }
+    tick(entry, (current) => current.options[value])
+  }
+  const setLineStyle = commands.setTableBorderStyle
+  if (setLineStyle) {
+    for (const { value, entry } of TABLE_LINE_STYLE_ENTRIES) {
+      byName.set(entry, (target) => target.exec(setLineStyle(value)))
+      tick(entry, (current) => current.borderStyle === value)
+    }
+  }
+  const setLineWeight = commands.setTableBorderWidth
+  if (setLineWeight) {
+    for (const { value, entry } of TABLE_LINE_WEIGHT_ENTRIES) {
+      byName.set(entry, (target) => target.exec(setLineWeight(value)))
+      tick(entry, (current) => current.borderWidth === value)
+    }
+  }
+}
+
+/**
+ * What the toolbar's Table design dropdown drives, when the host supplied
+ * every part of it; the dropdown is left out otherwise.
+ */
+function tableDesignCommands(commands: TableCommands | undefined): TableDesignCommands | undefined {
+  if (!commands) return undefined
+  const {
+    tableStyles,
+    tableDesignAt,
+    setTableStyle,
+    toggleStyleOption,
+    setTableBorders,
+    setTableBorderStyle,
+    setTableBorderWidth,
+    setTableBorderColor,
+    setCellBackground,
+    toggleTableTool,
+    activeTableTool,
+  } = commands
+  if (
+    !tableStyles ||
+    !tableDesignAt ||
+    !setTableStyle ||
+    !toggleStyleOption ||
+    !setTableBorders ||
+    !setTableBorderStyle ||
+    !setTableBorderWidth ||
+    !setTableBorderColor ||
+    !setCellBackground
+  ) {
+    return undefined
+  }
+  return {
+    styles: tableStyles,
+    designAt: tableDesignAt,
+    setStyle: setTableStyle,
+    toggleOption: toggleStyleOption,
+    setBorders: setTableBorders,
+    setBorderStyle: setTableBorderStyle,
+    setBorderWidth: setTableBorderWidth,
+    setBorderColor: setTableBorderColor,
+    setShading: setCellBackground,
+    ...(toggleTableTool
+      ? {
+          toggleBorderPainter: () => toggleTableTool('paint'),
+          isBorderPainterOn: () => activeTableTool?.() === 'paint',
+        }
+      : {}),
+  }
 }
 
 /**

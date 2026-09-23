@@ -34,8 +34,25 @@ import {
   setRowHeight,
   setTableWidth,
 } from './resize'
-import type { CellAlign, TableBorders } from './schema'
+import {
+  type CellAlign,
+  type TableBorderStyle,
+  type TableBorderWidth,
+  type TableBorders,
+  tableStyle,
+} from './schema'
 import { splitCellInto } from './split-cells'
+import {
+  TABLE_STYLE_GALLERY,
+  type TableDesign,
+  type TableDesignOption,
+  type TableStyleChoice,
+  setTableBorderStyle,
+  setTableBorderWidth,
+  setTableStyle,
+  tableDesignAt,
+  toggleTableStyleOption,
+} from './table-design'
 import { measureTableGeometry } from './table-geometry'
 
 /**
@@ -86,6 +103,20 @@ export interface TableUICommands {
   readonly setCellBackground: (color: string | null) => Command
   readonly setTableBorders: (borders: TableBorders | null) => Command
   readonly setTableBorderColor: (color: string | null) => Command
+  /** Word's Table Design: the styles gallery, in order, and what it sets. */
+  readonly tableStyles: readonly TableStyleChoice[]
+  /**
+   * Takes a style's name as the gallery gives it, so a UI can hand back what
+   * it was shown without knowing the names; one the table does not know declines.
+   */
+  readonly setTableStyle: (style: string | null, accentColor: string | null) => Command
+  /** Word's Table Style Options, the header row included. */
+  readonly toggleStyleOption: (option: TableDesignOption) => Command
+  /** The pen every line of the table is drawn with; its colour is `setTableBorderColor`. */
+  readonly setTableBorderStyle: (style: TableBorderStyle | null) => Command
+  readonly setTableBorderWidth: (width: TableBorderWidth | null) => Command
+  /** The design of the table at the selection, for the controls to show; a reader, not a command. */
+  readonly tableDesignAt: (state: EditorState) => TableDesign | null
   /** Sort the body rows by the caret's column. */
   readonly sortAscending: Command
   readonly sortDescending: Command
@@ -105,6 +136,9 @@ export interface TableUICommandsOptions {
    */
   readonly editor?: Editor
 }
+
+/** The command for a request that cannot be met: it never applies. */
+const decline: Command = () => null
 
 export function tableUICommands(options: TableUICommandsOptions = {}): TableUICommands {
   const measure = options.editor ? measureCellShare(options.editor) : undefined
@@ -148,6 +182,15 @@ export function tableUICommands(options: TableUICommandsOptions = {}): TableUICo
     setCellBackground,
     setTableBorders,
     setTableBorderColor,
+    tableStyles: TABLE_STYLE_GALLERY,
+    setTableStyle: (style, accentColor) => {
+      const known = style === null ? null : tableStyle(style)
+      return style !== null && known === null ? decline : setTableStyle(known, accentColor)
+    },
+    toggleStyleOption: (option) => toggleTableStyleOption(option),
+    setTableBorderStyle,
+    setTableBorderWidth,
+    tableDesignAt: (state) => tableDesignAt(state),
     sortAscending: sortTable({ direction: 'asc' }),
     sortDescending: sortTable({ direction: 'desc' }),
     convertTextToTable: convertTextToTable(),

@@ -7,11 +7,34 @@ export {
   hiddenBordersValue,
   hiddenSides,
   safeTableLength,
+  TABLE_BORDER_STYLES,
+  TABLE_BORDER_WIDTHS,
   TABLE_BORDERS,
+  TABLE_STYLE_OPTIONS,
+  TABLE_STYLES,
+  type TableBorderStyle,
+  type TableBorderWidth,
   type TableBorders,
+  type TableStyle,
+  type TableStyleOption,
+  tableBorderStyle,
+  tableBorderWidth,
   tableBorders,
   tableNodes,
+  tableStyle,
 } from './schema'
+export {
+  setTableBorderStyle,
+  setTableBorderWidth,
+  setTableStyle,
+  TABLE_DESIGN_OPTIONS,
+  TABLE_STYLE_GALLERY,
+  type TableDesign,
+  type TableDesignOption,
+  tableDesignAt,
+  type TableStyleChoice,
+  toggleTableStyleOption,
+} from './table-design'
 export { hideCellBorder } from './cell-borders'
 export {
   addColumn,
@@ -36,6 +59,7 @@ export { tableKeymap } from './keymap'
 export { measureCellShare } from './cell-measure'
 export { MAX_SPLIT_COLUMNS, type SplitCellsOptions, splitCellInto } from './split-cells'
 export {
+  cellSideHidden,
   type ColumnLine,
   type DrawnTable,
   drawColumnLine,
@@ -43,6 +67,7 @@ export {
   insertDrawnTable,
   type RowLine,
   SNAP_DISTANCE,
+  showCellBorder,
 } from './draw-table'
 export {
   createTableTools,

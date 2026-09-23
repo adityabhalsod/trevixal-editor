@@ -55,8 +55,8 @@ describe('the Table menu', () => {
   })
 
   it('picks a tool up and puts it down, its entry ticked while it is held', () => {
-    let held: 'draw' | 'erase' | null = null
-    const toggleTableTool = vi.fn((tool: 'draw' | 'erase') => {
+    let held: 'draw' | 'erase' | 'paint' | null = null
+    const toggleTableTool = vi.fn((tool: 'draw' | 'erase' | 'paint') => {
       held = held === tool ? null : tool
     })
     const { ui, item } = mountUI({ toggleTableTool, activeTableTool: () => held })

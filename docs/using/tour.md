@@ -25,7 +25,7 @@ Twelve groups:
 | Lists | Bullet, numbered, task, list style, multilevel list, restart numbering, indent, outdent |
 | Alignment | Left, centre, right, justify |
 | Colours | Text and background |
-| Insert | Link, unlink, image, table grid, quote, horizontal rule |
+| Insert | Link, unlink, image, table grid, table design, quote, horizontal rule |
 | Format painter | Copy formatting from one place to another; double-click to keep painting |
 | Blocks | Callout and columns pickers |
 | Code | Code block, copy, format JSON, format XML, minify |

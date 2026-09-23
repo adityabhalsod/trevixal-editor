@@ -170,6 +170,28 @@ describe('createTableTools', () => {
     editor.destroy()
   })
 
+  it('paints back only a line the Eraser took out', () => {
+    const { editor, cells } = mount()
+    const tools = createTableTools(editor)
+    tools.toggle('erase')
+    pointer('pointerdown', cells[1] as EventTarget, 103, 10)
+    expect(erased(editor)[0]).toEqual([null, 'left'])
+
+    tools.toggle('paint')
+    const guide = document.querySelector('.trevixal-draw-guide') as HTMLElement
+    // A line still drawn offers nothing to paint.
+    pointer('pointermove', cells[0] as EventTarget, 50, 18)
+    expect(guide.hidden).toBe(true)
+    // The erased one, from the cell on either side of it.
+    pointer('pointermove', cells[0] as EventTarget, 97, 10)
+    expect(guide.hidden).toBe(false)
+    expect(guide.dataset.shape).toBe('paint')
+    pointer('pointerdown', cells[0] as EventTarget, 97, 10)
+    expect(erased(editor)[0]).toEqual([null, null])
+    tools.destroy()
+    editor.destroy()
+  })
+
   it('draws a line down through the rows it crosses', () => {
     const { editor, cells } = mount()
     const tools = createTableTools(editor)

@@ -412,7 +412,8 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
   }
 }
 
-function chevron(document: Document): HTMLElement {
+/** The small down-arrow a dropdown trigger ends with. */
+export function chevron(document: Document): HTMLElement {
   const wrapper = document.createElement('span')
   wrapper.className = 'trevixal-dropdown__chevron'
   const icon = createIcon(document, 'chevronDown')
