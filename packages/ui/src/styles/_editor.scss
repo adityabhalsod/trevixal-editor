@@ -1,4 +1,37 @@
+@use 'sass:list';
 @use 'tokens' as t;
+
+// A list `$depth` levels down, counted over every kind of list, as the Word
+// export counts them: depth 1 is the list itself, `nested-list(3, ol)` is an
+// `ol` two lists below. `from 1 to` is exclusive, so depth 1 adds nothing.
+@function nested-list($depth, $tag) {
+  $selector: $tag;
+  @for $i from 1 to $depth {
+    $selector: ':is(ol, ul) #{$selector}';
+  }
+  @return $selector;
+}
+
+// The marker styles Word numbers nine levels with, repeating: the same cycle
+// `list-numbering.ts` describes, which a browser test holds these to.
+$ordered-levels: (decimal, lower-alpha, lower-roman);
+$bullet-levels: (disc, circle, square);
+
+// Word's nine list levels. A list nested deeper keeps the ninth's marker.
+$list-depth: 9;
+
+// One `list-style-type` per level of a scheme, counted from `$root`.
+@mixin scheme-levels($root, $tag, $levels) {
+  $count: list.length($levels);
+  #{$root} {
+    list-style-type: list.nth($levels, 1);
+  }
+  @for $depth from 2 through $list-depth {
+    #{$root} #{nested-list($depth - 1, $tag)} {
+      list-style-type: list.nth($levels, ($depth - 1) % $count + 1);
+    }
+  }
+}
 
 // Content area typography: the rendered document surface.
 
@@ -108,6 +141,89 @@
 
   li > p {
     margin-bottom: 0.25em;
+  }
+
+  // ---- list levels ------------------------------------------------------------
+  // A nested list changes marker with its depth, the way Word numbers a
+  // multilevel list: 1. a. i. and round again, bullets disc, circle, square.
+  // A list given its own style keeps it: that is an inline `list-style-type`,
+  // which no rule here can outrank.
+  @for $depth from 2 through $list-depth {
+    #{nested-list($depth, 'ol')} {
+      list-style-type: list.nth($ordered-levels, ($depth - 1) % 3 + 1);
+    }
+
+    #{nested-list($depth, 'ul')} {
+      list-style-type: list.nth($bullet-levels, ($depth - 1) % 3 + 1);
+    }
+  }
+
+  // ---- multilevel schemes -----------------------------------------------------
+  // Stored once, on the outermost list; every level below reads its marker
+  // from here, so an item indented later takes the scheme's next level with
+  // nothing written to it. The attribute selector outranks the depth rules
+  // above at every depth.
+  @include scheme-levels(
+    "ol[data-numbering='roman-outline']",
+    'ol',
+    (upper-roman, upper-alpha, decimal, lower-alpha, lower-roman)
+  );
+  // Strings rather than keywords, so each level draws Word's own glyph. The
+  // spaces are the gap a keyword marker would leave by itself.
+  @include scheme-levels(
+    "ul[data-numbering='symbols']",
+    'ul',
+    ('\2756  ', '\27A2  ', '\25AA  ')
+  );
+
+  // A closing parenthesis, and a number carrying its ancestors', are markers
+  // `list-style-type` cannot write, and `::marker { content }` is ignored by
+  // WebKit. So these two draw a `::before` in the gutter a native marker
+  // would use, from the browser's own `list-item` counter: `start` still
+  // counts, and so does "Continue numbering".
+  ol[data-numbering='parenthesis'],
+  ol[data-numbering='outline'] {
+    &:not([style]),
+    ol:not([style]) {
+      list-style-type: none;
+
+      > li {
+        position: relative;
+      }
+
+      > li::before {
+        position: absolute;
+        inset-inline-end: 100%;
+        // About one space: a native marker ends in one, where this one is
+        // spaced by margin instead.
+        margin-inline-end: 0.3em;
+        white-space: nowrap;
+        // Native markers set their digits in equal widths, so a column of
+        // them lines up; this does the same.
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+
+  ol[data-numbering='outline'] {
+    &:not([style]),
+    ol:not([style]) {
+      > li::before {
+        content: counters(list-item, '.') '.';
+      }
+    }
+  }
+
+  ol[data-numbering='parenthesis'] {
+    &:not([style]) > li::before {
+      content: counter(list-item, decimal) ')';
+    }
+
+    @for $depth from 2 through $list-depth {
+      #{nested-list($depth - 1, 'ol')}:not([style]) > li::before {
+        content: counter(list-item, list.nth($ordered-levels, ($depth - 1) % 3 + 1)) ')';
+      }
+    }
   }
 
   hr {

@@ -22,7 +22,7 @@ Twelve groups:
 | Block format | Paragraph and heading styles, line height, paragraph spacing |
 | Font | Family and size |
 | Text style | Bold, italic, underline, strikethrough, inline code, superscript, subscript, small caps, letter spacing, change case |
-| Lists | Bullet, numbered, task, list style, restart numbering, indent, outdent |
+| Lists | Bullet, numbered, task, list style, multilevel list, restart numbering, indent, outdent |
 | Alignment | Left, centre, right, justify |
 | Colours | Text and background |
 | Insert | Link, unlink, image, table grid, quote, horizontal rule |

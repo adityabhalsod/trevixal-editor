@@ -57,8 +57,8 @@ test('renders the whole chrome, not just the menus', () => {
   }).toEqual({
     menuTriggers: 8,
     toolbarGroups: 13,
-    toolbarItems: 61,
-    everythingNamed: 305,
+    toolbarItems: 62,
+    everythingNamed: 311,
   })
 })
 

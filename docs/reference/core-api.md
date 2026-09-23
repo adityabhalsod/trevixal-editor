@@ -41,7 +41,8 @@ createEditor(options: EditorOptions): Editor
 `setBlockType`, `setParagraph`, `setHeading`, `splitBlock`, `joinBackward`,
 `insertHardBreak`, `insertHorizontalRule`, `wrapIn`, `toggleBulletList`,
 `toggleOrderedList`, `toggleTaskList`, `toggleTaskChecked`, `setListStyle`,
-`restartNumbering`, `continueNumbering`, `continueNumberingFromPrevious`,
+`setListNumbering`, `unwrapList`, `restartNumbering`, `continueNumbering`,
+`continueNumberingFromPrevious`,
 `splitListItem`, `sinkListItem`, `liftListItem`, `setCodeBlock`, `lift`,
 `selectAll`, `undo`, `redo`. Each returns `boolean`.
 
@@ -82,8 +83,9 @@ exported as plain functions too: `toggleMark`, `setBlockType`, `wrapIn`,
 `lift`, `splitBlock`, `joinBackward`, `joinForward`, `deleteSelection`,
 `insertText`, `insertContent`, `insertBlockAfter`, `insertInlineNode`,
 `toggleList`, `splitListItem`, `sinkListItem`, `liftListItem`,
-`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `restartNumbering`,
-`continueNumbering`, `setTextAlign`, `indentBlocks`, `convertCase`,
+`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `setListNumbering`,
+`unwrapList`, `listNumberingAt`, `restartNumbering`, `continueNumbering`,
+`setTextAlign`, `indentBlocks`, `convertCase`,
 `toggleSmallCaps`, `setLetterSpacing`, `setLineHeight`,
 `setParagraphSpacing`, `clearFormatting`, `clearAllFormatting`, `selectAll`,
 the code-block set (`typeInPreformatted`, `insertNewlineInPreformatted`,
@@ -128,6 +130,16 @@ schema claims them.
 `textColor`, `backgroundColor`, `smallCaps`, `letterSpacing`.
 
 `LIST_STYLES`, `BULLET_LIST_STYLES`, `ORDERED_LIST_STYLES`, `listStylesFor`.
+
+Multilevel list numbering: `LIST_NUMBERING_SCHEMES` (`default` 1. a. i.,
+`parenthesis` 1) a) i), `outline` 1. 1.1. 1.1.1., `roman-outline` I. A. 1.,
+`symbols` ❖ ➢ ▪), `DEFAULT_LIST_NUMBERING`, `listNumberingScheme`,
+`listNumberingOf`, `storedNumbering`, `storedNumberingsFor`, `levelMarker`,
+`listMarker`, `formatListCounter`. A scheme is stored once, in the outermost
+list's `numbering` attr (written as `data-numbering`), and every list nested
+under it takes the marker for its depth, so an item indented later follows it
+with nothing written to the new list. The Word and RTF writers and the
+toolbar gallery all read this one table.
 
 ## View
 

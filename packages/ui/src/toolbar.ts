@@ -1,15 +1,19 @@
 import type { Command, Editor, EditorSnapshot } from '@trevixal/core'
 import {
   type Control,
+  NO_LIST_NUMBERING,
   type SelectOption,
   applyBlockFormat,
   blockFormatValue,
   createColorControl,
+  createListNumberingControl,
   createSelectControl,
   createTableGridControl,
+  currentListNumbering,
   defaultBlockFormats,
   defaultFontFamilies,
   defaultFontSizes,
+  defaultListNumberings,
 } from './controls'
 import {
   ARIA_SUFFIX,
@@ -540,6 +544,19 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
               // Declines outside a list, and for a style the list type does
               // not allow, so a bullet list cannot be given roman numerals.
               onSelect: (value) => editor.commands.setListStyle(value || null),
+            }),
+        },
+        {
+          name: 'listNumbering',
+          create: (editor, document) =>
+            createListNumberingControl({
+              document,
+              options: defaultListNumberings(),
+              valueOf: (snapshot) => currentListNumbering(editor, snapshot),
+              onSelect: (value) => {
+                if (value === NO_LIST_NUMBERING) editor.commands.unwrapList()
+                else editor.commands.setListNumbering(value)
+              },
             }),
         },
         {

@@ -1,4 +1,14 @@
-import type { EditorNode, Fragment, Mark, TextNode } from '@trevixal/core'
+import {
+  DEFAULT_LIST_NUMBERING,
+  type EditorNode,
+  type Fragment,
+  type ListNumberingScheme,
+  type Mark,
+  type TextNode,
+  levelMarker,
+  listNumberingOf,
+  listStylesFor,
+} from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
@@ -77,8 +87,22 @@ interface Context {
   readonly relationships: string[]
   readonly media: { name: string; data: Uint8Array }[]
   readonly mediaExtensions: Set<string>
-  readonly numbers: string[]
+  readonly numbers: NumberingInstance[]
+  /** Each multilevel scheme the document uses, with its `w:abstractNum` id. */
+  readonly schemes: Map<ListNumberingScheme, number>
   drawingId: number
+}
+
+/**
+ * One `w:num`. Word numbers the paragraphs that share one as a single list,
+ * which is what a multilevel scheme needs: a `1.1.` reads its parent's number
+ * only from the same instance.
+ */
+interface NumberingInstance {
+  readonly id: number
+  readonly abstractId: number
+  /** Per level: a number to restart at, and a `w:lvl` to use instead of the abstract's. */
+  readonly overrides: Map<number, { start?: number; lvl?: string }>
 }
 
 interface RunContext {
@@ -110,6 +134,7 @@ export async function serializeToDOCX(
     media: [],
     mediaExtensions: new Set(),
     numbers: [],
+    schemes: new Map(),
     drawingId: 0,
   }
   const body = writeBlocks(doc.content.children, context, {}).join('')
@@ -373,44 +398,191 @@ function stylesPart(font: string, basePt: number, palette: DocumentPalette): str
 
 const BULLETS = ['●', '○', '▪']
 
+/** The bullet a `list-style-type` keyword draws, as Word writes it. */
+const BULLET_GLYPHS: Readonly<Record<string, string>> = {
+  disc: '●',
+  circle: '○',
+  square: '▪',
+}
+
+/** A CSS counter style's Word `w:numFmt`. */
+const WORD_FORMATS: Readonly<Record<string, string>> = {
+  decimal: 'decimal',
+  'lower-alpha': 'lowerLetter',
+  'upper-alpha': 'upperLetter',
+  'lower-roman': 'lowerRoman',
+  'upper-roman': 'upperRoman',
+}
+
+/** Word's nine list levels, `w:ilvl` 0 to 8. */
+const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+
+/** Abstract ids 0 and 1 are the plain bullets and the default numbering. */
+const ABSTRACT_BULLETS = 0
+const ABSTRACT_NUMBERED = 1
+
+/** Room for a marker: the hanging indent between it and the text, in twips. */
+const HANGING = 360
+
+interface LevelOptions {
+  /** `w:isLgl`, Word's legal numbering: every part of an outline in decimal. */
+  readonly legal?: boolean
+  readonly hanging?: number
+}
+
+/** One `w:lvl`. */
+function levelXML(ilvl: number, format: string, text: string, options: LevelOptions = {}): string {
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+    options.legal ? '<w:isLgl/>' : ''
+  }<w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${
+    INDENT * (ilvl + 1)
+  }" w:hanging="${options.hanging ?? HANGING}"/></w:pPr></w:lvl>`
+}
+
+/**
+ * A scheme's level as Word writes it: `%2)`, `%1.%2.`, or a bullet's glyph.
+ *
+ * An outline number grows a part with every level, and one wider than its
+ * hanging indent pushes the text out to the next tab stop, which reads as a
+ * gap. So each level widens it by about one part, `1.`, at the body size.
+ */
+function schemeLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  const marker = levelMarker(scheme, ilvl)
+  if (scheme.listType === 'bulletList') return levelXML(ilvl, 'bullet', marker)
+  if (scheme.outline) {
+    const text = `${LEVELS.slice(0, ilvl + 1)
+      .map((level) => `%${level + 1}`)
+      .join('.')}.`
+    // A digit and a dot come to about 0.8em; in twips that is 16 per point.
+    const hanging = HANGING + ilvl * Math.round(basePt * 16)
+    return levelXML(ilvl, 'decimal', text, { legal: true, hanging })
+  }
+  return levelXML(ilvl, WORD_FORMATS[marker] ?? 'decimal', `%${ilvl + 1}${scheme.suffix}`)
+}
+
+/** A list's own marker style at its level, or null for a style Word has no word for. */
+function styleLevelXML(style: string, ilvl: number): string | null {
+  const bullet = BULLET_GLYPHS[style]
+  if (bullet) return levelXML(ilvl, 'bullet', bullet)
+  const format = WORD_FORMATS[style]
+  return format ? levelXML(ilvl, format, `%${ilvl + 1}.`) : null
+}
+
 function numberingPart(context: Context): string {
-  const level = (ilvl: number, format: string, text: string): string =>
-    `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/><w:lvlText w:val="${escapeXML(
-      text,
-    )}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${INDENT * (ilvl + 1)}" w:hanging="360"/></w:pPr></w:lvl>`
-  const levels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-  const bullets = levels
-    .map((ilvl) => level(ilvl, 'bullet', BULLETS[ilvl % BULLETS.length] as string))
-    .join('')
-  const decimals = levels.map((ilvl) => level(ilvl, 'decimal', `%${ilvl + 1}.`)).join('')
-  const abstract = (id: number, body: string): string =>
-    `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${body}</w:abstractNum>`
+  const abstract = (id: number, type: string, body: string): string =>
+    `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="${type}"/>${body}</w:abstractNum>`
+  const bullets = LEVELS.map((ilvl) =>
+    levelXML(ilvl, 'bullet', BULLETS[ilvl % BULLETS.length] as string),
+  ).join('')
+  const numbered = LEVELS.map((ilvl) =>
+    schemeLevelXML(DEFAULT_LIST_NUMBERING, ilvl, context.basePt),
+  ).join('')
+  // A scheme's levels depend on each other (`%1.%2.`), which is Word's
+  // `multilevel`; the two defaults number each level on its own.
+  const schemes = [...context.schemes].map(([scheme, id]) =>
+    abstract(
+      id,
+      'multilevel',
+      LEVELS.map((ilvl) => schemeLevelXML(scheme, ilvl, context.basePt)).join(''),
+    ),
+  )
   return [
     XML_HEADER,
     `<w:numbering xmlns:w="${NS.w}">`,
-    abstract(0, bullets),
-    abstract(1, decimals),
-    context.numbers.join(''),
+    abstract(ABSTRACT_BULLETS, 'hybridMultilevel', bullets),
+    abstract(ABSTRACT_NUMBERED, 'hybridMultilevel', numbered),
+    ...schemes,
+    context.numbers.map(numXML).join(''),
     '</w:numbering>',
   ].join('')
 }
 
-/**
- * Register a numbering instance for one list and return its `w:numId`. Every
- * ordered instance carries a `w:startOverride` on the level it uses: Word
- * treats `w:num` elements that share an abstract definition as one continuous
- * list unless the override is present, so without it a second ordered list
- * would carry on from where the first stopped.
- */
-function addNumbering(context: Context, ordered: boolean, start: number, level: number): number {
-  const id = context.numbers.length + 1
-  const override = ordered
-    ? `<w:lvlOverride w:ilvl="${level}"><w:startOverride w:val="${Math.max(0, start)}"/></w:lvlOverride>`
-    : ''
-  context.numbers.push(
-    `<w:num w:numId="${id}"><w:abstractNumId w:val="${ordered ? 1 : 0}"/>${override}</w:num>`,
-  )
+function numXML(instance: NumberingInstance): string {
+  const overrides = [...instance.overrides]
+    .sort(([a], [b]) => a - b)
+    .map(
+      ([ilvl, { start, lvl }]) =>
+        `<w:lvlOverride w:ilvl="${ilvl}">${
+          start === undefined ? '' : `<w:startOverride w:val="${Math.max(0, start)}"/>`
+        }${lvl ?? ''}</w:lvlOverride>`,
+    )
+    .join('')
+  return `<w:num w:numId="${instance.id}"><w:abstractNumId w:val="${instance.abstractId}"/>${overrides}</w:num>`
+}
+
+/** The `w:abstractNum` id of a scheme, defining it on first use. */
+function schemeAbstract(context: Context, scheme: ListNumberingScheme): number {
+  const known = context.schemes.get(scheme)
+  if (known !== undefined) return known
+  const id = ABSTRACT_NUMBERED + 1 + context.schemes.size
+  context.schemes.set(scheme, id)
   return id
+}
+
+/**
+ * Register a numbering instance. Every ordered instance carries a
+ * `w:startOverride` on the level it starts at: Word treats `w:num` elements
+ * that share an abstract definition as one continuous list unless the
+ * override is present, so without it a second ordered list would carry on
+ * from where the first stopped.
+ */
+function addNumbering(
+  context: Context,
+  abstractId: number,
+  level: number,
+  start: number | null,
+): NumberingInstance {
+  const instance: NumberingInstance = {
+    id: context.numbers.length + 1,
+    abstractId,
+    overrides: new Map(start === null ? [] : [[level, { start }]]),
+  }
+  context.numbers.push(instance)
+  return instance
+}
+
+/** The multilevel tree a list sits in, for the lists nested below it. */
+interface NumberingTree {
+  readonly instance: NumberingInstance
+  readonly listType: string
+}
+
+/**
+ * The instance a list's paragraphs use, and the tree lists below it continue.
+ *
+ * A list storing a scheme opens one instance for its whole tree, and every
+ * list of the same type below it joins that instance at its own level: Word
+ * then restarts each level after the one above, as the editor does, and a
+ * `1.1.` can read its parent's number. Any other list gets an instance of its
+ * own, as it always has. A list's own marker style replaces its level's.
+ */
+function listNumbering(
+  list: EditorNode,
+  ordered: boolean,
+  level: number,
+  tree: NumberingTree | null,
+  context: Context,
+): { instance: NumberingInstance; tree: NumberingTree | null } {
+  const scheme = listNumberingOf(list)
+  const start = ordered ? listStart(list) : null
+  let instance: NumberingInstance
+  let next = tree
+  if (scheme !== null && scheme !== DEFAULT_LIST_NUMBERING) {
+    instance = addNumbering(context, schemeAbstract(context, scheme), level, start)
+    next = { instance, listType: list.type.name }
+  } else if (tree?.listType === list.type.name) {
+    instance = tree.instance
+  } else {
+    instance = addNumbering(context, ordered ? ABSTRACT_NUMBERED : ABSTRACT_BULLETS, level, start)
+  }
+
+  const style = list.attrs.listStyle
+  const lvl =
+    typeof style === 'string' && listStylesFor(list.type.name).has(style)
+      ? styleLevelXML(style, level)
+      : null
+  if (lvl) instance.overrides.set(level, { ...instance.overrides.get(level), lvl })
+  return { instance, tree: next }
 }
 
 interface ParagraphProps {
@@ -530,19 +702,26 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   return out ? `<w:pPr>${out}</w:pPr>` : ''
 }
 
-function writeList(list: EditorNode, context: Context, run: RunContext, depth: number): string[] {
+function writeList(
+  list: EditorNode,
+  context: Context,
+  run: RunContext,
+  depth: number,
+  tree: NumberingTree | null = null,
+): string[] {
   const kind = listKind(list) ?? 'bullet'
   const out: string[] = []
   const level = Math.min(8, depth)
-  const numbering =
-    kind === 'task'
-      ? null
-      : { id: addNumbering(context, kind === 'ordered', listStart(list), level), level }
+  const numbered =
+    kind === 'task' ? null : listNumbering(list, kind === 'ordered', level, tree, context)
+  const numbering = numbered ? { id: numbered.instance.id, level } : null
+  // A task list carries no numbering of its own, but the tree around it goes on.
+  const below = numbered ? numbered.tree : tree
   for (const item of list.content.children) {
     const isTask = kind === 'task' || item.type.name === NODE.taskItem
     item.content.children.forEach((block, index) => {
       if (listKind(block)) {
-        out.push(...writeList(block, context, run, depth + 1))
+        out.push(...writeList(block, context, run, depth + 1, below))
         return
       }
       const props: ParagraphProps = { style: 'ListParagraph', indentLeft: INDENT * (depth + 1) }

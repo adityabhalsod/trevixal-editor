@@ -1,4 +1,5 @@
 import type { Editor, EditorSnapshot } from '@trevixal/core'
+import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
@@ -549,6 +550,19 @@ export function defaultMenus(): readonly Menu[] {
               run: (editor) => editor.commands.continueNumberingFromPrevious(),
               isEnabled: (snapshot) => snapshot.listType === 'orderedList',
             },
+            separator('list-sep-multilevel'),
+            // The toolbar gallery's schemes, by name. Its "None" is already
+            // here, as toggling a list off.
+            ...defaultListNumberings()
+              .filter((option) => option.value !== NO_LIST_NUMBERING)
+              .map((option) => ({
+                name: `listNumbering-${option.value}`,
+                label: `${option.label}: ${option.markers.join(' ')}`,
+                icon: 'multilevelList' as IconName,
+                run: (editor: Editor) => editor.commands.setListNumbering(option.value),
+                // A task list keeps its checkboxes, so no scheme applies there.
+                isEnabled: (snapshot: EditorSnapshot) => snapshot.listType !== 'taskList',
+              })),
           ],
         },
         separator('format-sep-2'),

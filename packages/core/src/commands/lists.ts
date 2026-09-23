@@ -6,6 +6,12 @@ import type { EditorNode } from '../model/node'
 import { type Position, pos } from '../model/position'
 import { type Path, nodeAtPath, pathsEqual } from '../model/tree'
 import { listStylesFor } from '../schema/basic'
+import {
+  type ListNumberingScheme,
+  listNumberingOf,
+  listNumberingScheme,
+  storedNumbering,
+} from '../schema/list-numbering'
 import { TextSelection } from '../state/selection'
 import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import { ReplaceNodesStep, replaceNodeAt } from '../state/steps/replace-nodes'
@@ -375,4 +381,115 @@ export function continueNumbering(start: number): Command {
       new SetNodeAttrsStep(context.listPath, { ...context.list.attrs, start: value }),
     )
   }
+}
+
+// ---------------------------------------------------------- multilevel lists
+
+/** List types a multilevel scheme numbers. A task list keeps its checkboxes. */
+const NUMBERABLE: ReadonlySet<string> = new Set(['bulletList', 'orderedList'])
+
+/**
+ * The outermost list of the tree holding the textblock at `blockPath`: climb
+ * while the list sits directly in an item of another numberable list. A list
+ * inside a task item, a table cell or a quote starts a tree of its own.
+ *
+ * Null when the textblock's own list is a task list: climbing out of one
+ * would hand back the tree around it, and a scheme applied from inside a
+ * task list would renumber lists the user was not in.
+ */
+function listTreeRootAt(doc: EditorNode, blockPath: Path): { path: Path; node: EditorNode } | null {
+  const context = listContextAt(doc, blockPath)
+  if (!context || !NUMBERABLE.has(context.list.type.name)) return null
+  let root = { path: context.listPath, node: context.list }
+  for (;;) {
+    const itemPath = root.path.slice(0, -1)
+    const item = nodeAtPath(doc, itemPath)
+    if (item?.type.name !== 'listItem') return root
+    const listPath = itemPath.slice(0, -1)
+    const list = nodeAtPath(doc, listPath)
+    if (!list || !NUMBERABLE.has(list.type.name)) return root
+    root = { path: listPath, node: list }
+  }
+}
+
+/**
+ * The tree rebuilt under a scheme: every numberable list becomes the scheme's
+ * list type with its own marker style cleared, so the scheme shows at every
+ * level, and only the root stores the scheme. A numbered list keeps its start
+ * number, so a list that continues another still does.
+ */
+function renumbered(list: EditorNode, scheme: ListNumberingScheme, isRoot: boolean): EditorNode {
+  const type = list.type.schema.nodeType(scheme.listType)
+  const items = list.content.children.map((item) =>
+    item.withContent(
+      Fragment.from(
+        item.content.children.map((block) =>
+          NUMBERABLE.has(block.type.name) ? renumbered(block, scheme, false) : block,
+        ),
+      ),
+    ),
+  )
+  return type.create(
+    {
+      start: list.type.name === 'orderedList' ? list.attrs.start : 1,
+      listStyle: null,
+      numbering: isRoot ? storedNumbering(scheme) : null,
+    },
+    Fragment.from(items),
+  )
+}
+
+/**
+ * Number the whole list tree at the selection with a multilevel scheme, as
+ * Word's gallery does: the outermost list and every list nested in it become
+ * the scheme's list type, per-list marker styles are cleared so the scheme is
+ * what shows, and the scheme is stored once, on the outermost list. Outside a
+ * list the selected blocks become one first.
+ *
+ * Declines for an unknown scheme, inside a task list (a numbered list has
+ * nowhere to keep its checkboxes), for a schema whose lists cannot store a
+ * scheme, and when the tree already looks exactly like this.
+ */
+export function setListNumbering(schemeId: string): Command {
+  return (state) => {
+    const scheme = listNumberingScheme(schemeId)
+    if (!scheme) return null
+    const type = state.schema.nodeType(scheme.listType)
+    if (storedNumbering(scheme) !== null && !('numbering' in (type.spec.attrs ?? {}))) return null
+
+    const inList = listContextAt(state.doc, state.selection.from.path) !== null
+    const tr = inList ? state.tr : toggleList(scheme.listType)(state)
+    if (!tr) return null
+
+    const selection = tr.selection
+    const root = listTreeRootAt(tr.doc, selection.from.path)
+    if (!root) return null
+    const tree = renumbered(root.node, scheme, true)
+    if (inList && tree.eq(root.node)) return null
+
+    tr.step(replaceNodeAt(root.path, Fragment.of(tree)))
+    // Rebuilding keeps every item where it was, so the selection's paths are
+    // still good; mapping them through the replace would collapse it instead.
+    tr.setSelection(new TextSelection(selection.from, selection.to))
+    return tr
+  }
+}
+
+/**
+ * Take the list at the selection apart into plain paragraphs: the gallery's
+ * "None". Declines outside a list.
+ */
+export const unwrapList: Command = (state) => {
+  const context = listContextAt(state.doc, state.selection.from.path)
+  return context ? toggleList(context.list.type.name)(state) : null
+}
+
+/**
+ * The multilevel scheme numbering the list tree that holds the textblock at
+ * `blockPath`. Null outside a list, and for a tree no scheme describes: plain
+ * bullets, or a task list.
+ */
+export function listNumberingAt(doc: EditorNode, blockPath: Path): ListNumberingScheme | null {
+  const root = listTreeRootAt(doc, blockPath)
+  return root ? listNumberingOf(root.node) : null
 }

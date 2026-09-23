@@ -41,7 +41,8 @@ Decrease · **Line height >** Default / Single / 1.15 / 1.5 / Double ·
 **Paragraph spacing >** before and after none / small / medium / large, then
 space before none / medium / large, then space after none / medium / large ·
 **Letter spacing >** Normal / Tight / Wide / Wider · **Lists >** Bullet /
-Numbered / Task, eight list styles, Restart numbering, Continue numbering ·
+Numbered / Task, eight list styles, Restart numbering, Continue numbering,
+five multilevel lists ·
 Format painter · Clear text formatting · Clear all formatting
 
 ## Tools

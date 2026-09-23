@@ -216,9 +216,12 @@ after, separately) · indentation · alignment (left, centre, right, justify) ·
 small caps · case conversion (`UPPERCASE`, `lowercase`, `Title Case`) · clear
 text formatting, clear all formatting · format painter.
 
-**Lists and tasks**: bulleted, numbered and task (checkbox) lists · nesting ·
-eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`, `A, B, C`,
-`i, ii, iii`, `I, II, III`) · restart and continue numbering.
+**Lists and tasks**: bulleted, numbered and task (checkbox) lists · nesting,
+numbered by level as Word does (`1.` then `a.` then `i.`) · a multilevel list
+gallery (`1) a) i)`, `1. 1.1. 1.1.1.`, `I. A. 1.`, `❖ ➢ ▪`) that numbers the
+whole tree, levels indented later included, in the editor and in Word and RTF
+exports · eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`,
+`A, B, C`, `i, ii, iii`, `I, II, III`) · restart and continue numbering.
 
 **Tables**: insert with a hover-to-size grid · add and delete rows and
 columns · merge and split cells · header row · per-cell alignment · cell
@@ -709,7 +712,7 @@ where a key is bound, the shortcut printed beside it. The full tree is in
 **Toolbar.** Twelve groups: block format, line height and paragraph spacing · font and size · text style
 (bold, italic, underline, strikethrough, inline code, superscript, subscript,
 small caps, letter spacing, change case) · lists (bullet, numbered, task,
-list style, restart numbering, indent, outdent) · alignment · colours ·
+list style, multilevel list, restart numbering, indent, outdent) · alignment · colours ·
 insert (link, unlink, image, table grid, quote, rule) · format painter ·
 blocks (callout and columns pickers) · code (code block, copy, format JSON,
 format XML, minify) · tools (find, contents, outline, palette, focus,
@@ -1272,8 +1275,9 @@ createEditor(options: EditorOptions): Editor
 `indent`, `outdent`, `setBlockAttrs`, `setBlockType`, `setParagraph`,
 `setHeading`, `splitBlock`, `joinBackward`, `insertHardBreak`,
 `insertHorizontalRule`, `wrapIn`, `toggleBulletList`, `toggleOrderedList`,
-`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `restartNumbering`,
-`continueNumbering`, `continueNumberingFromPrevious`, `splitListItem`,
+`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `setListNumbering`,
+`unwrapList`, `restartNumbering`, `continueNumbering`,
+`continueNumberingFromPrevious`, `splitListItem`,
 `sinkListItem`, `liftListItem`, `setCodeBlock`, `lift`, `selectAll`, `undo`,
 `redo`. Each returns `boolean`.
 
@@ -1314,8 +1318,9 @@ exported as plain functions too: `toggleMark`, `setBlockType`, `wrapIn`,
 `lift`, `splitBlock`, `joinBackward`, `joinForward`, `deleteSelection`,
 `insertText`, `insertContent`, `insertBlockAfter`, `insertInlineNode`,
 `toggleList`, `splitListItem`, `sinkListItem`, `liftListItem`,
-`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `restartNumbering`,
-`continueNumbering`, `setTextAlign`, `indentBlocks`, `convertCase`,
+`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `setListNumbering`,
+`unwrapList`, `listNumberingAt`, `restartNumbering`, `continueNumbering`,
+`setTextAlign`, `indentBlocks`, `convertCase`,
 `toggleSmallCaps`, `setLetterSpacing`, `setLineHeight`,
 `setParagraphSpacing`, `clearFormatting`, `clearAllFormatting`, `selectAll`,
 the code-block set (`typeInPreformatted`, `insertNewlineInPreformatted`,
@@ -1358,6 +1363,16 @@ schema claims them.
 `link`, `highlight`, `subscript`, `superscript`, `fontFamily`, `fontSize`,
 `textColor`, `backgroundColor`, `smallCaps`, `letterSpacing`.
 `LIST_STYLES`, `BULLET_LIST_STYLES`, `ORDERED_LIST_STYLES`, `listStylesFor`.
+
+Multilevel list numbering: `LIST_NUMBERING_SCHEMES` (`default` 1. a. i.,
+`parenthesis` 1) a) i), `outline` 1. 1.1. 1.1.1., `roman-outline` I. A. 1.,
+`symbols` ❖ ➢ ▪), `DEFAULT_LIST_NUMBERING`, `listNumberingScheme`,
+`listNumberingOf`, `storedNumbering`, `storedNumberingsFor`, `levelMarker`,
+`listMarker`, `formatListCounter`. A scheme is stored once, in the outermost
+list's `numbering` attr (written as `data-numbering`), and every list nested
+under it takes the marker for its depth, so an item indented later follows it
+with nothing written to the new list. The Word and RTF writers and the
+toolbar gallery all read this one table.
 
 ### View
 
@@ -1884,7 +1899,7 @@ Increase / Decrease · **Line height ▸** Default / Single / 1.15 / 1.5 / Doubl
 then space before none / medium / large, then space after none / medium /
 large · **Letter spacing ▸** Normal / Tight / Wide / Wider · **Lists ▸**
 Bullet / Numbered / Task, eight list styles, Restart numbering, Continue
-numbering · Format painter · Clear text formatting · Clear all formatting
+numbering, five multilevel lists · Format painter · Clear text formatting · Clear all formatting
 
 **Tools**: Find and replace… `Ctrl+F` · Command palette… `Ctrl+K` · Table of
 contents · Document outline · Source code… · Markdown source… · Edit as

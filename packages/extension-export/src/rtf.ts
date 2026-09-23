@@ -1,4 +1,15 @@
-import type { EditorNode, Fragment, Mark, TextNode } from '@trevixal/core'
+import {
+  DEFAULT_LIST_NUMBERING,
+  type EditorNode,
+  type Fragment,
+  type ListNumberingScheme,
+  type Mark,
+  type TextNode,
+  formatListCounter,
+  listMarker,
+  listNumberingOf,
+  listStylesFor,
+} from '@trevixal/core'
 import { type RGB, parseColor } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
@@ -71,16 +82,28 @@ interface ParagraphState {
   /** A list marker to place before the first paragraph of an item. */
   readonly marker: string | null
   readonly listDepth: number
+  /** The number of each enclosing list item, outermost first. */
+  readonly listNumbers: readonly number[]
+  /** The multilevel scheme the enclosing lists number with, if one does. */
+  readonly listTree: ListTree | null
   readonly italic: boolean
   readonly bold: boolean
   readonly inTable: boolean
   readonly align: string | null
 }
 
+/** A multilevel scheme, and where its tree's numbers begin in `listNumbers`. */
+interface ListTree {
+  readonly scheme: ListNumberingScheme
+  readonly from: number
+}
+
 const ROOT_STATE: ParagraphState = {
   indent: 0,
   marker: null,
   listDepth: 0,
+  listNumbers: [],
+  listTree: null,
   italic: false,
   bold: false,
   inTable: false,
@@ -424,11 +447,27 @@ function writeList(list: EditorNode, context: Context, state: ParagraphState): s
   const out: string[] = []
   let number = listStart(list)
   const depth = state.listDepth
-  for (const item of list.content.children) {
+  // A list storing a scheme opens a tree; a list of its type below continues
+  // it, level by level, as the stylesheet's `[data-numbering] ol` rules do.
+  const scheme = listNumberingOf(list)
+  const tree: ListTree | null =
+    scheme !== null && scheme !== DEFAULT_LIST_NUMBERING
+      ? { scheme, from: state.listNumbers.length }
+      : state.listTree
+  const inTree = tree !== null && tree.scheme.listType === list.type.name
+  const style = list.attrs.listStyle
+  const ownStyle =
+    typeof style === 'string' && listStylesFor(list.type.name).has(style) ? style : null
+  list.content.children.forEach((item, index) => {
+    // Every item counts, bullet or not, as the browser's `list-item` counter does.
+    const own = kind === 'ordered' ? number++ : index + 1
+    const numbers = [...state.listNumbers, own]
     let marker: string
-    if (kind === 'ordered') marker = `${number++}.`
-    else if (kind === 'task' || item.type.name === NODE.taskItem)
-      marker = escapeRTF(taskGlyph(item))
+    if (kind === 'task' || item.type.name === NODE.taskItem) marker = escapeRTF(taskGlyph(item))
+    else if (kind === 'ordered' && ownStyle) marker = `${formatListCounter(own, ownStyle)}.`
+    else if (inTree && !ownStyle)
+      marker = escapeRTF(listMarker(tree.scheme, numbers.slice(tree.from)))
+    else if (kind === 'ordered') marker = listMarker(DEFAULT_LIST_NUMBERING, numbers)
     else marker = '\\bullet'
     const itemState: ParagraphState = {
       ...state,
@@ -436,13 +475,15 @@ function writeList(list: EditorNode, context: Context, state: ParagraphState): s
       // exactly one stop, multiplying by the depth again would compound it.
       indent: state.indent + INDENT,
       listDepth: depth + 1,
+      listNumbers: numbers,
+      listTree: tree,
       marker: null,
     }
-    item.content.children.forEach((block, index) => {
-      const withMarker = index === 0 && block.isTextblock
+    item.content.children.forEach((block, blockIndex) => {
+      const withMarker = blockIndex === 0 && block.isTextblock
       out.push(...writeBlock(block, context, withMarker ? { ...itemState, marker } : itemState))
     })
-  }
+  })
   return out
 }
 
@@ -477,6 +518,8 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
         indent: 0,
         marker: null,
         listDepth: 0,
+        listNumbers: [],
+        listTree: null,
         inTable: true,
         bold: state.bold || cell.attrs.header === true,
         align: align === 'center' || align === 'right' ? align : null,

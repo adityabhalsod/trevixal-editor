@@ -30,6 +30,9 @@ const PATHS: Readonly<Record<string, string>> = {
   // enough apart to stay separate glyphs, and say "ordered" between them.
   orderedList:
     'M10 6h11M10 12h11M10 18h11M3.6 4.6 5 3.9v4.8M3.3 8.7h3.6M3.2 15.3c0-.9.8-1.5 1.7-1.5s1.7.6 1.7 1.5c0 1.2-3.4 2-3.4 3.6h3.8',
+  // Three levels stepping in, a marker dot and a rule each: the nesting is
+  // the point, and numerals at this size would smear as `orderedList` notes.
+  multilevelList: 'M7 6h14M10 12h11M13 18h8M3.5 6h.01M6.5 12h.01M9.5 18h.01',
   alignLeft: 'M3 6h18M3 12h11M3 18h15',
   alignCenter: 'M3 6h18M6 12h12M5 18h14',
   alignRight: 'M3 6h18M10 12h11M8 18h13',
