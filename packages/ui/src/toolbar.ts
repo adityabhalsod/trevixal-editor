@@ -30,6 +30,7 @@ import {
   createQuickInsertControl,
   createRecentToolsControl,
 } from './quick-tools'
+import { type ShortcutLabels, formatShortcut, parseShortcut } from './shortcuts'
 import { type TableDesignCommands, createTableDesignControl } from './table-design'
 import { applyGroupOrder, bindGroupReorder, groupElements, groupOrder } from './toolbar-reorder'
 
@@ -187,6 +188,12 @@ export interface ToolbarOptions {
    * tools this user pinned or used last.
    */
   readonly quickAccess?: QuickAccessOptions
+  /**
+   * What a shortcut manager binds, as `manager.labels()` reports it: each
+   * tooltip then names the key that really fires, or none. Without it a
+   * tooltip names only the keys the engine itself answers (Bold, Undo…).
+   */
+  readonly shortcutLabels?: ShortcutLabels
 }
 
 /**
@@ -261,7 +268,28 @@ export interface Toolbar {
    * back as it was, so nothing is rebuilt and the page need not reload.
    */
   setVisibleGroups(names: readonly string[]): void
+  /** Re-print the tooltips' keys, e.g. after the user rebinds one. */
+  setShortcutLabels(labels: ShortcutLabels | undefined): void
   destroy(): void
+}
+
+/**
+ * Buttons whose menu entry goes by another name. A shortcut manager names its
+ * actions after the menu entries, so this is how a button finds its key.
+ */
+const MENU_NAMES: Readonly<Record<string, string>> = {
+  link: 'insertLink',
+  code: 'inlineCode',
+  bulletList: 'listBullet',
+  orderedList: 'listOrdered',
+  taskList: 'listTask',
+  'align-left': 'alignleft',
+  'align-center': 'aligncenter',
+  'align-right': 'alignright',
+  'align-justify': 'alignjustify',
+  indent: 'indentMore',
+  outdent: 'indentLess',
+  emoji: 'insertEmoji',
 }
 
 function isControl(entry: ToolbarItem | ToolbarControl): entry is ToolbarControl {
@@ -710,7 +738,6 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           name: 'link',
           label: 'Insert link',
           icon: 'link',
-          shortcut: 'Ctrl+K',
           run: (editor) => options.onLink?.(editor),
           isActive: (snapshot) => snapshot.activeMarks.includes('link'),
         },
@@ -870,7 +897,7 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
       name: 'tools',
       label: 'Tools',
       items: present([
-        callbackItem('findReplace', 'search', 'Find and replace', options.onFindReplace, 'Ctrl+F'),
+        callbackItem('findReplace', 'search', 'Find and replace', options.onFindReplace),
         callbackItem(
           'tableOfContents',
           'tableOfContents',
@@ -1055,6 +1082,21 @@ export function createToolbar(
   refresh()
   const unsubscribe = editor.on('transaction', refresh)
 
+  let shortcutLabels = options.shortcutLabels
+  /** The key a tooltip names: the manager's when there is one, else the engine's own. */
+  const keysFor = (item: ToolbarItem): string => {
+    if (shortcutLabels) return shortcutLabels[MENU_NAMES[item.name] ?? item.name] ?? ''
+    return item.shortcut ? formatShortcut(parseShortcut(item.shortcut)) : ''
+  }
+  const retitle = (): void => {
+    for (const { item, element } of buttons) {
+      const name = element.getAttribute('aria-label') ?? item.label
+      const keys = keysFor(item)
+      element.title = keys ? `${name} (${keys})` : name
+    }
+  }
+  retitle()
+
   /**
    * Groups `setVisibleGroups` took off the bar. Detached rather than hidden,
    * so the arrow keys, the grips and the reported order skip them without
@@ -1090,6 +1132,10 @@ export function createToolbar(
     setGroupOrder: (order) => applyGroupOrder(root, order),
     groups: groupInfo,
     setVisibleGroups,
+    setShortcutLabels(labels) {
+      shortcutLabels = labels
+      retitle()
+    },
     destroy() {
       unsubscribe()
       reorder?.destroy()
@@ -1121,7 +1167,8 @@ function createToolbarButton(
   const ariaFallback = item.ariaLabel && item.ariaLabel !== item.label ? item.ariaLabel : label
   const name = translate(`${TOOLBAR_KEY}${item.name}${ARIA_SUFFIX}`, ariaFallback)
   button.setAttribute('aria-label', name)
-  button.title = item.shortcut ? `${name} (${item.shortcut})` : name
+  // The tooltip, keys and all, is the toolbar's to write: see `retitle`.
+  button.title = name
   button.tabIndex = -1
   // Keep the editor selection: the toolbar must never take focus on click.
   button.addEventListener('mousedown', (event) => event.preventDefault())

@@ -54,6 +54,27 @@ describe('createToolbar', () => {
     expect(editor.getText()).toBe('')
   })
 
+  it('says in each tooltip the key a shortcut manager binds, and no other', () => {
+    const toolbar = createToolbar(createEditor({ schema }), container, {
+      shortcutLabels: { insertLink: 'Ctrl+Shift+K', bold: 'Ctrl+B' },
+    })
+    const title = (name: string) =>
+      toolbar.element.querySelector(`[data-trevixal-item="${name}"]`)?.getAttribute('title')
+    // Link's menu entry is `insertLink`; the button is found by it all the same.
+    expect(title('link')).toBe('Insert link (Ctrl+Shift+K)')
+    expect(title('bold')).toBe('Bold (Ctrl+B)')
+    expect(title('italic')).toBe('Italic')
+
+    toolbar.setShortcutLabels({ bold: 'Ctrl+Shift+B' })
+    expect(title('bold')).toBe('Bold (Ctrl+Shift+B)')
+    expect(title('link')).toBe('Insert link')
+
+    // With no manager, only the keys the engine itself answers.
+    toolbar.setShortcutLabels(undefined)
+    expect(title('bold')).toBe('Bold (Ctrl+B)')
+    expect(title('link')).toBe('Insert link')
+  })
+
   it('cleans up on destroy', () => {
     const editor = createEditor({ schema })
     const toolbar = createToolbar(editor, container)

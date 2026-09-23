@@ -328,7 +328,7 @@ export interface EditorUI {
    * available here for a host that wants to open it from its own shortcut.
    */
   readonly findReplace: FindReplace | null
-  /** Re-print the menus' shortcuts, e.g. after the user rebinds one. */
+  /** Re-print the menus' and the toolbar's shortcuts, e.g. after the user rebinds one. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
   /** The link dialog the toolbar and Insert ▸ Link open; bind it to a shortcut. */
   openLinkDialog(): void
@@ -382,6 +382,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     onInsertTable:
       options.toolbar?.onInsertTable ?? ((target, rows, cols) => actions.table(target, rows, cols)),
     tableDesign: options.toolbar?.tableDesign ?? tableDesignCommands(options.tableCommands),
+    shortcutLabels: options.toolbar?.shortcutLabels ?? options.shortcutLabels,
   })
 
   const statusBar = options.showStatusBar === false ? null : createStatusBar(editor, root)
@@ -398,6 +399,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     },
     setShortcutLabels(labels) {
       menubar?.setShortcutLabels(labels)
+      toolbar.setShortcutLabels(labels)
     },
     openLinkDialog() {
       actions.link(editor)

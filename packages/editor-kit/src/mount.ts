@@ -216,13 +216,18 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ------------------------------------------------------- suggestion menus
 
-  // The `/` menu's Video opens Insert ▸ Video…, found by name when it runs:
-  // the menus are wired further down.
-  const suggestions = createSuggestionMenus(editor, images, (name) =>
+  /**
+   * Run a wired menu entry by name, as picking it from its menu would. Found
+   * when it runs, because the menus are wired further down: the `/` menu's
+   * Video opens Insert ▸ Video… this way, and Ctrl+F the find bar.
+   */
+  function runMenuEntry(name: string): void {
     paletteCommandsFromMenus(ui.menus)
       .find((command) => command.name === name)
-      ?.run(editor),
-  )
+      ?.run(editor)
+  }
+
+  const suggestions = createSuggestionMenus(editor, images, runMenuEntry)
   // The two extensions say `dispose` rather than `destroy`, so they go in
   // this list; their popups are UI, and go on the destroy list at the end.
   disposers.push(() => suggestions.dispose())
@@ -294,7 +299,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     flushAutosave: () => void saving.autosave.flush(),
     newDocument: () => void newDocument(),
     openDocument: () => void openDocument(),
-    openFindReplace: () => ui.findReplace?.open() ?? openFind(),
+    // Through the menu entry, which builds the bar on first use: asking for
+    // `ui.findReplace` found nothing until the menu had, so Ctrl+F did nothing.
+    openFindReplace: () => runMenuEntry('findReplace'),
     openLinkDialog: () => ui.openLinkDialog(),
     openPalette: () => palette.open(),
     pickEmoji: () => void suggestions.pickEmoji(),
@@ -316,11 +323,6 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     },
     scopes: [editorHost, chromeHost],
   })
-
-  /** Open find & replace even before the Tools menu has built it. */
-  function openFind(): void {
-    ui.element.querySelector<HTMLElement>('.trevixal-findbar')?.removeAttribute('hidden')
-  }
 
   // --------------------------------------------------------- command palette
 

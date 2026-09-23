@@ -46,7 +46,7 @@ for emoji. Both filter as you type, move with the arrow keys, pick with
 
 ## Command palette
 
-`Ctrl+K` (or `Ctrl+Shift+P`) opens a searchable list of every menu command,
+`Ctrl+K` (or `Ctrl+Shift+P`, outside Firefox) opens a searchable list of every menu command,
 with its icon, menu and shortcut. The list is built from the menus as actually
 wired, so it can never drift out of step with them, and the shortcut beside
 each is the one that fires, rebinds included. The commands you ran last come

@@ -3,7 +3,7 @@ import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
-import type { ShortcutLabels } from './shortcuts'
+import { type ShortcutLabels, formatShortcut, parseShortcut } from './shortcuts'
 import {
   TABLE_LINE_STYLE_ENTRIES,
   TABLE_LINE_WEIGHT_ENTRIES,
@@ -88,9 +88,11 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
       name: 'file',
       label: 'File',
       items: [
-        { name: 'newDocument', label: 'New document', icon: 'fileNew', shortcut: 'Ctrl+Alt+N' },
-        { name: 'openDocument', label: 'Open…', icon: 'folderOpen', shortcut: 'Ctrl+O' },
-        { name: 'saveDocument', label: 'Save', icon: 'save', shortcut: 'Ctrl+S' },
+        // No key beside these by default: nothing binds one without a shortcut
+        // manager, and Ctrl+O, Ctrl+S and Ctrl+P would reach the browser's own.
+        { name: 'newDocument', label: 'New document', icon: 'fileNew' },
+        { name: 'openDocument', label: 'Open…', icon: 'folderOpen' },
+        { name: 'saveDocument', label: 'Save', icon: 'save' },
         separator('file-sep-export'),
         {
           name: 'downloadAs',
@@ -116,7 +118,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'documentRestrictions', label: 'Restrictions…', icon: 'shield' },
         separator('file-sep-print'),
         { name: 'printPreview', label: 'Print preview…', icon: 'print' },
-        { name: 'print', label: 'Print…', icon: 'print', shortcut: 'Ctrl+P' },
+        { name: 'print', label: 'Print…', icon: 'print' },
       ],
     },
     {
@@ -175,7 +177,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           ],
         },
         separator('edit-sep-find'),
-        { name: 'findReplace', label: 'Find and replace…', icon: 'search', shortcut: 'Ctrl+F' },
+        { name: 'findReplace', label: 'Find and replace…', icon: 'search' },
         {
           name: 'selectAll',
           icon: 'selectAll',
@@ -190,7 +192,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
       label: 'Insert',
       items: [
         { name: 'insertImage', label: 'Image…', icon: 'image' },
-        { name: 'insertLink', label: 'Link…', icon: 'link', shortcut: 'Ctrl+K' },
+        { name: 'insertLink', label: 'Link…', icon: 'link' },
         {
           name: 'removeLink',
           label: 'Remove link',
@@ -601,7 +603,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
       name: 'tools',
       label: 'Tools',
       items: [
-        { name: 'findReplace', label: 'Find and replace…', icon: 'search', shortcut: 'Ctrl+F' },
+        { name: 'findReplace', label: 'Find and replace…', icon: 'search' },
         {
           name: 'commandPalette',
           label: 'Command palette…',
@@ -986,7 +988,9 @@ function renderMenuItem(
   shortcut.hidden = true
   button.appendChild(shortcut)
   const slots = shortcutSlots.get(item.name)
-  const slot: ShortcutSlot = { element: shortcut, fallback: item.shortcut ?? '' }
+  // In this platform's own glyphs: a Mac reads ⌘Z where the menu says Ctrl+Z.
+  const fallback = item.shortcut ? formatShortcut(parseShortcut(item.shortcut)) : ''
+  const slot: ShortcutSlot = { element: shortcut, fallback }
   if (slots) slots.push(slot)
   else shortcutSlots.set(item.name, [slot])
 

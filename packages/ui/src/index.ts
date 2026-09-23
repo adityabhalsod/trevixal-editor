@@ -204,6 +204,7 @@ export {
 export {
   createShortcutManager,
   formatShortcut,
+  isApplePlatform,
   openShortcutsDialog,
   parseShortcut,
   type ResolvedShortcut,

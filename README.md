@@ -259,7 +259,7 @@ previewed live under the code that defines them · LaTeX equations, inline
 draft recovery after a crash · rolling local backups you can go back to ·
 tracked changes and suggesting mode with a review bar.
 
-**Keyboard and productivity**: command palette (`Ctrl+K` or `Ctrl+Shift+P`),
+**Keyboard and productivity**: command palette (`Ctrl+K`, or `Ctrl+Shift+P` outside Firefox),
 opening on what you ran last · slash commands (`/table`, `/image`, `/todo` …)
 · emoji shortcodes (`:smi`) · a keyboard shortcut manager where every
 advertised key is real and rebindable, with Google Docs' paragraph keys
@@ -733,7 +733,7 @@ shows groups.
 type `:` and a few letters for emoji. Both filter as you type, move with the
 arrow keys, pick with Enter and close with Escape.
 
-**Command palette.** `Ctrl+K` (or `Ctrl+Shift+P`) opens a searchable list of
+**Command palette.** `Ctrl+K` (or `Ctrl+Shift+P`, outside Firefox) opens a searchable list of
 every menu command, with its icon, menu and shortcut. The list is built from
 the menus as actually wired, so it can never drift out of step with them.
 
@@ -1965,13 +1965,21 @@ rebindable there.
 | Key | Action | | Key | Action |
 | --- | --- | --- | --- | --- |
 | `Mod+\` | Clear all formatting | | `Mod+X` / `Mod+C` / `Mod+V` | Cut / copy / paste (native) |
+| `Mod+Shift+X` | Strikethrough | | `Mod+Shift+0`, `Mod+Alt+0` | Normal text |
+| `Mod+Shift+1` to `6`, `Mod+Alt+1` to `6` | Heading 1 to 6 | | `Mod+Shift+7` / `8` / `9` | Numbered / bullet / task list |
+| `Mod+Shift+L` / `E` / `R` / `J` | Align left / center / right / justify | | `Mod+]` / `Mod+[` | Increase / decrease indent |
 | `Mod+A` | Select all | | `Mod+F` | Find and replace |
-| `Mod+K` · `Mod+Shift+P` | Command palette | | `Mod+Shift+K` | Insert link |
-| `Mod+Shift+E` | Emoji picker | | `Shift+Enter` | Line break |
+| `Mod+K`, `Mod+Shift+P` (not in Firefox) | Command palette | | `Mod+Shift+K` | Insert link |
+| `Mod+Shift+Space` | Emoji picker | | `Shift+Enter` | Line break |
 | `Mod+Alt+N` | New document | | `Mod+S` | Save now |
 | `Mod+O` | Open a file | | `Mod+P` | Print |
 | `Mod+Alt+P` | Protect with password | | `Mod+Shift+F` | Focus mode |
 | `Mod+Shift+Enter` | Fullscreen | | `Mod+Alt+S` | Split editor |
+
+Off a Mac, `Ctrl+Alt` is AltGr on most keyboards but the US one, and types a
+character (`Ctrl+Alt+E` is é or €) rather than reaching the editor, so the
+everyday keys have a first binding without it. On a Mac the paragraph styles
+are `⌘⌥0` to `6`. Details on [Shortcuts](https://trevixal-editor.vercel.app/using/shortcuts).
 
 **In context**
 

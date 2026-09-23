@@ -112,14 +112,17 @@ test.describe('keyboard and productivity', () => {
     }
   })
 
-  test('Google Docs keys format the paragraph, and a bare key is never bound', async ({ page }) => {
+  test('paragraph keys work on any keyboard, and a key assigned in the dialog fires', async ({
+    page,
+  }) => {
     const server = await serveDist(distDir)
     try {
       await page.goto(server.origin)
       await caretInFirstParagraph(page)
       // The block the caret is in, whatever it is turned into.
       const block = page.locator('#editor .trevixal-content > *', { hasText: 'The full editor:' })
-      await page.keyboard.press('Control+Alt+2')
+      // Ctrl+Shift first, which AltGr cannot take; Google Docs' Ctrl+Alt second.
+      await page.keyboard.press('Control+Shift+2')
       await expect(block).toHaveJSProperty('tagName', 'H2')
       await page.keyboard.press('Control+Alt+0')
       await expect(block).toHaveJSProperty('tagName', 'P')
@@ -134,6 +137,40 @@ test.describe('keyboard and productivity', () => {
       await expect(dialog.locator('.trevixal-shortcuts__keys')).toHaveText('Press keys…')
       // Focus stayed on the row, so the keyboard can carry on from there.
       await expect(dialog.locator('.trevixal-shortcuts__change')).toBeFocused()
+      await page.keyboard.press('Control+Shift+Q')
+      // Keys do nothing behind the dialog, and it says so.
+      await expect(dialog.locator('.trevixal-shortcuts__status')).toContainText(
+        'Close this dialog to use it',
+      )
+      await page.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+      await page.locator('#editor .trevixal-content p').first().dblclick()
+      await page.keyboard.press('Control+Shift+Q')
+      await expect(page.locator('#editor .trevixal-content s').first()).toBeVisible()
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('Ctrl+F and the emoji key work on a fresh page, and tooltips name the real keys', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await caretInFirstParagraph(page)
+      // Before any menu has built the find bar.
+      await page.keyboard.press('Control+f')
+      await expect(page.locator('.trevixal-findbar')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await caretInFirstParagraph(page)
+      await page.keyboard.press('Control+Shift+Space')
+      await expect(page.locator('.trevixal-charpicker--emoji')).toBeVisible()
+      await page.keyboard.press('Escape')
+      // Ctrl+K opens the palette here; the link button says what opens Link.
+      await expect(
+        page.locator('#chrome .trevixal-toolbar [data-trevixal-item="link"]'),
+      ).toHaveAttribute('title', 'Insert link (Ctrl+Shift+K)')
     } finally {
       await server.close()
     }

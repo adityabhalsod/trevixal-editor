@@ -91,7 +91,8 @@ export interface ShortcutManager {
   destroy(): void
 }
 
-function detectMac(): boolean {
+/** Whether this is an Apple platform, where `Mod` is ⌘ and ⌥ never types in a chord with it. */
+export function isApplePlatform(): boolean {
   if (typeof navigator === 'undefined') return false
   return /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent || '')
 }
@@ -145,7 +146,7 @@ const KEY_SYMBOLS: Readonly<Record<string, string>> = {
  * Turn a binding into the text a menu shows: `Ctrl+Shift+L`, or `⌘⇧L` on a
  * Mac. Modifier order follows platform convention.
  */
-export function formatShortcut(keys: string | null, isMac = detectMac()): string {
+export function formatShortcut(keys: string | null, isMac = isApplePlatform()): string {
   if (!keys) return ''
   const parts = keys.split('-')
   const key = parts.pop() ?? ''
@@ -208,7 +209,7 @@ export function createShortcutManager(
   editor: Editor,
   options: ShortcutManagerOptions,
 ): ShortcutManager {
-  const isMac = options.isMac ?? detectMac()
+  const isMac = options.isMac ?? isApplePlatform()
   const actions = options.actions
   let overrides: Record<string, string | null> = { ...(options.overrides ?? {}) }
   // canonical keys → action, and the canonical defaults of rebound actions,
@@ -562,9 +563,11 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
               (entry.alternateKeys && manager.format(entry.alternateKeys) === wanted)),
         )
         manager.rebind(name, keys)
+        // Keys do nothing behind a dialog, which is where the new one is
+        // pressed first, so it says where to try it.
         status.textContent = taken
-          ? `${manager.format(keys)} assigned; it was taken from “${taken.label}”.`
-          : `${manager.format(keys)} assigned.`
+          ? `${manager.format(keys)} assigned; it was taken from “${taken.label}”. Close this dialog to use it.`
+          : `${manager.format(keys)} assigned. Close this dialog to use it.`
         recording = null
         render(name)
         return

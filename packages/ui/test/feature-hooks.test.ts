@@ -119,9 +119,11 @@ describe('shortcut manager labels', () => {
     ui.setShortcutLabels(manager.labels())
     expect(printed('bold')).toBeNull()
 
-    // Without labels the menus fall back to their declared defaults.
+    // Without labels the menus fall back to the keys the engine itself
+    // answers. Nothing binds Ctrl+K to Link then, so nothing says so.
     ui.setShortcutLabels(undefined)
-    expect(printed('insertLink')).toBe('Ctrl+K')
+    expect(printed('insertLink')).toBeNull()
+    expect(printed('bold')).toBe('Ctrl+B')
     ui.destroy()
     manager.destroy()
     editor.destroy()
@@ -258,6 +260,22 @@ describe('shortcuts dialog', () => {
     expect(row('bold')?.classList.contains('trevixal-shortcuts__row--recording')).toBe(true)
     press({ key: 'q', ctrlKey: true, shiftKey: true })
     expect(manager.keysFor('bold')).toBe('Mod-Shift-q')
+    // Keys do nothing behind a dialog, so it says where to try the new one.
+    expect(document.querySelector('.trevixal-shortcuts__status')?.textContent).toContain(
+      'Close this dialog',
+    )
+    done()
+  })
+
+  it('records the character the keyboard types, and that key then fires', () => {
+    const { manager, change, press, done } = openShortcuts()
+    // Ctrl+Alt+E on a UK or US-International Windows keyboard: AltGr+E, é.
+    const altGrE = { key: 'é', code: 'KeyE', ctrlKey: true, altKey: true }
+    change('bold')?.click()
+    press(altGrE)
+    expect(manager.keysFor('bold')).toBe('Mod-Alt-é')
+    expect(manager.displayFor('bold')).toBe('Ctrl+Alt+É')
+    expect(manager.handle(key(altGrE))).toBe(true)
     done()
   })
 
