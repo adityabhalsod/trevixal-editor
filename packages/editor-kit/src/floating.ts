@@ -52,7 +52,7 @@ export function createFloatingControls(
 
   const tableToolbar = createTableToolbar(editor, {
     container,
-    commands: tableUICommands(),
+    commands: tableUICommands({ editor }),
   })
   const tableHandles = createTableResizeHandles(editor, { container })
 

@@ -20,6 +20,7 @@ import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
 import type { ShortcutLabels } from './shortcuts'
 import { type StatusBar, createStatusBar } from './status-bar'
+import { openSplitCellsDialog } from './table-toolbar'
 import {
   type BlockCommands,
   type CodeFormatCommands,
@@ -43,6 +44,8 @@ export interface TableCommands {
   readonly deleteColumn?: Command
   readonly mergeCells?: Command
   readonly splitCell?: Command
+  /** Word's Split Cells; when present, Table ▸ Split asks how many columns. */
+  readonly splitCellInto?: (columns: number) => Command
   readonly toggleHeaderRow?: Command
   readonly deleteTable?: Command
   // Data-shaping commands, from `tableUICommands()`. Menu entries for the
@@ -958,6 +961,16 @@ function createActions(
     ]
     for (const [name, command] of entries) {
       if (command) byName.set(name, (target) => target.exec(command))
+    }
+    // Word's Split Cells asks how many columns; without it, Split un-merges.
+    const splitInto = commands.splitCellInto
+    if (splitInto) {
+      byName.set('splitCell', (target) => {
+        void openSplitCellsDialog(document).then((columns) => {
+          target.view?.focus()
+          if (columns !== null) target.exec(splitInto(columns))
+        })
+      })
     }
     const align = commands.setCellAlign
     if (align) {

@@ -1,4 +1,5 @@
 import { type Command, type Editor, editorDocument } from '@trevixal/core'
+import { openDialog } from './dialog'
 import { createDropdown } from './dropdown'
 import { type IconName, createIcon } from './icons'
 
@@ -12,6 +13,11 @@ export interface TableToolbarCommands {
   readonly deleteColumn: Command
   readonly mergeCells: Command
   readonly splitCell: Command
+  /**
+   * Word's Split Cells. When present, the Split entry asks how many columns
+   * and runs this; without it the entry runs `splitCell`, which un-merges.
+   */
+  readonly splitCellInto?: (columns: number) => Command
   readonly toggleHeaderRow: Command
   readonly deleteTable: Command
   // Optional, so a host wired to the original ten keeps working: an entry
@@ -29,7 +35,8 @@ export interface TableToolbarCommands {
 }
 
 interface Entry {
-  readonly name: keyof TableToolbarCommands
+  // `splitCellInto` is not an entry of its own: it is how Split asks.
+  readonly name: Exclude<keyof TableToolbarCommands, 'splitCellInto'>
   readonly label: string
   readonly icon: IconName
   /** Starts a visual group in the dropdown. */
@@ -50,7 +57,7 @@ const ENTRIES: readonly Entry[] = [
   { name: 'addColumnAfter', label: 'Insert column right', icon: 'tableColumnRight' },
   { name: 'deleteColumn', label: 'Delete column', icon: 'tableColumnDelete' },
   { name: 'mergeCells', label: 'Merge cells', icon: 'tableMerge', separatorBefore: true },
-  { name: 'splitCell', label: 'Split cell', icon: 'tableSplit' },
+  { name: 'splitCell', label: 'Split cells…', icon: 'tableSplit' },
   { name: 'toggleHeaderRow', label: 'Toggle header row', icon: 'tableHeaderRow' },
   { name: 'moveRowUp', label: 'Move row up', icon: 'tableMoveRowUp', separatorBefore: true },
   { name: 'moveRowDown', label: 'Move row down', icon: 'tableMoveRowDown' },
@@ -69,6 +76,36 @@ const ENTRIES: readonly Entry[] = [
   { name: 'clearSizing', label: 'Reset sizes', icon: 'resizeColumns' },
   { name: 'deleteTable', label: 'Delete table', icon: 'tableDelete', separatorBefore: true },
 ]
+
+/** Word's widest table. The split command declines beyond it too. */
+const MOST_SPLIT_COLUMNS = 63
+
+/**
+ * Word's Split Cells dialog, asking how many columns to split each selected
+ * cell into. Resolves to that count, or null when dismissed. It does not ask
+ * for rows: the table model spans columns only.
+ */
+export function openSplitCellsDialog(document: Document): Promise<number | null> {
+  return openDialog({
+    document,
+    title: 'Split cells',
+    submitLabel: 'Split',
+    fields: [
+      {
+        name: 'columns',
+        label: 'Number of columns',
+        type: 'number',
+        value: '2',
+        required: true,
+        min: 2,
+        max: MOST_SPLIT_COLUMNS,
+        hint: 'Each selected cell becomes this many, side by side.',
+      },
+    ],
+    // `Number`, not `parseInt`: a 2.5 stays 2.5 and the command turns it down,
+    // rather than quietly becoming 2.
+  }).then((values) => (values ? Number(values.columns) : null))
+}
 
 export interface TableToolbarOptions {
   readonly commands: TableToolbarCommands
@@ -143,6 +180,14 @@ export function createTableToolbar(editor: Editor, options: TableToolbarOptions)
         button.addEventListener('mousedown', (event) => event.preventDefault())
         button.addEventListener('click', () => {
           self.close()
+          const splitInto = options.commands.splitCellInto
+          if (entry.name === 'splitCell' && splitInto) {
+            void openSplitCellsDialog(doc).then((columns) => {
+              editor.view?.focus()
+              if (columns !== null) editor.exec(splitInto(columns))
+            })
+            return
+          }
           editor.exec(command)
           editor.view?.focus()
         })

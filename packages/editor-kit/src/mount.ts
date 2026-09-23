@@ -469,7 +469,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       onToggleFocusMode: () => focus.toggle(),
       onToggleFullscreen: () => void fullscreen.toggle(),
     },
-    tableCommands: tableUICommands(),
+    tableCommands: tableUICommands({ editor }),
     blockCommands: blockUICommands(),
     codeFormatCommands: codeFormatUICommands(),
     embedCommands: { ...embedUICommands(), pickAttachment: () => files.pickFiles() },

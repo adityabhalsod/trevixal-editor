@@ -639,7 +639,7 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'deleteColumn', icon: 'tableColumnDelete', label: 'Delete column' },
         separator('table-sep-3'),
         { name: 'mergeCells', icon: 'tableMerge', label: 'Merge cells' },
-        { name: 'splitCell', icon: 'tableSplit', label: 'Split cell' },
+        { name: 'splitCell', icon: 'tableSplit', label: 'Split cells…' },
         { name: 'toggleHeaderRow', icon: 'tableHeaderRow', label: 'Header row' },
         separator('table-sep-cell'),
         { name: 'cellBackground', icon: 'cellBackground', label: 'Cell background…' },

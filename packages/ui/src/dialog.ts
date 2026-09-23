@@ -26,6 +26,12 @@ export interface DialogField {
   /** Small print under the control. */
   readonly hint?: string
   /**
+   * Bounds for a `number` field. The browser holds a submit to them, so a
+   * value out of range never reaches the caller.
+   */
+  readonly min?: number
+  readonly max?: number
+  /**
    * Show this field only while another field holds one of `values`. A URL
    * box that only appears when the "kind" select says "web address". A hidden
    * field is disabled, so `required` does not block submit and its value
@@ -211,6 +217,8 @@ function createFieldControl(
   input.type = field.type ?? 'text'
   if (field.type === 'checkbox') input.checked = field.value === 'true'
   else input.value = field.value ?? ''
+  if (field.min !== undefined) input.min = String(field.min)
+  if (field.max !== undefined) input.max = String(field.max)
   return input
 }
 

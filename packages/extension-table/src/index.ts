@@ -28,6 +28,8 @@ export {
   toggleHeaderRow,
 } from './commands'
 export { tableKeymap } from './keymap'
+export { measureCellShare } from './cell-measure'
+export { MAX_SPLIT_COLUMNS, type SplitCellsOptions, splitCellInto } from './split-cells'
 export { moveColumn, type MoveDirection, moveRow, swapCellContent } from './move'
 export {
   createTableResizeHandles,
@@ -70,4 +72,4 @@ export {
   type TextSeparator,
   type TextToTableOptions,
 } from './features'
-export { tableUICommands, type TableUICommands } from './ui'
+export { tableUICommands, type TableUICommands, type TableUICommandsOptions } from './ui'

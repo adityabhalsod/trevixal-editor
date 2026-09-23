@@ -69,7 +69,7 @@ export function columnCount(table: EditorNode): number {
 }
 
 /** The cell covering a column, with its index and start column. */
-function cellAtColumn(
+export function cellAtColumn(
   row: EditorNode,
   column: number,
 ): { index: number; start: number; cell: EditorNode } | null {
@@ -83,13 +83,13 @@ function cellAtColumn(
   return null
 }
 
-function emptyCell(schema: Schema, attrs: Attrs): EditorNode {
+export function emptyCell(schema: Schema, attrs: Attrs): EditorNode {
   return schema
     .nodeType('tableCell')
     .create(attrs, Fragment.of(schema.firstTextblockType().create()))
 }
 
-function cursorIn(tablePath: Path, rowIndex: number, cellIndex: number): TextSelection {
+export function cursorIn(tablePath: Path, rowIndex: number, cellIndex: number): TextSelection {
   return new TextSelection(pos([...tablePath, rowIndex, cellIndex, 0], 0))
 }
 
@@ -134,6 +134,12 @@ function sumWidths(cells: readonly EditorNode[]): string | null {
 function shareWidth(value: unknown, parts: number): string | null {
   const width = widthParts(value)
   return width && parts > 0 ? widthOf(width.size / parts, width.unit) : null
+}
+
+/** A width cut to `part` of the `whole` columns it covered, for an uneven split. */
+export function scaleWidth(value: unknown, part: number, whole: number): string | null {
+  const width = widthParts(value)
+  return width && whole > 0 ? widthOf((width.size * part) / whole, width.unit) : null
 }
 
 export interface InsertTableOptions {

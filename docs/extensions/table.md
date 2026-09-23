@@ -32,7 +32,7 @@ replaces the base binding wholesale.
 
 | Area | Commands |
 | --- | --- |
-| Structure | `insertTable`, `addRow`, `addColumn`, `deleteRow`, `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `toggleHeaderRow`, `goToNextCell` |
+| Structure | `insertTable`, `addRow`, `addColumn`, `deleteRow`, `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `splitCellInto`, `toggleHeaderRow`, `goToNextCell` |
 | Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor` |
 | Data | `sortTable`, `convertTextToTable`, `convertTableToText`, `parseCSV`, `insertTableFromCSV`, `tableToCSV`, `csvAtSelection`, `detectDelimiter` |
 | Sizing | `createTableResizeHandles` for drag handles, plus `setColumnWidth`, `setRowHeight`, `setTableWidth`, `distributeColumnsEvenly`, `clearTableSizing` |
@@ -73,6 +73,30 @@ selection survives undo, redo and position mapping like any other.
 selected*: the highlight marks exactly what the commands act on, so the two
 cannot disagree.
 
+## Splitting cells
+
+`splitCellInto(columns)` is Word's Split Cells: every cell in the selection
+becomes that many cells, side by side. A merged cell shares out the columns it
+already spans. One that needs more adds them to the grid, and in every other
+row the cell standing there widens across them, so the rest of the table looks
+as it did. Each new cell keeps the split cell's formatting; the content stays
+in the first. *Table ▸ Split cells…* and the cell toolbar ask for the count.
+
+```ts
+editor.exec(splitCellInto(3))
+
+// A table with no widths set is laid out by the browser, so keeping its look
+// means reading it off the page. `tableUICommands({ editor })` does this for you.
+editor.exec(splitCellInto(2, { measure: measureCellShare(editor) }))
+```
+
+`splitCell` is still there, and still splits a merged cell straight back into
+the cells it came from, without asking how many.
+
+Word's dialog also asks for a number of rows. This one does not: splitting one
+cell into rows needs the cells beside it to span both, and the table model is
+columns only (below).
+
 ## Wiring the chrome
 
 `tableUICommands()` returns the set `createEditorUI` expects, which turns on
@@ -84,7 +108,7 @@ createEditorUI(editor, { container, tableCommands: tableUICommands() })
 
 ## Two decisions worth knowing
 
-**Cells merge across columns only.** `rowspan` is not in the model, which
+**Cells merge and split across columns only.** `rowspan` is not in the model, which
 keeps every row a flat list of cells and every structural edit simple
 arithmetic ([ADR-0006](../adr/0006-colspan-only-table-model)). A column move
 that would cut through a merged cell declines rather than silently rewriting

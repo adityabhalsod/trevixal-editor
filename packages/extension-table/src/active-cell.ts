@@ -78,7 +78,7 @@ export function highlightActiveCell(editor: Editor): () => void {
  * own path rather than taking the first one: a table nested in a cell would
  * otherwise hand back the inner cell for the outer one's path.
  */
-function cellElementAt(view: EditorView, cellPath: Path): HTMLElement | null {
+export function cellElementAt(view: EditorView, cellPath: Path): HTMLElement | null {
   const point = domPointFromPosition(view.dom, view.renderer, pos([...cellPath, 0], 0))
   if (!point) return null
 

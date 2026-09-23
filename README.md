@@ -224,7 +224,8 @@ exports · eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`,
 `A, B, C`, `i, ii, iii`, `I, II, III`) · restart and continue numbering.
 
 **Tables**: insert with a hover-to-size grid · add and delete rows and
-columns · merge and split cells · header row · per-cell alignment · cell
+columns · merge cells, and split them into any number of columns as Word does ·
+header row · per-cell alignment · cell
 background · border styles (all, outside, rows only, none) and border colour ·
 sort by column, ascending or descending · resize columns and rows by dragging ·
 distribute columns evenly · convert text to a table and back · import CSV ·
@@ -1909,7 +1910,7 @@ Grammar / Passive voice / Repeated words / Long sentences · Spell check ·
 Word count
 
 **Table**: Insert table · Row above · Row below · Delete row · Column left ·
-Column right · Delete column · Merge cells · Split cell · Header row · Cell
+Column right · Delete column · Merge cells · Split cells… · Header row · Cell
 background… · **Cell alignment ▸** Left / Center / Right / Default ·
 **Borders ▸** All / Outside only / Rows only / No borders / Border colour… ·
 **Sort by this column ▸** Ascending / Descending · Convert text to table ·

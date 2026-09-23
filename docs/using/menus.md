@@ -57,7 +57,7 @@ count
 ## Table
 
 Insert table · Row above · Row below · Delete row · Column left · Column right
-· Delete column · Merge cells · Split cell · Header row · Cell background... ·
+· Delete column · Merge cells · Split cells... · Header row · Cell background... ·
 **Cell alignment >** Left / Center / Right / Default · **Borders >** All /
 Outside only / Rows only / No borders / Border colour... · **Sort by this
 column >** Ascending / Descending · Convert text to table · Convert table to

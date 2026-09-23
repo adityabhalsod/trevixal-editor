@@ -1,4 +1,5 @@
-import type { Command, EditorState } from '@trevixal/core'
+import type { Command, Editor, EditorState } from '@trevixal/core'
+import { measureCellShare } from './cell-measure'
 import {
   addColumn,
   addRow,
@@ -30,6 +31,7 @@ import {
   setTableWidth,
 } from './resize'
 import type { CellAlign, TableBorders } from './schema'
+import { splitCellInto } from './split-cells'
 
 /**
  * The command bundle `@trevixal/ui`'s `createEditorUI` expects, so the UI
@@ -49,6 +51,8 @@ export interface TableUICommands {
   readonly deleteColumn: Command
   readonly mergeCells: Command
   readonly splitCell: Command
+  /** Word's Split Cells: each selected cell into this many columns. */
+  readonly splitCellInto: (columns: number) => Command
   readonly toggleHeaderRow: Command
   readonly deleteTable: Command
   readonly moveRowUp: Command
@@ -78,7 +82,17 @@ export interface TableUICommands {
   readonly csvAtSelection: (state: EditorState) => string | null
 }
 
-export function tableUICommands(): TableUICommands {
+export interface TableUICommandsOptions {
+  /**
+   * The editor the commands run in. With it, Split reads the table from the
+   * page so a table without set widths keeps its look; leave it out for
+   * commands that never touch a view.
+   */
+  readonly editor?: Editor
+}
+
+export function tableUICommands(options: TableUICommandsOptions = {}): TableUICommands {
+  const measure = options.editor ? measureCellShare(options.editor) : undefined
   return {
     insertTable: (rows, cols) => insertTable({ rows, cols }),
     addRowBefore: addRow('before'),
@@ -89,6 +103,7 @@ export function tableUICommands(): TableUICommands {
     deleteColumn,
     mergeCells,
     splitCell,
+    splitCellInto: (columns) => splitCellInto(columns, { measure }),
     toggleHeaderRow,
     deleteTable,
     moveRowUp: moveRow('up'),

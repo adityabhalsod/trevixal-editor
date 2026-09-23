@@ -59,7 +59,7 @@ const images = image(editor, {
 
 createEditorUI(editor, {
   container: chrome,
-  tableCommands: tableUICommands(),
+  tableCommands: tableUICommands({ editor }),
   images: {
     pickFiles: () => images.pickFiles(),
     insertImage: (attrs) => images.insertImage(attrs),
