@@ -343,4 +343,33 @@ describe('host hooks in the menus', () => {
     ui.destroy()
     editor.destroy()
   })
+
+  it('prints the document alone from Print…, never the page around it', () => {
+    const editor = mountEditor()
+    editor.setContent({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Only the document' }] }],
+    })
+    const pagePrint = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    const print = (ui: { element: HTMLElement }): void =>
+      ui.element.querySelector<HTMLButtonElement>('[data-trevixal-item="print"]')?.click()
+
+    // A host with no print of its own still gets the document, in a frame.
+    const bare = createEditorUI(editor, { container })
+    print(bare)
+    const frame = document.querySelector<HTMLIFrameElement>('.trevixal-print-frame')
+    expect(frame?.srcdoc ?? '').toContain('Only the document')
+    bare.destroy()
+
+    // A host's print wins: the assembled editor's is the one Ctrl+P and
+    // PDF (via print) already run, and it asks the restrictions first.
+    const exportPDF = vi.fn()
+    const ui = createEditorUI(editor, { container, fileActions: { exportPDF } })
+    print(ui)
+    expect(exportPDF).toHaveBeenCalledOnce()
+    expect(pagePrint).not.toHaveBeenCalled()
+    pagePrint.mockRestore()
+    ui.destroy()
+    editor.destroy()
+  })
 })

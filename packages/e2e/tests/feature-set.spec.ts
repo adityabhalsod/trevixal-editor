@@ -915,6 +915,41 @@ test.describe('downloading a document', () => {
     }
   })
 
+  test('prints the document alone from File ▸ Print, never the page around it', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      // Every window's print() reports what that window would put on paper:
+      // the page's own is the whole demo, the print frame's is its document.
+      await page.addInitScript(() => {
+        window.print = () => {
+          const top = window.top as Window & { printed?: string[] }
+          const paper = window === top ? 'the whole page' : (document.body.textContent ?? '')
+          top.printed = [...(top.printed ?? []), paper]
+        }
+      })
+      await page.goto(server.origin)
+      const printed = () =>
+        page.evaluate(() => (window as Window & { printed?: string[] }).printed ?? [])
+
+      await runMenuItem(page, 'file', 'print')
+      await expect.poll(printed).toHaveLength(1)
+      const [paper] = await printed()
+      expect(paper).toContain('Callouts')
+      expect(paper).not.toContain('Menubar, toolbar, dialogs and status bar')
+
+      // Under a print restriction the same entry prints nothing, and says why.
+      await runMenuItem(page, 'file', 'documentRestrictions')
+      await submitDialog(page, { print: true })
+      await runMenuItem(page, 'file', 'print')
+      await expect(page.locator('#security')).toContainText('Printing is blocked for this document')
+      expect(await printed()).toHaveLength(1)
+    } finally {
+      await server.close()
+    }
+  })
+
   test('writes Markdown that carries the document', async ({ page }) => {
     const server = await serveDist(distDir)
     try {

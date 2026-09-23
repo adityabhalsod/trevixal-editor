@@ -14,7 +14,9 @@ import {
   serializeToMarkdown,
   setLinkTarget,
 } from '@trevixal/core'
+import { collectDocumentCSS } from './collect-css'
 import { type DialogField, openCharacterPicker, openDialog } from './dialog'
+import { printDocument } from './documents'
 import { type FindReplace, createFindReplace } from './find-replace'
 import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
@@ -142,6 +144,11 @@ export interface FileActions {
   readonly importDocument?: () => void
   readonly exportSelection?: () => void
   readonly printPreview?: () => void
+  /**
+   * Print the document alone; the browser's print dialog is where the PDF
+   * comes from. File ▸ Print… runs this too, or prints the document itself
+   * when a host leaves it out.
+   */
   readonly exportPDF?: () => void
   readonly backups?: () => void
   /** Set (or lift) a password and expiry; `@trevixal/extension-security` does the crypto. */
@@ -885,6 +892,18 @@ function createActions(
       if (files.protectDocument) byName.set('downloadEncrypted', () => download('encrypted'))
     }
   }
+
+  // Print… prints the document alone, never the page around it. The host's
+  // print wins: the assembled editor's is the one Ctrl+P and PDF (via print)
+  // run, and it asks the document's restrictions before it opens anything.
+  const hostPrint = files?.exportPDF
+  byName.set(
+    'print',
+    hostPrint
+      ? () => hostPrint()
+      : (target) =>
+          printDocument(target, document, { styles: () => collectDocumentCSS({ document }) }),
+  )
 
   // Media, equations and diagrams.
   const embeds = options.embedCommands

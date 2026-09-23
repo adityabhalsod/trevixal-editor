@@ -116,13 +116,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'documentRestrictions', label: 'Restrictions…', icon: 'shield' },
         separator('file-sep-print'),
         { name: 'printPreview', label: 'Print preview…', icon: 'print' },
-        {
-          name: 'print',
-          label: 'Print…',
-          icon: 'print',
-          shortcut: 'Ctrl+P',
-          run: (editor) => editor.view?.dom.ownerDocument.defaultView?.print(),
-        },
+        { name: 'print', label: 'Print…', icon: 'print', shortcut: 'Ctrl+P' },
       ],
     },
     {
