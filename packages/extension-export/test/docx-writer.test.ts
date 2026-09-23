@@ -303,6 +303,73 @@ describe('tables', () => {
     )
   })
 
+  it('leaves out a line the Eraser took, on both cells that share it', async () => {
+    const rubbed = await readZip(
+      await serializeToDOCX(
+        doc(
+          table(
+            undefined,
+            row(cell('a', { hiddenBorders: 'right' }), cell('b')),
+            row(cell('c'), cell('d', { hiddenBorders: 'top bottom' })),
+          ),
+        ),
+      ),
+    )
+    const cells = parseXML(partText(rubbed, 'word/document.xml')).findAll('w:tc')
+    const nil = cells.map((tc) =>
+      (tc.find('w:tcBorders')?.children ?? []).filter(isXmlElement).map((side) => side.name),
+    )
+    // Word draws a shared line if either cell has it, so the neighbour of an
+    // erased side leaves out its own side of the line too.
+    expect(nil).toEqual([['w:right'], ['w:left', 'w:bottom'], [], ['w:top', 'w:bottom']])
+  })
+
+  it('spells a table style out for Word: lines, fills, header ink and its style options', async () => {
+    const styled = await readZip(
+      await serializeToDOCX(
+        doc(
+          table(
+            {
+              tableStyle: 'header',
+              accentColor: '#156082',
+              bandedRows: true,
+              totalRow: true,
+              borderStyle: 'dashed',
+              borderWidth: '1.5pt',
+            },
+            row(cell('Region', { header: true }), cell('Q1', { header: true })),
+            row(cell('North'), cell('1')),
+            row(cell('South'), cell('2')),
+            row(cell('Total'), cell('3')),
+          ),
+        ),
+      ),
+    )
+    const xml = partText(styled, 'word/document.xml')
+    // Every line with the pen, in the style's tint of its colour.
+    expect(xml).toContain('<w:insideH w:val="dashed" w:sz="12" w:space="0" w:color="96B7C7"/>')
+    // The header row filled with the accent, its words in white.
+    const cells = parseXML(xml).findAll('w:tc')
+    expect(cells[0]?.find('w:shd')?.attr('w:fill')).toBe('156082')
+    expect(cells[0]?.find('w:color')?.attr('w:val')).toBe('FFFFFF')
+    // The first row of the body is banded, the next is not.
+    expect(cells[2]?.find('w:shd')?.attr('w:fill')).toBe('DAE6EB')
+    expect(cells[4]?.find('w:shd')).toBeUndefined()
+    // The total row under Word's double rule, in bold.
+    expect(cells[6]?.find('w:tcBorders')?.find('w:top')?.attr('w:val')).toBe('double')
+    expect(cells[6]?.findAll('w:b').length).toBeGreaterThan(0)
+    expect(xml).toContain(
+      'w:firstRow="1" w:lastRow="1" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="1"',
+    )
+  })
+
+  it('writes a plain table exactly as before', async () => {
+    const plain = await readZip(await serializeToDOCX(doc(table(undefined, row(cell('x'))))))
+    const xml = partText(plain, 'word/document.xml')
+    expect(xml).not.toContain('<w:tblBorders>')
+    expect(xml).toContain('<w:tblLook w:val="04A0"')
+  })
+
   it('closes a cell whose last block is a nested table with an empty paragraph', async () => {
     const nested = await readZip(
       await serializeToDOCX(

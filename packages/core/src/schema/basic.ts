@@ -1,5 +1,6 @@
 import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
+import { storedNumberingsFor } from './list-numbering'
 
 const SAFE_PROTOCOLS = /^(?:https?|mailto|tel|ftp):/i
 
@@ -218,6 +219,23 @@ function parseListStyle(
 }
 
 /**
+ * Render a list's multilevel scheme as `data-numbering`, which the editor's
+ * stylesheet reads. Only a scheme this list type may store is written, so the
+ * attribute never carries anything but a known name.
+ */
+function numberingHTML(node: EditorNode): Record<string, string> {
+  const id = node.attrs.numbering
+  if (typeof id !== 'string' || !storedNumberingsFor(node.type.name).has(id)) return {}
+  return { 'data-numbering': id }
+}
+
+/** Read a multilevel scheme back from imported HTML, if this list type allows it. */
+function parseNumbering(element: HTMLElement, listTypeName: string): Record<string, unknown> {
+  const id = element.getAttribute('data-numbering')
+  return id !== null && storedNumberingsFor(listTypeName).has(id) ? { numbering: id } : {}
+}
+
+/**
  * The `<input type=checkbox>` a task item carries in pasted markdown, looked
  * up among the element's own children (or one wrapper paragraph deep). The
  * search is deliberately not a descendant one: a plain `<li>` holding a
@@ -400,18 +418,32 @@ export function defaultNodes(): Record<string, NodeSpec> {
     bulletList: {
       content: 'listItem+',
       group: 'block',
-      attrs: { listStyle: { default: null } },
-      toHTML: (node) => ({ tag: 'ul', attrs: listStyleHTML(node, BULLET_LIST_STYLES) }),
+      // `numbering` is the multilevel scheme for the whole tree this list
+      // roots; only the outermost list stores one (see list-numbering.ts).
+      attrs: { listStyle: { default: null }, numbering: { default: null } },
+      toHTML: (node) => ({
+        tag: 'ul',
+        attrs: { ...listStyleHTML(node, BULLET_LIST_STYLES), ...numberingHTML(node) },
+      }),
       parseHTML: [
-        { tag: 'ul', getAttrs: (element) => parseListStyle(element, BULLET_LIST_STYLES) },
+        {
+          tag: 'ul',
+          getAttrs: (element) => ({
+            ...parseListStyle(element, BULLET_LIST_STYLES),
+            ...parseNumbering(element, 'bulletList'),
+          }),
+        },
       ],
     },
     orderedList: {
       content: 'listItem+',
       group: 'block',
-      attrs: { start: { default: 1 }, listStyle: { default: null } },
+      attrs: { start: { default: 1 }, listStyle: { default: null }, numbering: { default: null } },
       toHTML: (node) => {
-        const attrs: Record<string, string> = listStyleHTML(node, ORDERED_LIST_STYLES)
+        const attrs: Record<string, string> = {
+          ...listStyleHTML(node, ORDERED_LIST_STYLES),
+          ...numberingHTML(node),
+        }
         if (node.attrs.start !== 1) attrs.start = String(node.attrs.start)
         return { tag: 'ol', attrs }
       },
@@ -423,6 +455,7 @@ export function defaultNodes(): Record<string, NodeSpec> {
             return {
               start: Number.isNaN(start) ? 1 : start,
               ...parseListStyle(element, ORDERED_LIST_STYLES),
+              ...parseNumbering(element, 'orderedList'),
             }
           },
         },

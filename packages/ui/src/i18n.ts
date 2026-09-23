@@ -1,5 +1,5 @@
 import { defaultMenus } from './menubar'
-import { defaultToolbarGroups } from './toolbar'
+import { QUICK_ACCESS_GROUP, defaultToolbarGroups } from './toolbar'
 
 /**
  * Translation for everything the kit puts on screen.
@@ -69,6 +69,8 @@ export function defaultMessages(): Messages {
     walkMenuItems(menu.items as readonly { name: string; label: string }[])
   }
 
+  // Built only when a host asks for it, so it is not among the defaults.
+  messages[`${TOOLBAR_GROUP_KEY}${QUICK_ACCESS_GROUP.name}`] = QUICK_ACCESS_GROUP.label
   for (const group of defaultToolbarGroups()) {
     if (group.label) messages[`${TOOLBAR_GROUP_KEY}${group.name}`] = group.label
     for (const item of group.items ?? []) {

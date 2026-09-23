@@ -1,7 +1,18 @@
-import type { EditorNode, Fragment, Mark, TextNode } from '@trevixal/core'
+import {
+  DEFAULT_LIST_NUMBERING,
+  type EditorNode,
+  type Fragment,
+  type ListNumberingScheme,
+  type Mark,
+  type TextNode,
+  levelMarker,
+  listNumberingOf,
+  listStylesFor,
+} from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
+  type CellSide,
   NODE,
   attrString,
   blockLayout,
@@ -9,6 +20,7 @@ import {
   decodeDataURL,
   extensionForMime,
   headingLevel,
+  hiddenCellSides,
   imageDimensions,
   listKind,
   listStart,
@@ -17,6 +29,13 @@ import {
   tableColumns,
   taskGlyph,
 } from './shared'
+import {
+  type CellLook,
+  type TableColors,
+  type TableLine,
+  type TableLook,
+  tableLook,
+} from './table-look'
 import { type DocumentPalette, type ThemeTokens, documentPalette } from './theme'
 import { EMU_PER_PX, lengthToHalfPoints, lengthToPx, lengthToTwips } from './units'
 import { escapeXML } from './xml'
@@ -77,13 +96,33 @@ interface Context {
   readonly relationships: string[]
   readonly media: { name: string; data: Uint8Array }[]
   readonly mediaExtensions: Set<string>
-  readonly numbers: string[]
+  readonly numbers: NumberingInstance[]
+  /** Each multilevel scheme the document uses, with its `w:abstractNum` id. */
+  readonly schemes: Map<ListNumberingScheme, number>
+  /** The page and ink a table style's tints are mixed against. */
+  readonly tableColors: TableColors
+  /** The colour a table line left to the default takes, as `w:color` wants it. */
+  readonly rule: string
   drawingId: number
+}
+
+/**
+ * One `w:num`. Word numbers the paragraphs that share one as a single list,
+ * which is what a multilevel scheme needs: a `1.1.` reads its parent's number
+ * only from the same instance.
+ */
+interface NumberingInstance {
+  readonly id: number
+  readonly abstractId: number
+  /** Per level: a number to restart at, and a `w:lvl` to use instead of the abstract's. */
+  readonly overrides: Map<number, { start?: number; lvl?: string }>
 }
 
 interface RunContext {
   readonly bold?: boolean
   readonly italic?: boolean
+  /** Ink for runs without a colour of their own, as `RRGGBB`: a styled table's header. */
+  readonly color?: string
 }
 
 /**
@@ -110,6 +149,13 @@ export async function serializeToDOCX(
     media: [],
     mediaExtensions: new Set(),
     numbers: [],
+    schemes: new Map(),
+    tableColors: {
+      page: parseColor(palette.background ? `#${palette.background}` : null) ?? WHITE,
+      ink: parseColor(palette.text ? `#${palette.text}` : null) ?? BLACK,
+    },
+    // `auto` asks Word to pick, and on a dark page it picks against the theme.
+    rule: palette.border ?? 'auto',
     drawingId: 0,
   }
   const body = writeBlocks(doc.content.children, context, {}).join('')
@@ -322,6 +368,9 @@ function styleHyperlink(palette: DocumentPalette): string {
 }
 const STYLE_TABLE_NORMAL =
   '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
+const WHITE = { r: 255, g: 255, b: 255 }
+const BLACK = { r: 0, g: 0, b: 0 }
+
 function styleTableGrid(palette: DocumentPalette): string {
   // `auto` asks Word to pick, and on a dark page it picks against the theme.
   const rule = palette.border ?? 'auto'
@@ -373,44 +422,191 @@ function stylesPart(font: string, basePt: number, palette: DocumentPalette): str
 
 const BULLETS = ['●', '○', '▪']
 
+/** The bullet a `list-style-type` keyword draws, as Word writes it. */
+const BULLET_GLYPHS: Readonly<Record<string, string>> = {
+  disc: '●',
+  circle: '○',
+  square: '▪',
+}
+
+/** A CSS counter style's Word `w:numFmt`. */
+const WORD_FORMATS: Readonly<Record<string, string>> = {
+  decimal: 'decimal',
+  'lower-alpha': 'lowerLetter',
+  'upper-alpha': 'upperLetter',
+  'lower-roman': 'lowerRoman',
+  'upper-roman': 'upperRoman',
+}
+
+/** Word's nine list levels, `w:ilvl` 0 to 8. */
+const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+
+/** Abstract ids 0 and 1 are the plain bullets and the default numbering. */
+const ABSTRACT_BULLETS = 0
+const ABSTRACT_NUMBERED = 1
+
+/** Room for a marker: the hanging indent between it and the text, in twips. */
+const HANGING = 360
+
+interface LevelOptions {
+  /** `w:isLgl`, Word's legal numbering: every part of an outline in decimal. */
+  readonly legal?: boolean
+  readonly hanging?: number
+}
+
+/** One `w:lvl`. */
+function levelXML(ilvl: number, format: string, text: string, options: LevelOptions = {}): string {
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+    options.legal ? '<w:isLgl/>' : ''
+  }<w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${
+    INDENT * (ilvl + 1)
+  }" w:hanging="${options.hanging ?? HANGING}"/></w:pPr></w:lvl>`
+}
+
+/**
+ * A scheme's level as Word writes it: `%2)`, `%1.%2.`, or a bullet's glyph.
+ *
+ * An outline number grows a part with every level, and one wider than its
+ * hanging indent pushes the text out to the next tab stop, which reads as a
+ * gap. So each level widens it by about one part, `1.`, at the body size.
+ */
+function schemeLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  const marker = levelMarker(scheme, ilvl)
+  if (scheme.listType === 'bulletList') return levelXML(ilvl, 'bullet', marker)
+  if (scheme.outline) {
+    const text = `${LEVELS.slice(0, ilvl + 1)
+      .map((level) => `%${level + 1}`)
+      .join('.')}.`
+    // A digit and a dot come to about 0.8em; in twips that is 16 per point.
+    const hanging = HANGING + ilvl * Math.round(basePt * 16)
+    return levelXML(ilvl, 'decimal', text, { legal: true, hanging })
+  }
+  return levelXML(ilvl, WORD_FORMATS[marker] ?? 'decimal', `%${ilvl + 1}${scheme.suffix}`)
+}
+
+/** A list's own marker style at its level, or null for a style Word has no word for. */
+function styleLevelXML(style: string, ilvl: number): string | null {
+  const bullet = BULLET_GLYPHS[style]
+  if (bullet) return levelXML(ilvl, 'bullet', bullet)
+  const format = WORD_FORMATS[style]
+  return format ? levelXML(ilvl, format, `%${ilvl + 1}.`) : null
+}
+
 function numberingPart(context: Context): string {
-  const level = (ilvl: number, format: string, text: string): string =>
-    `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/><w:lvlText w:val="${escapeXML(
-      text,
-    )}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${INDENT * (ilvl + 1)}" w:hanging="360"/></w:pPr></w:lvl>`
-  const levels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-  const bullets = levels
-    .map((ilvl) => level(ilvl, 'bullet', BULLETS[ilvl % BULLETS.length] as string))
-    .join('')
-  const decimals = levels.map((ilvl) => level(ilvl, 'decimal', `%${ilvl + 1}.`)).join('')
-  const abstract = (id: number, body: string): string =>
-    `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${body}</w:abstractNum>`
+  const abstract = (id: number, type: string, body: string): string =>
+    `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="${type}"/>${body}</w:abstractNum>`
+  const bullets = LEVELS.map((ilvl) =>
+    levelXML(ilvl, 'bullet', BULLETS[ilvl % BULLETS.length] as string),
+  ).join('')
+  const numbered = LEVELS.map((ilvl) =>
+    schemeLevelXML(DEFAULT_LIST_NUMBERING, ilvl, context.basePt),
+  ).join('')
+  // A scheme's levels depend on each other (`%1.%2.`), which is Word's
+  // `multilevel`; the two defaults number each level on its own.
+  const schemes = [...context.schemes].map(([scheme, id]) =>
+    abstract(
+      id,
+      'multilevel',
+      LEVELS.map((ilvl) => schemeLevelXML(scheme, ilvl, context.basePt)).join(''),
+    ),
+  )
   return [
     XML_HEADER,
     `<w:numbering xmlns:w="${NS.w}">`,
-    abstract(0, bullets),
-    abstract(1, decimals),
-    context.numbers.join(''),
+    abstract(ABSTRACT_BULLETS, 'hybridMultilevel', bullets),
+    abstract(ABSTRACT_NUMBERED, 'hybridMultilevel', numbered),
+    ...schemes,
+    context.numbers.map(numXML).join(''),
     '</w:numbering>',
   ].join('')
 }
 
-/**
- * Register a numbering instance for one list and return its `w:numId`. Every
- * ordered instance carries a `w:startOverride` on the level it uses: Word
- * treats `w:num` elements that share an abstract definition as one continuous
- * list unless the override is present, so without it a second ordered list
- * would carry on from where the first stopped.
- */
-function addNumbering(context: Context, ordered: boolean, start: number, level: number): number {
-  const id = context.numbers.length + 1
-  const override = ordered
-    ? `<w:lvlOverride w:ilvl="${level}"><w:startOverride w:val="${Math.max(0, start)}"/></w:lvlOverride>`
-    : ''
-  context.numbers.push(
-    `<w:num w:numId="${id}"><w:abstractNumId w:val="${ordered ? 1 : 0}"/>${override}</w:num>`,
-  )
+function numXML(instance: NumberingInstance): string {
+  const overrides = [...instance.overrides]
+    .sort(([a], [b]) => a - b)
+    .map(
+      ([ilvl, { start, lvl }]) =>
+        `<w:lvlOverride w:ilvl="${ilvl}">${
+          start === undefined ? '' : `<w:startOverride w:val="${Math.max(0, start)}"/>`
+        }${lvl ?? ''}</w:lvlOverride>`,
+    )
+    .join('')
+  return `<w:num w:numId="${instance.id}"><w:abstractNumId w:val="${instance.abstractId}"/>${overrides}</w:num>`
+}
+
+/** The `w:abstractNum` id of a scheme, defining it on first use. */
+function schemeAbstract(context: Context, scheme: ListNumberingScheme): number {
+  const known = context.schemes.get(scheme)
+  if (known !== undefined) return known
+  const id = ABSTRACT_NUMBERED + 1 + context.schemes.size
+  context.schemes.set(scheme, id)
   return id
+}
+
+/**
+ * Register a numbering instance. Every ordered instance carries a
+ * `w:startOverride` on the level it starts at: Word treats `w:num` elements
+ * that share an abstract definition as one continuous list unless the
+ * override is present, so without it a second ordered list would carry on
+ * from where the first stopped.
+ */
+function addNumbering(
+  context: Context,
+  abstractId: number,
+  level: number,
+  start: number | null,
+): NumberingInstance {
+  const instance: NumberingInstance = {
+    id: context.numbers.length + 1,
+    abstractId,
+    overrides: new Map(start === null ? [] : [[level, { start }]]),
+  }
+  context.numbers.push(instance)
+  return instance
+}
+
+/** The multilevel tree a list sits in, for the lists nested below it. */
+interface NumberingTree {
+  readonly instance: NumberingInstance
+  readonly listType: string
+}
+
+/**
+ * The instance a list's paragraphs use, and the tree lists below it continue.
+ *
+ * A list storing a scheme opens one instance for its whole tree, and every
+ * list of the same type below it joins that instance at its own level: Word
+ * then restarts each level after the one above, as the editor does, and a
+ * `1.1.` can read its parent's number. Any other list gets an instance of its
+ * own, as it always has. A list's own marker style replaces its level's.
+ */
+function listNumbering(
+  list: EditorNode,
+  ordered: boolean,
+  level: number,
+  tree: NumberingTree | null,
+  context: Context,
+): { instance: NumberingInstance; tree: NumberingTree | null } {
+  const scheme = listNumberingOf(list)
+  const start = ordered ? listStart(list) : null
+  let instance: NumberingInstance
+  let next = tree
+  if (scheme !== null && scheme !== DEFAULT_LIST_NUMBERING) {
+    instance = addNumbering(context, schemeAbstract(context, scheme), level, start)
+    next = { instance, listType: list.type.name }
+  } else if (tree?.listType === list.type.name) {
+    instance = tree.instance
+  } else {
+    instance = addNumbering(context, ordered ? ABSTRACT_NUMBERED : ABSTRACT_BULLETS, level, start)
+  }
+
+  const style = list.attrs.listStyle
+  const lvl =
+    typeof style === 'string' && listStylesFor(list.type.name).has(style)
+      ? styleLevelXML(style, level)
+      : null
+  if (lvl) instance.overrides.set(level, { ...instance.overrides.get(level), lvl })
+  return { instance, tree: next }
 }
 
 interface ParagraphProps {
@@ -530,19 +726,26 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   return out ? `<w:pPr>${out}</w:pPr>` : ''
 }
 
-function writeList(list: EditorNode, context: Context, run: RunContext, depth: number): string[] {
+function writeList(
+  list: EditorNode,
+  context: Context,
+  run: RunContext,
+  depth: number,
+  tree: NumberingTree | null = null,
+): string[] {
   const kind = listKind(list) ?? 'bullet'
   const out: string[] = []
   const level = Math.min(8, depth)
-  const numbering =
-    kind === 'task'
-      ? null
-      : { id: addNumbering(context, kind === 'ordered', listStart(list), level), level }
+  const numbered =
+    kind === 'task' ? null : listNumbering(list, kind === 'ordered', level, tree, context)
+  const numbering = numbered ? { id: numbered.instance.id, level } : null
+  // A task list carries no numbering of its own, but the tree around it goes on.
+  const below = numbered ? numbered.tree : tree
   for (const item of list.content.children) {
     const isTask = kind === 'task' || item.type.name === NODE.taskItem
     item.content.children.forEach((block, index) => {
       if (listKind(block)) {
-        out.push(...writeList(block, context, run, depth + 1))
+        out.push(...writeList(block, context, run, depth + 1, below))
         return
       }
       const props: ParagraphProps = { style: 'ListParagraph', indentLeft: INDENT * (depth + 1) }
@@ -565,44 +768,71 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
   const columns = tableColumns(table)
   const unit = Math.floor(TABLE_WIDTH / columns)
   const rows = table.content.children.filter((row) => row.type.name === NODE.tableRow)
-  const borders = attrString(table.attrs, 'borders')
-  const borderColor = parseColor(table.attrs.borderColor)
+  // Word has the style's look spelt out, since its own table style is the
+  // plain grid: the lines here, the fills and bold on each cell below.
+  const look = tableLook(table, context.tableColors)
   let tblPr = '<w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
-  if (borders === 'none') {
-    tblPr +=
-      '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
-  } else if (borderColor) {
-    const edge = (name: string): string =>
-      `<w:${name} w:val="single" w:sz="4" w:space="0" w:color="${toHex(borderColor)}"/>`
-    tblPr += `<w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-      .map(edge)
+  if (look.styled) {
+    const edges = look.edges
+    const sides = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as const
+    tblPr += `<w:tblBorders>${sides
+      .map((side) => (edges[side] ? border(side, look.line, context) : `<w:${side} w:val="nil"/>`))
       .join('')}</w:tblBorders>`
   }
-  tblPr +=
-    '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>'
+  tblPr += tableLookElement(table, look)
   const grid = Array.from({ length: columns }, () => `<w:gridCol w:w="${unit}"/>`).join('')
 
   const body = rows
-    .map((row) => {
+    .map((row, rowIndex) => {
       const cells = row.content.children.filter((cell) => cell.type.name === NODE.tableCell)
       const allHeader = cells.length > 0 && cells.every((cell) => cell.attrs.header === true)
       const trPr = allHeader ? '<w:trPr><w:tblHeader/></w:trPr>' : ''
-      const rendered = cells.map((cell) => writeCell(cell, context, run, unit)).join('')
+      const rendered = cells
+        .map((cell, cellIndex) => {
+          const hidden = hiddenCellSides(table, rowIndex, cellIndex)
+          return writeCell(cell, context, run, unit, hidden, look.cell(rowIndex, cellIndex))
+        })
+        .join('')
       return `<w:tr>${trPr}${rendered}</w:tr>`
     })
     .join('')
   return `<w:tbl><w:tblPr>${tblPr}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>${body}</w:tbl>`
 }
 
-function writeCell(cell: EditorNode, context: Context, run: RunContext, unit: number): string {
+function writeCell(
+  cell: EditorNode,
+  context: Context,
+  run: RunContext,
+  unit: number,
+  hidden: ReadonlySet<CellSide>,
+  look: CellLook,
+): string {
   const span = cellSpan(cell)
   let tcPr = `<w:tcW w:w="${unit * span}" w:type="dxa"/>`
   if (span > 1) tcPr += `<w:gridSpan w:val="${span}"/>`
-  const background = parseColor(cell.attrs.background)
-  if (background) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(background)}"/>`
+  // An erased line is `nil`, which wins over the table's own rule; a style's
+  // rule under the header or over the total row is drawn here in its place.
+  // The schema wants the sides in this order.
+  const rules: Readonly<Partial<Record<CellSide, TableLine>>> = {
+    ...(look.top ? { top: look.top } : {}),
+    ...(look.bottom ? { bottom: look.bottom } : {}),
+  }
+  const sides = (['top', 'left', 'bottom', 'right'] as const).flatMap((side) => {
+    if (hidden.has(side)) return [`<w:${side} w:val="nil"/>`]
+    const rule = rules[side]
+    return rule ? [border(side, rule, context)] : []
+  })
+  if (sides.length > 0) tcPr += `<w:tcBorders>${sides.join('')}</w:tcBorders>`
+  // The cell's own shading wins over its style's, as a direct format does in Word.
+  const fill = parseColor(cell.attrs.background) ?? look.fill
+  if (fill) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(fill)}"/>`
   const align = attrString(cell.attrs, 'align')
   const jc = align === 'center' || align === 'right' || align === 'left' ? align : undefined
-  const cellRun: RunContext = cell.attrs.header === true ? { ...run, bold: true } : run
+  const cellRun: RunContext = {
+    ...run,
+    ...(look.bold ? { bold: true } : {}),
+    ...(look.ink ? { color: toHex(look.ink) } : {}),
+  }
   const blocks = cell.content.children.flatMap((block) =>
     writeBlock(block, context, cellRun, jc ? { jc } : {}),
   )
@@ -610,6 +840,41 @@ function writeCell(cell: EditorNode, context: Context, run: RunContext, unit: nu
   const last = blocks[blocks.length - 1]
   if (!last || !last.endsWith('</w:p>')) blocks.push('<w:p/>')
   return `<w:tc><w:tcPr>${tcPr}</w:tcPr>${blocks.join('')}</w:tc>`
+}
+
+/** One edge of a table or cell, drawn with a line. Word weighs lines in eighths of a point. */
+function border(side: string, line: TableLine, context: Context): string {
+  const color = line.color ? toHex(line.color) : context.rule
+  return `<w:${side} w:val="${line.style}" w:sz="${Math.round(line.points * 8)}" w:space="0" w:color="${color}"/>`
+}
+
+/** Word's own Table Style Options, set to the table's, so they carry on if a Word style is applied. */
+function tableLookElement(table: EditorNode, look: TableLook): string {
+  // The plain grid keeps the look it has always been written with.
+  if (!look.styled) {
+    return '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>'
+  }
+  const firstRow = table.content.maybeChild(0)
+  const flags = {
+    firstRow: firstRow?.content.children.some((cell) => cell.attrs.header === true) ?? false,
+    lastRow: table.attrs.totalRow === true,
+    firstColumn: table.attrs.firstColumn === true,
+    lastColumn: table.attrs.lastColumn === true,
+    noHBand: table.attrs.bandedRows !== true,
+    noVBand: table.attrs.bandedColumns !== true,
+  }
+  // The same flags as the bitmask older readers go by.
+  const mask =
+    (flags.firstRow ? 0x20 : 0) |
+    (flags.lastRow ? 0x40 : 0) |
+    (flags.firstColumn ? 0x80 : 0) |
+    (flags.lastColumn ? 0x100 : 0) |
+    (flags.noHBand ? 0x200 : 0) |
+    (flags.noVBand ? 0x400 : 0)
+  const bits = Object.entries(flags)
+    .map(([name, on]) => ` w:${name}="${on ? 1 : 0}"`)
+    .join('')
+  return `<w:tblLook w:val="${mask.toString(16).toUpperCase().padStart(4, '0')}"${bits}/>`
 }
 
 /**
@@ -823,7 +1088,7 @@ function runProperties(
   let strike = false
   let smallCaps = false
   let font: string | null = null
-  let color: string | null = null
+  let color: string | null = run.color ?? null
   let size: number | null = null
   let spacing: number | null = null
   let highlight: string | null = null

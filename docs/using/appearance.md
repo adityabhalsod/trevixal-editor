@@ -26,7 +26,7 @@ bright white scrollbar.
 | --- | --- |
 | Focus mode | Dims everything but the paragraph you are in |
 | Typewriter scrolling | Keeps the caret line in place while you type |
-| Fullscreen | The editor takes the whole screen |
+| Fullscreen | The page alone, centred, across the whole screen: no menus, sidebar or banners. The slash menu, the palette and dialogs still open over it. `Esc` leaves |
 | Page view | Paginated A4, US Letter, US Legal or A5 with margins, or continuous |
 | Width | Narrow, normal, wide or full |
 | Read-only mode | Locks the surface without a password; see [Protecting a document](./protection) |
@@ -34,8 +34,9 @@ bright white scrollbar.
 ## Toolbar layout
 
 Drag a toolbar group by its grip, or pick it up with `Space` and move it with
-the arrow keys. *Help > Customize toolbar...* hides and shows groups. The order
-is remembered between sessions.
+the arrow keys. *Help > Customize toolbar...* hides and shows groups, and
+applies at once, without reloading the page. The order is remembered between
+sessions.
 
 ## For developers
 

@@ -1,4 +1,10 @@
-import type { Editor, EditorSnapshot } from '@trevixal/core'
+import {
+  type Editor,
+  type EditorSnapshot,
+  LIST_NUMBERING_SCHEMES,
+  listMarker,
+  listNumberingAt,
+} from '@trevixal/core'
 import { bindListNavigation, createDropdown } from './dropdown'
 import { createIcon } from './icons'
 
@@ -271,7 +277,143 @@ export function createTableGridControl(options: TableGridOptions): Control {
   }
 }
 
-function chevron(document: Document): HTMLElement {
+/** An entry in the multilevel list gallery. */
+export interface ListNumberingOption {
+  /** A scheme id for `setListNumbering`, or `none` to take the list apart. */
+  readonly value: string
+  readonly label: string
+  /** The first marker of each of the levels the tile previews. */
+  readonly markers: readonly string[]
+}
+
+/** The value of the gallery's "None" entry. */
+export const NO_LIST_NUMBERING = 'none'
+
+/** How many levels a gallery tile previews, as Word's do. */
+const PREVIEW_LEVELS = 3
+
+const SCHEME_LABELS: Readonly<Record<string, string>> = {
+  default: 'Numbers',
+  parenthesis: 'Numbers with parentheses',
+  outline: 'Outline numbers',
+  'roman-outline': 'Roman outline',
+  symbols: 'Symbol bullets',
+}
+
+/**
+ * The gallery Word offers under Multilevel List: None, then every scheme,
+ * each previewed by the first marker of its first three levels.
+ */
+export function defaultListNumberings(): readonly ListNumberingOption[] {
+  return [
+    { value: NO_LIST_NUMBERING, label: 'None', markers: [] },
+    ...LIST_NUMBERING_SCHEMES.map((scheme) => ({
+      value: scheme.id,
+      label: SCHEME_LABELS[scheme.id] ?? scheme.id,
+      markers: Array.from({ length: PREVIEW_LEVELS }, (_, level) =>
+        listMarker(
+          scheme,
+          Array.from({ length: level + 1 }, () => 1),
+        ),
+      ),
+    })),
+  ]
+}
+
+/**
+ * The gallery entry describing the selection: `none` outside a list, the
+ * tree's scheme inside one, and null for a list no entry describes (plain
+ * bullets, a task list), so that nothing claims to be current.
+ */
+export function currentListNumbering(editor: Editor, snapshot: EditorSnapshot): string | null {
+  if (snapshot.listType === null) return NO_LIST_NUMBERING
+  const { doc, selection } = editor.state
+  return listNumberingAt(doc, selection.from.path)?.id ?? null
+}
+
+export interface ListNumberingControlOptions {
+  readonly document: Document
+  readonly options: readonly ListNumberingOption[]
+  /** The entry describing the selection, for marking it; null marks none. */
+  readonly valueOf: (snapshot: EditorSnapshot) => string | null
+  readonly onSelect: (value: string) => void
+}
+
+/** Word's multilevel list gallery: a tile per scheme, drawn as it numbers. */
+export function createListNumberingControl(options: ListNumberingControlOptions): Control {
+  const { document } = options
+  const tiles = new Map<string, HTMLButtonElement>()
+  let releaseNavigation: (() => void) | null = null
+
+  const dropdown = createDropdown({
+    document,
+    className: 'trevixal-listgallery',
+    render: (panel, self) => {
+      panel.setAttribute('aria-label', 'Multilevel list')
+      const grid = document.createElement('div')
+      grid.className = 'trevixal-listgallery__grid'
+      for (const option of options.options) {
+        const tile = document.createElement('button')
+        tile.type = 'button'
+        tile.className = 'trevixal-listgallery__tile'
+        tile.dataset.value = option.value
+        const name =
+          option.markers.length > 0 ? `${option.label}: ${option.markers.join(' ')}` : option.label
+        tile.setAttribute('aria-label', name)
+        tile.title = name
+        tile.setAttribute('aria-pressed', 'false')
+        if (option.markers.length === 0) {
+          const none = document.createElement('span')
+          none.className = 'trevixal-listgallery__none'
+          none.textContent = option.label
+          tile.appendChild(none)
+        }
+        option.markers.forEach((marker, level) => {
+          const row = document.createElement('span')
+          row.className = 'trevixal-listgallery__row'
+          row.style.setProperty('--tvx-level', String(level))
+          const glyph = document.createElement('span')
+          glyph.className = 'trevixal-listgallery__marker'
+          glyph.textContent = marker
+          const line = document.createElement('span')
+          line.className = 'trevixal-listgallery__line'
+          row.append(glyph, line)
+          tile.appendChild(row)
+        })
+        tile.addEventListener('click', () => {
+          self.close()
+          options.onSelect(option.value)
+        })
+        grid.appendChild(tile)
+        tiles.set(option.value, tile)
+      }
+      panel.appendChild(grid)
+      releaseNavigation = bindListNavigation(panel)
+    },
+  })
+
+  const icon = createIcon(document, 'multilevelList')
+  if (icon) dropdown.trigger.appendChild(icon)
+  dropdown.trigger.appendChild(chevron(document))
+  dropdown.trigger.setAttribute('aria-label', 'Multilevel list')
+
+  return {
+    element: dropdown.element,
+    refresh(snapshot) {
+      const value = options.valueOf(snapshot)
+      for (const [candidate, tile] of tiles) {
+        tile.setAttribute('aria-pressed', String(candidate === value))
+      }
+    },
+    destroy() {
+      releaseNavigation?.()
+      dropdown.destroy()
+    },
+  }
+}
+
+/** The small down-arrow a dropdown trigger ends with. */
+export function chevron(document: Document): HTMLElement {
   const wrapper = document.createElement('span')
   wrapper.className = 'trevixal-dropdown__chevron'
   const icon = createIcon(document, 'chevronDown')

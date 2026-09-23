@@ -1,4 +1,4 @@
-import type { ShortcutAction } from '@trevixal/ui'
+import { type ShortcutAction, isApplePlatform } from '@trevixal/ui'
 
 /**
  * What the shortcut list can do, as verbs.
@@ -24,12 +24,37 @@ export interface ShortcutContext {
   toggleSplitEditor(): void
 }
 
+/** What the defaults depend on: the keys a platform or a browser keeps for itself. */
+export interface ShortcutPlatform {
+  /** ⌘ and ⌥, where ⌥ never types in a chord with ⌘. */
+  readonly apple: boolean
+  /** Firefox, which keeps Ctrl+Shift+P for a private window and never offers it to a page. */
+  readonly firefox: boolean
+}
+
+/** The platform this page is running on. */
+export function currentShortcutPlatform(): ShortcutPlatform {
+  return {
+    apple: isApplePlatform(),
+    firefox: typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent),
+  }
+}
+
 /**
  * Every shortcut the chrome advertises, in one list. The manager owns the
  * keys, so what a menu prints is what actually fires, and the user can
  * rebind any of it from Help ▸ Keyboard shortcuts.
+ *
+ * Off a Mac, Ctrl+Alt is AltGr on most keyboards but the US one: Ctrl+Alt+E
+ * types é on a UK keyboard and € on a German one, Ctrl+Alt+2 types ² or @.
+ * The key the browser reports is then that character, and a shortcut that
+ * took it would stop the user typing it, so it never matches. Every default
+ * a user reaches for daily therefore has a first key without Ctrl+Alt.
  */
-export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
+export function shortcutActions(
+  context: ShortcutContext,
+  platform: ShortcutPlatform = currentShortcutPlatform(),
+): ShortcutAction[] {
   const {
     flushAutosave,
     newDocument,
@@ -74,11 +99,94 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       run: (e) => e.commands.toggleMark('code'),
     },
     {
+      name: 'strikethrough',
+      label: 'Strikethrough',
+      group: 'Format',
+      keys: 'Mod-Shift-x',
+      run: (e) => e.commands.toggleMark('strikethrough'),
+    },
+    {
       name: 'clearAllFormatting',
       label: 'Clear all formatting',
       group: 'Format',
       keys: 'Mod-\\',
       run: (e) => e.commands.clearAllFormatting(),
+    },
+    // Google Docs' paragraph keys rather than Word's: Word's were made for a
+    // desktop app, and in a browser they collide (Ctrl+E is inline code here,
+    // Ctrl+L the address bar). The names are the menu entries', so the menus
+    // print these beside Heading 2, Numbered list and Align center.
+    //
+    // Docs puts the styles on Ctrl+Alt+0 to 6, which AltGr takes (see above),
+    // so off a Mac Ctrl+Shift+0 to 6 comes first, the same family as
+    // Ctrl+Shift+7, 8 and 9 for the lists, and Docs' key second. A Mac keeps
+    // ⌘⌥ alone: ⌘⇧3, 4 and 5 are its screenshot keys.
+    {
+      name: 'styleParagraph',
+      label: 'Normal text',
+      group: 'Paragraph',
+      ...paragraphKeys(0, platform),
+      run: (e) => e.commands.setParagraph(),
+    },
+    ...([1, 2, 3, 4, 5, 6] as const).map(
+      (level): ShortcutAction => ({
+        name: `styleHeading${level}`,
+        label: `Heading ${level}`,
+        group: 'Paragraph',
+        ...paragraphKeys(level, platform),
+        run: (e) => e.commands.setHeading(level),
+      }),
+    ),
+    {
+      name: 'listOrdered',
+      label: 'Numbered list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-7',
+      run: (e) => e.commands.toggleOrderedList(),
+    },
+    {
+      name: 'listBullet',
+      label: 'Bullet list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-8',
+      run: (e) => e.commands.toggleBulletList(),
+    },
+    {
+      name: 'listTask',
+      label: 'Task list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-9',
+      run: (e) => e.commands.toggleTaskList(),
+    },
+    ...(
+      [
+        ['left', 'Align left', 'l'],
+        ['center', 'Align center', 'e'],
+        ['right', 'Align right', 'r'],
+        ['justify', 'Justify', 'j'],
+      ] as const
+    ).map(
+      ([align, label, key]): ShortcutAction => ({
+        name: `align${align}`,
+        label,
+        group: 'Paragraph',
+        keys: `Mod-Shift-${key}`,
+        run: (e) => e.commands.setTextAlign(align),
+      }),
+    ),
+    {
+      name: 'indentMore',
+      label: 'Increase indent',
+      group: 'Paragraph',
+      keys: 'Mod-]',
+      run: (e) => e.commands.indent(),
+    },
+    {
+      name: 'indentLess',
+      label: 'Decrease indent',
+      group: 'Paragraph',
+      keys: 'Mod-[',
+      run: (e) => e.commands.outdent(),
     },
     {
       name: 'undo',
@@ -141,8 +249,9 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       group: 'Tools',
       keys: 'Mod-k',
       // The checklist promises both; a second binding is what makes that true
-      // rather than a menu label nobody can trigger.
-      alternateKeys: 'Mod-Shift-p',
+      // rather than a menu label nobody can trigger. Not in Firefox, where the
+      // browser opens a private window on it before the page hears a thing.
+      alternateKeys: platform.firefox ? null : 'Mod-Shift-p',
       run: () => openPalette(),
     },
     {
@@ -158,7 +267,10 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       name: 'insertEmoji',
       label: 'Emoji picker',
       group: 'Insert',
-      keys: 'Mod-Shift-e',
+      // Space, the key the Mac's own picker uses (⌃⌘Space); the key name is
+      // the space after the last dash. Not Ctrl+Alt+E, which AltGr turns into
+      // é or €, and not Mod-Shift-e, which centres the paragraph as in Docs.
+      keys: 'Mod-Shift- ',
       run: () => void pickEmoji(),
     },
     {
@@ -226,4 +338,14 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       run: () => toggleSplitEditor(),
     },
   ]
+}
+
+/** A paragraph style's keys: ⌘⌥ on a Mac, Ctrl+Shift then Google Docs' Ctrl+Alt elsewhere. */
+function paragraphKeys(
+  digit: number,
+  platform: ShortcutPlatform,
+): Pick<ShortcutAction, 'keys' | 'alternateKeys'> {
+  return platform.apple
+    ? { keys: `Mod-Alt-${digit}`, alternateKeys: null }
+    : { keys: `Mod-Shift-${digit}`, alternateKeys: `Mod-Alt-${digit}` }
 }

@@ -1,10 +1,13 @@
 # Every menu command
 
-The stock menu tree of `@trevixal/ui`, with the default shortcut label where
-one is printed. A host that supplies a shortcut manager decides the labels
-instead (the assembled editor prints `Ctrl+Shift+K` for *Insert > Link*,
-since `Ctrl+K` belongs to the palette there). Entries the host has not wired
-do not appear at all; see [Why is a menu entry missing?](../contributing/faq#why-is-a-menu-entry-missing).
+The stock menu tree of `@trevixal/ui`, with the key the assembled editor
+prints beside each entry: its shortcut manager's, which is what fires, and
+they follow a rebind. A Mac prints ⌘ and ⌥ where these say Ctrl and Alt, and
+takes ⌘⌥0 to 6 for the paragraph styles. Without a shortcut manager a menu
+prints only the keys the engine answers itself: Undo, Redo, Cut, Copy, Paste,
+Select all, Bold, Italic, Underline, Line break, and the palette's `Ctrl+K`.
+Entries the host has not wired do not appear at all; see
+[Why is a menu entry missing?](../contributing/faq#why-is-a-menu-entry-missing).
 
 ## File
 
@@ -12,19 +15,19 @@ New document `Ctrl+Alt+N` · Open... `Ctrl+O` · Save `Ctrl+S` · **Download as
 >** Web page (.html) / Markdown (.md) / Plain text (.txt) / Trevixal JSON
 (.json) / Word document (.docx) / Rich text (.rtf) / PDF (via print) /
 Encrypted document (.tvx) · Download selection... · Import a file... · Local
-backups... · Protect with password... · Restrictions... · Print preview... ·
+backups... · Protect with password... `Ctrl+Alt+P` · Restrictions... · Print preview... ·
 Print... `Ctrl+P`
 
 ## Edit
 
-Undo `Ctrl+Z` · Redo `Ctrl+Y` · Cut `Ctrl+X` · Copy `Ctrl+C` · Paste `Ctrl+V`
+Undo `Ctrl+Z` · Redo `Ctrl+Shift+Z`, `Ctrl+Y` · Cut `Ctrl+X` · Copy `Ctrl+C` · Paste `Ctrl+V`
 · Paste without formatting · **Change case >** UPPERCASE / lowercase / Title
 Case · Find and replace... `Ctrl+F` · Select all `Ctrl+A`
 
 ## Insert
 
-Image... · Link... `Ctrl+K` · Remove link · Horizontal rule · Line break
-`Shift+Enter` · Special character... · Emoji... · Video... · Audio... · Embed
+Image... · Link... `Ctrl+Shift+K` · Remove link · Horizontal rule · Line break
+`Shift+Enter` · Special character... · Emoji... `Ctrl+Shift+Space` · Video... · Audio... · Embed
 a link... · Link preview card... · File attachment... · Equation... · Display
 equation... · Diagram · **Callout >** Info / Success / Warning / Danger / Note
 · Toggle block · **Columns >** 2 / 3 / 4 columns · Card · Timeline · **Tabs >**
@@ -33,16 +36,19 @@ Citation... · References list · Renumber citations · Page break
 
 ## Format
 
-Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` · Strikethrough ·
-**Formats >** Superscript / Subscript / Code / Small caps / Highlight ·
-**Paragraph styles >** Paragraph / Heading 1 to 6 / Quote / Code block ·
-**Align >** Left / Center / Right / Justify · **Indentation >** Increase /
-Decrease · **Line height >** Default / Single / 1.15 / 1.5 / Double ·
+Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` · Strikethrough
+`Ctrl+Shift+X` · **Formats >** Superscript / Subscript / Code `Ctrl+E` / Small
+caps / Highlight · **Paragraph styles >** Paragraph `Ctrl+Shift+0`,
+`Ctrl+Alt+0` / Heading 1 to 6 `Ctrl+Shift+1` to `6`, `Ctrl+Alt+1` to `6` /
+Quote / Code block · **Align >** Left / Center / Right / Justify
+`Ctrl+Shift+L` / `E` / `R` / `J` · **Indentation >** Increase `Ctrl+]` /
+Decrease `Ctrl+[` · **Line height >** Default / Single / 1.15 / 1.5 / Double ·
 **Paragraph spacing >** before and after none / small / medium / large, then
 space before none / medium / large, then space after none / medium / large ·
-**Letter spacing >** Normal / Tight / Wide / Wider · **Lists >** Bullet /
-Numbered / Task, eight list styles, Restart numbering, Continue numbering ·
-Format painter · Clear text formatting · Clear all formatting
+**Letter spacing >** Normal / Tight / Wide / Wider · **Lists >** Bullet
+`Ctrl+Shift+8` / Numbered `Ctrl+Shift+7` / Task `Ctrl+Shift+9`, eight list
+styles, Restart numbering, Continue numbering, five multilevel lists ·
+Format painter · Clear text formatting · Clear all formatting `Ctrl+\`
 
 ## Tools
 
@@ -55,21 +61,33 @@ count
 
 ## Table
 
-Insert table · Row above · Row below · Delete row · Column left · Column right
-· Delete column · Merge cells · Split cell · Header row · Cell background... ·
-**Cell alignment >** Left / Center / Right / Default · **Borders >** All /
-Outside only / Rows only / No borders / Border colour... · **Sort by this
-column >** Ascending / Descending · Convert text to table · Convert table to
-text · Import CSV... · Copy as CSV · Distribute columns evenly · Reset column
-sizes · Delete table
+Insert table · Draw table · Eraser · Border painter · Row above · Row below ·
+Delete row · Column left · Column right · Delete column · Merge cells · Split
+cells... · **Table style >** Table grid / Grid / Blue grid ... Lime grid /
+Header / Blue header ... Lime header · **Style options >** Header row / Total
+row / Banded rows / First column / Last column / Banded columns · Cell
+background... · **Cell alignment >** Left / Center / Right / Default ·
+**Borders >** All / Outside only / Rows only / No borders / Border colour... ·
+**Line style >** Solid / Dashed / Dotted / Double · **Line weight >** ½ pt /
+1½ pt / 2¼ pt / 3 pt · **Sort by this column >** Ascending / Descending ·
+Convert text to table · Convert table to text · Import CSV... · Copy as CSV ·
+**AutoFit >** AutoFit contents / AutoFit window / Fixed column width ·
+Distribute rows evenly · Distribute columns evenly · Reset column sizes ·
+Delete table
+
+Draw table, Eraser and Border painter are tools rather than commands: picking
+one hands it to the pointer, and the entry shows a tick until you pick it
+again or press `Escape`. The table style, style options, line style and line
+weight entries tick what the table at the caret has.
 
 ## View
 
 **Theme >** Light / Dark / Match the system / Sepia / Nord / Solarized / High
 contrast / Midnight / Custom theme... / Custom CSS... · Add a font... · Focus
-mode · Typewriter scrolling · Fullscreen · Page view · Table of contents ·
-Document outline · History · Documents · Side-by-side preview · Split editor
-· Narrow / Normal / Wide / Full width · Read-only mode · Suggesting mode
+mode `Ctrl+Shift+F` · Typewriter scrolling · Fullscreen `Ctrl+Shift+Enter` ·
+Page view · Table of contents · Document outline · History · Documents ·
+Side-by-side preview · Split editor `Ctrl+Alt+S` · Narrow / Normal / Wide /
+Full width · Read-only mode · Suggesting mode
 
 Every entry in this menu that switches something on shows a tick while it is
 on; the theme and the width each behave as one radio group.

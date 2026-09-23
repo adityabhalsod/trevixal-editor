@@ -1,6 +1,8 @@
-import type { Editor } from '@trevixal/core'
-import { createDropdown } from './dropdown'
+import type { Editor, EditorSnapshot } from '@trevixal/core'
+import { rankItems } from './command-palette'
+import { bindListNavigation, createDropdown } from './dropdown'
 import { type IconName, createIcon } from './icons'
+import type { Menu, MenuItem } from './menubar'
 import type { ToolbarItem } from './toolbar'
 
 /**
@@ -94,10 +96,17 @@ export interface QuickInsertItem {
   readonly group?: string
   readonly description?: string
   readonly run: (editor: Editor) => void
+  /** False where the entry cannot apply, which leaves it out of the list. */
+  readonly isEnabled?: (snapshot: EditorSnapshot) => boolean
 }
 
 export interface QuickInsertOptions {
-  readonly items: readonly QuickInsertItem[]
+  /**
+   * The entries on offer. Pass a function to have them collected each time
+   * the list opens, as {@link quickInsertItemsFromMenus} over menus built
+   * after the toolbar is.
+   */
+  readonly items: readonly QuickInsertItem[] | (() => readonly QuickInsertItem[])
   readonly label?: string
   readonly placeholder?: string
   /** Called after an item runs, so a usage tracker can record it. */
@@ -108,6 +117,9 @@ export interface QuickInsertOptions {
  * A single toolbar button opening a searchable list of everything insertable,
  * the "+" every modern editor has. It is a toolbar control, so it lives in
  * a group and travels with it when the bar is rearranged.
+ *
+ * Keyboard first: the search box takes focus as it opens, Enter inserts the
+ * best match, and the arrow keys walk the list.
  */
 export function createQuickInsertControl(
   editor: Editor,
@@ -116,28 +128,41 @@ export function createQuickInsertControl(
 ): { element: HTMLElement; refresh(): void; destroy(): void } {
   let search: HTMLInputElement | null = null
   let list: HTMLElement | null = null
+  /** What the list shows, best match first: Enter in the search box takes the top one. */
+  let shown: readonly QuickInsertItem[] = []
+  let releaseNavigation: (() => void) | null = null
+
+  const choose = (item: QuickInsertItem): void => {
+    dropdown.close()
+    item.run(editor)
+    options.onRun?.(item)
+    editor.view?.focus()
+  }
 
   const render = (query: string): void => {
     if (!list) return
     list.replaceChildren()
-    const needle = query.trim().toLowerCase()
-    const matches = options.items.filter(
-      (item) =>
-        needle.length === 0 ||
-        item.label.toLowerCase().includes(needle) ||
-        (item.group ?? '').toLowerCase().includes(needle) ||
-        (item.description ?? '').toLowerCase().includes(needle),
-    )
-    if (matches.length === 0) {
+    const every = typeof options.items === 'function' ? options.items() : options.items
+    const snapshot = editor.getSnapshot()
+    const usable = every.filter((item) => item.isEnabled?.(snapshot) ?? true)
+    shown = rankItems(usable, query, (item) => [
+      item.label,
+      item.group ?? '',
+      item.description ?? '',
+    ])
+    if (shown.length === 0) {
       const empty = document.createElement('p')
       empty.className = 'trevixal-quickinsert__empty'
       empty.textContent = 'Nothing matches'
       list.appendChild(empty)
       return
     }
+    // Headings group the list while browsing. A search ranks it, best match
+    // first, and headings over a ranked list would repeat as it interleaves.
+    const browsing = query.trim().length === 0
     let group: string | null = null
-    for (const item of matches) {
-      if (item.group && item.group !== group) {
+    for (const item of shown) {
+      if (browsing && item.group && item.group !== group) {
         group = item.group
         const heading = document.createElement('div')
         heading.className = 'trevixal-quickinsert__heading'
@@ -161,12 +186,7 @@ export function createQuickInsertControl(
         button.appendChild(description)
       }
       button.addEventListener('mousedown', (event) => event.preventDefault())
-      button.addEventListener('click', () => {
-        dropdown.close()
-        item.run(editor)
-        options.onRun?.(item)
-        editor.view?.focus()
-      })
+      button.addEventListener('click', () => choose(item))
       list.appendChild(button)
     }
   }
@@ -177,16 +197,30 @@ export function createQuickInsertControl(
     render: (panel) => {
       panel.setAttribute('role', 'menu')
       panel.setAttribute('aria-label', options.label ?? 'Quick insert')
-      search = document.createElement('input')
-      search.type = 'search'
-      search.className = 'trevixal-quickinsert__search'
-      search.placeholder = options.placeholder ?? 'Search…'
-      search.setAttribute('aria-label', 'Search things to insert')
-      search.addEventListener('input', () => render(search?.value ?? ''))
-      list = document.createElement('div')
-      list.className = 'trevixal-quickinsert__list'
-      panel.append(search, list)
-      render('')
+      const input = document.createElement('input')
+      input.type = 'search'
+      input.className = 'trevixal-quickinsert__search'
+      input.placeholder = options.placeholder ?? 'Search…'
+      input.setAttribute('aria-label', 'Search things to insert')
+      input.addEventListener('input', () => render(input.value))
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          const best = shown[0]
+          if (best) choose(best)
+        } else if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          list?.querySelector<HTMLElement>('button')?.focus()
+        }
+      })
+      const items = document.createElement('div')
+      items.className = 'trevixal-quickinsert__list'
+      releaseNavigation = bindListNavigation(items)
+      panel.append(input, items)
+      search = input
+      list = items
+      // Nothing is listed until the first open: a function of menus can be
+      // asked for them only once they exist.
     },
     onOpen: () => {
       if (search) {
@@ -199,17 +233,52 @@ export function createQuickInsertControl(
   })
   dropdown.trigger.setAttribute('aria-label', options.label ?? 'Quick insert')
   dropdown.trigger.title = options.label ?? 'Quick insert'
-  const glyph = createIcon(document, 'specialChar')
+  const glyph = createIcon(document, 'quickInsert')
   if (glyph) dropdown.trigger.appendChild(glyph)
   else dropdown.trigger.textContent = '+'
 
   return {
     element: dropdown.element,
     refresh() {
-      if (search) render(search.value)
+      if (search && dropdown.isOpen) render(search.value)
     },
-    destroy: () => dropdown.destroy(),
+    destroy: () => {
+      releaseNavigation?.()
+      dropdown.destroy()
+    },
   }
+}
+
+/**
+ * Quick-insert entries from wired menus: every entry they offer, with a
+ * submenu's entries named after it ("Callout: Info"), since the list shows
+ * side by side what the menu nested. Entries with no `run` were never wired
+ * by the host and are left out, as the palette leaves them out.
+ */
+export function quickInsertItemsFromMenus(menus: readonly Menu[]): QuickInsertItem[] {
+  const items: QuickInsertItem[] = []
+  const seen = new Set<string>()
+  const walk = (entries: readonly MenuItem[], parent: string | null): void => {
+    for (const entry of entries) {
+      if (entry.separator) continue
+      if (entry.items) {
+        walk(entry.items, entry.label)
+        continue
+      }
+      const run = entry.run
+      if (!run || !entry.label || seen.has(entry.name)) continue
+      seen.add(entry.name)
+      items.push({
+        name: entry.name,
+        label: parent ? `${parent}: ${entry.label}` : entry.label,
+        ...(entry.icon ? { icon: entry.icon } : {}),
+        ...(entry.isEnabled ? { isEnabled: entry.isEnabled } : {}),
+        run: (target) => run(target),
+      })
+    }
+  }
+  for (const menu of menus) walk(menu.items, null)
+  return items
 }
 
 export interface RecentToolsOptions {
@@ -224,7 +293,11 @@ export interface RecentToolsOptions {
 /**
  * A tray of the tools this user actually reaches for: their pinned
  * favourites first, then what they used last. Right-clicking a button pins
- * or unpins it, which is how every dock people already know behaves.
+ * or unpins it, which is how every dock people already know behaves, and
+ * Shift+F10 or the menu key does the same from the keyboard.
+ *
+ * Its buttons carry `data-trevixal-recent`, not the bar's `data-trevixal-item`,
+ * so looking a tool up by name still finds the real button.
  */
 export function createRecentToolsControl(
   editor: Editor,
@@ -236,6 +309,16 @@ export function createRecentToolsControl(
   root.setAttribute('role', 'group')
   root.setAttribute('aria-label', options.label ?? 'Favourite and recent tools')
   const limit = options.limit ?? 6
+  let buttons: { item: ToolbarItem; element: HTMLButtonElement }[] = []
+
+  /** Show each tool's state the way the bar shows it: pressed, or unavailable. */
+  const paint = (): void => {
+    const snapshot = editor.getSnapshot()
+    for (const { item, element } of buttons) {
+      if (item.isActive) element.setAttribute('aria-pressed', String(item.isActive(snapshot)))
+      element.disabled = item.isEnabled ? !item.isEnabled(snapshot) : false
+    }
+  }
 
   const build = (): void => {
     const usage = options.tracker.usage
@@ -244,23 +327,24 @@ export function createRecentToolsControl(
       ...usage.recent.filter((name) => !usage.favorites.includes(name)),
     ].slice(0, limit)
     root.replaceChildren()
-    root.hidden = names.length === 0
+    buttons = []
     for (const name of names) {
       const item = options.items.get(name)
       if (!item) continue
       const button = document.createElement('button')
       button.type = 'button'
       button.className = 'trevixal-toolbar__button trevixal-recenttools__button'
-      button.dataset.trevixalItem = name
-      if (options.tracker.isFavorite(name)) button.dataset.trevixalFavorite = 'true'
+      button.dataset.trevixalRecent = name
+      const pinned = options.tracker.isFavorite(name)
+      if (pinned) button.dataset.trevixalFavorite = 'true'
       const icon = item.icon ? createIcon(document, item.icon) : null
       if (icon) button.appendChild(icon)
       else button.textContent = item.label
       const label = item.ariaLabel ?? item.label
       button.setAttribute('aria-label', label)
-      button.title = options.tracker.isFavorite(name)
-        ? `${label} (pinned, right-click to unpin)`
-        : `${label} (right-click to pin)`
+      button.title = pinned
+        ? `${label} (pinned: right-click or Shift+F10 to unpin)`
+        : `${label} (right-click or Shift+F10 to pin)`
       button.tabIndex = -1
       button.addEventListener('mousedown', (event) => event.preventDefault())
       button.addEventListener('click', (event) => item.run(editor, event))
@@ -269,14 +353,17 @@ export function createRecentToolsControl(
         options.tracker.toggleFavorite(name)
       })
       root.appendChild(button)
+      buttons.push({ item, element: button })
     }
+    root.hidden = buttons.length === 0
+    paint()
   }
 
   build()
   const unsubscribe = options.tracker.subscribe(build)
   return {
     element: root,
-    refresh: build,
+    refresh: paint,
     destroy() {
       unsubscribe()
       root.remove()
@@ -300,6 +387,8 @@ export interface CustomizeToolbarOptions {
  */
 export function openCustomizeToolbarDialog(options: CustomizeToolbarOptions): Promise<void> {
   const { document } = options
+  // Where focus was, to hand it back when the dialog closes.
+  const previouslyFocused = document.activeElement as HTMLElement | null
   const overlay = document.createElement('div')
   overlay.className = 'trevixal-dialog-overlay'
   const dialog = document.createElement('div')
@@ -324,7 +413,12 @@ export function openCustomizeToolbarDialog(options: CustomizeToolbarOptions): Pr
   ]
   const shown = new Set(options.visible)
 
-  const render = (): void => {
+  /**
+   * Rebuild the list. A move rebuilds it under the button just pressed, so
+   * `moved` names the group and direction to give focus back to: the same
+   * arrow, or the other one once the group reaches an end.
+   */
+  const render = (moved?: { readonly name: string; readonly up: boolean }): void => {
     list.replaceChildren()
     order.forEach((name, index) => {
       const group = options.groups.find((entry) => entry.name === name)
@@ -354,7 +448,7 @@ export function openCustomizeToolbarDialog(options: CustomizeToolbarOptions): Pr
         const previous = order[index - 1] as string
         order[index - 1] = name
         order[index] = previous
-        render()
+        render({ name, up: true })
       })
       const down = document.createElement('button')
       down.type = 'button'
@@ -366,10 +460,16 @@ export function openCustomizeToolbarDialog(options: CustomizeToolbarOptions): Pr
         const next = order[index + 1] as string
         order[index + 1] = name
         order[index] = next
-        render()
+        render({ name, up: false })
       })
       item.append(label, up, down)
       list.appendChild(item)
+      if (moved?.name === name) {
+        const pressed = moved.up ? up : down
+        const other = moved.up ? down : up
+        const target = pressed.disabled ? other : pressed
+        target.focus()
+      }
     })
   }
   render()
@@ -400,6 +500,7 @@ export function openCustomizeToolbarDialog(options: CustomizeToolbarOptions): Pr
       settled = true
       document.removeEventListener('keydown', onKeyDown, true)
       overlay.remove()
+      if (previouslyFocused?.isConnected) previouslyFocused.focus?.({ preventScroll: true })
       resolve()
     }
     const onKeyDown = (event: KeyboardEvent): void => {

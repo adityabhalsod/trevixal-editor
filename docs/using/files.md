@@ -14,7 +14,7 @@ file actually contains.
 | Import a file... | File > Import a file | The same importers; the assembled editor replaces the document as one undo step (`importFile` can also insert at the caret with `mode: 'insert'`) |
 | Local backups... | File > Local backups | Rolling snapshots to restore from |
 | Print preview... | File > Print preview | The page as it will print, in its theme |
-| Print... | File > Print (`Ctrl+P`) | The browser's print dialog; choose "Save as PDF" for a PDF |
+| Print... | File > Print (`Ctrl+P`) | The browser's print dialog, for the document alone rather than the page around it; choose "Save as PDF" for a PDF |
 
 ## Autosave and backups
 

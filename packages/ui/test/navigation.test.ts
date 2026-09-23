@@ -428,6 +428,73 @@ describe('command palette', () => {
     editor.destroy()
   })
 
+  it('steps over rows that cannot run', () => {
+    const editor = mountEditor('<p>hi</p>')
+    const off = (name: string, label: string) => ({
+      name,
+      label,
+      run: vi.fn(),
+      isEnabled: () => false,
+    })
+    const palette = createCommandPalette(editor, {
+      commands: [off('first', 'Off first'), ...commands(), off('last', 'Off last')],
+      container,
+    })
+    palette.open()
+    const input = palette.element.querySelector<HTMLInputElement>('.trevixal-palette__input')!
+    const selectedLabel = () =>
+      palette.element.querySelector('.trevixal-palette__item--selected .trevixal-palette__label')
+        ?.textContent
+    // The first row that can run, not the disabled one above it.
+    expect(selectedLabel()).toBe('Bold')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+    expect(selectedLabel()).toBe('Insert Table') // wrapped, past both disabled rows
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    expect(selectedLabel()).toBe('Bold')
+    palette.destroy()
+    editor.destroy()
+  })
+
+  it('lists what was run last first, until something is typed', () => {
+    const editor = mountEditor('<p>hi</p>')
+    const list = commands()
+    const onRecent = vi.fn()
+    const palette = createCommandPalette(editor, {
+      commands: list,
+      container,
+      // `gone` names a command this session does not offer: kept, not shown.
+      recent: ['table', 'gone'],
+      onRecent,
+    })
+    const input = palette.element.querySelector<HTMLInputElement>('.trevixal-palette__input')!
+    const headings = () =>
+      [...palette.element.querySelectorAll('.trevixal-palette__group')].map(
+        (row) => row.textContent,
+      )
+    const labels = () =>
+      [...palette.element.querySelectorAll('.trevixal-palette__label')].map(
+        (row) => row.textContent,
+      )
+    palette.open()
+    expect(headings()[0]).toBe('Recently used')
+    // Listed once, first, rather than again under its own menu.
+    expect(labels()).toEqual(['Insert Table', 'Bold', 'Bullet List'])
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(list[0]?.run).toHaveBeenCalledOnce()
+    expect(onRecent).toHaveBeenLastCalledWith(['bold', 'table', 'gone'])
+
+    palette.open()
+    expect(labels().slice(0, 2)).toEqual(['Bold', 'Insert Table'])
+    input.value = 'bul'
+    input.dispatchEvent(new Event('input'))
+    // A search ranks everything; the recent heading would only get in the way.
+    expect(headings()).not.toContain('Recently used')
+    palette.destroy()
+    editor.destroy()
+  })
+
   it('closes on Escape', () => {
     const editor = mountEditor('<p>hi</p>')
     const palette = createCommandPalette(editor, { commands: commands(), container })
@@ -510,6 +577,14 @@ describe('palette commands derived from menus', () => {
     expect(save?.group).toBe('File')
   })
 
+  it('prints the keys a shortcut manager says fire, as the menus do', () => {
+    const labelled = paletteCommandsFromMenus(menus, { save: 'Ctrl+Alt+S' })
+    expect(labelled.find((entry) => entry.name === 'save')?.shortcut).toBe('Ctrl+Alt+S')
+    // A manager that knows nothing of an entry prints nothing beside it.
+    const unknown = paletteCommandsFromMenus(menus, {})
+    expect(unknown.find((entry) => entry.name === 'save')?.shortcut).toBeUndefined()
+  })
+
   it('skips entries with no action and never offers one twice', () => {
     const names = paletteCommandsFromMenus(menus).map((entry) => entry.name)
     expect(names).not.toContain('unwired')
@@ -542,12 +617,79 @@ describe('view modes', () => {
     const editor = mountEditor('<p>hi</p>')
     const target = document.createElement('div')
     document.body.appendChild(target)
-    ;(target as unknown as { requestFullscreen: () => Promise<void> }).requestFullscreen = () =>
+    const page = document.documentElement as unknown as { requestFullscreen?: () => Promise<void> }
+    page.requestFullscreen = () =>
       Promise.reject(new Error('API can only be initiated by a user gesture'))
 
     const toggle = createFullscreenToggle(editor, { target, container })
     expect(await toggle.enter()).toBe(true)
     expect(target.classList.contains('trevixal-fullscreen')).toBe(true)
+    // The browser was refused, so it will not say how to leave; the hint does.
+    expect(target.querySelector('.trevixal-fullscreen__hint')).not.toBeNull()
+    toggle.destroy()
+    Reflect.deleteProperty(page, 'requestFullscreen')
+    editor.destroy()
+  })
+
+  it('takes the whole page fullscreen, so what opens on <body> still shows', async () => {
+    const editor = mountEditor('<p>hi</p>')
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    // happy-dom has neither half of the API, so both are stood in for here.
+    let fullscreenElement: Element | null = null
+    const page = document.documentElement as unknown as { requestFullscreen?: () => Promise<void> }
+    page.requestFullscreen = vi.fn(async () => {
+      fullscreenElement = document.documentElement
+    })
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => fullscreenElement,
+    })
+    const toggle = createFullscreenToggle(editor, { target, container })
+    try {
+      await toggle.enter()
+      expect(page.requestFullscreen).toHaveBeenCalledOnce()
+      expect(target.classList.contains('trevixal-fullscreen')).toBe(true)
+      // The browser shows its own notice for its own fullscreen.
+      expect(target.querySelector('.trevixal-fullscreen__hint')).toBeNull()
+
+      // Escape there is the browser's: all the page hears is the change.
+      fullscreenElement = null
+      document.dispatchEvent(new Event('fullscreenchange'))
+      await Promise.resolve()
+      expect(toggle.isFullscreen).toBe(false)
+      expect(target.classList.contains('trevixal-fullscreen')).toBe(false)
+    } finally {
+      toggle.destroy()
+      Reflect.deleteProperty(document, 'fullscreenElement')
+      Reflect.deleteProperty(page, 'requestFullscreen')
+      editor.destroy()
+    }
+  })
+
+  it('leaves the fallback on Escape, and says so on the way in', async () => {
+    const editor = mountEditor('<p>hi</p>')
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    const toggle = createFullscreenToggle(editor, { target, container })
+    const escapeKey = (): KeyboardEvent =>
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+
+    await toggle.enter()
+    // The browser tells you how to leave its own fullscreen; the fallback has to.
+    expect(target.querySelector('.trevixal-fullscreen__hint')?.textContent).toContain('Esc')
+    document.dispatchEvent(escapeKey())
+    await Promise.resolve()
+    expect(toggle.isFullscreen).toBe(false)
+    expect(target.querySelector('.trevixal-fullscreen__hint')).toBeNull()
+
+    // An Escape something else already answered, closing a popup, stays in.
+    await toggle.enter()
+    const answered = escapeKey()
+    answered.preventDefault()
+    document.dispatchEvent(answered)
+    await Promise.resolve()
+    expect(toggle.isFullscreen).toBe(true)
     toggle.destroy()
     editor.destroy()
   })

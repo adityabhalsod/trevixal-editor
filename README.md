@@ -216,16 +216,26 @@ after, separately) · indentation · alignment (left, centre, right, justify) ·
 small caps · case conversion (`UPPERCASE`, `lowercase`, `Title Case`) · clear
 text formatting, clear all formatting · format painter.
 
-**Lists and tasks**: bulleted, numbered and task (checkbox) lists · nesting ·
-eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`, `A, B, C`,
-`i, ii, iii`, `I, II, III`) · restart and continue numbering.
+**Lists and tasks**: bulleted, numbered and task (checkbox) lists · nesting,
+numbered by level as Word does (`1.` then `a.` then `i.`) · a multilevel list
+gallery (`1) a) i)`, `1. 1.1. 1.1.1.`, `I. A. 1.`, `❖ ➢ ▪`) that numbers the
+whole tree, levels indented later included, in the editor and in Word and RTF
+exports · eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`,
+`A, B, C`, `i, ii, iii`, `I, II, III`) · restart and continue numbering.
 
-**Tables**: insert with a hover-to-size grid · add and delete rows and
-columns · merge and split cells · header row · per-cell alignment · cell
-background · border styles (all, outside, rows only, none) and border colour ·
-sort by column, ascending or descending · resize columns and rows by dragging ·
-distribute columns evenly · convert text to a table and back · import CSV ·
-copy as CSV · `Tab` and `Shift+Tab` between cells.
+**Tables**: insert with a hover-to-size grid, or draw one with Word's Draw
+table pencil and split its cells by drawing lines · add and delete rows and
+columns · merge cells, and split them into any number of columns as Word does ·
+header row · per-cell alignment · cell
+background · Word's Table Design: a gallery of table styles, the six table
+style options (header row, total row, banded rows, first and last column,
+banded columns) and a border pen (line style, weight and colour) · border
+styles (all, outside, rows only, none) · an Eraser that takes out any one line
+of a cell, and a Border Painter that puts it back · sort by column, ascending or
+descending · resize columns and rows by dragging · AutoFit to the contents or
+the window, or fixed column widths · distribute rows and columns evenly ·
+convert text to a table and back · import CSV · copy as CSV · `Tab` and
+`Shift+Tab` between cells.
 
 **Media**: drag-and-drop, paste or pick images · upload to **your** storage
 with progress and cancellation · resize by dragging · crop and rotate ·
@@ -249,12 +259,13 @@ previewed live under the code that defines them · LaTeX equations, inline
 draft recovery after a crash · rolling local backups you can go back to ·
 tracked changes and suggesting mode with a review bar.
 
-**Keyboard and productivity**: command palette (`Ctrl+K` or `Ctrl+Shift+P`)
-· slash commands (`/table`, `/image`, `/code` …) · emoji shortcodes (`:smi`)
-· a keyboard shortcut manager where every advertised key is real and
-rebindable · quick insert · recently used tools · favourite tools · a toolbar
-whose groups you rearrange by dragging, and can hide · focus mode · typewriter
-scrolling · fullscreen.
+**Keyboard and productivity**: command palette (`Ctrl+K`, or `Ctrl+Shift+P` outside Firefox),
+opening on what you ran last · slash commands (`/table`, `/image`, `/todo` …)
+· emoji shortcodes (`:smi`) · a keyboard shortcut manager where every
+advertised key is real and rebindable, with Google Docs' paragraph keys
+(headings, lists, alignment) · quick insert · recently used and pinned tools ·
+a toolbar whose groups you rearrange by dragging, and can hide · focus mode ·
+typewriter scrolling · a distraction-free fullscreen.
 
 **Files**: open and save `.html`, `.md`, `.txt`, native `.json`, `.docx`,
 `.rtf` and encrypted `.tvx` · import Word documents and Markdown · download
@@ -709,7 +720,7 @@ where a key is bound, the shortcut printed beside it. The full tree is in
 **Toolbar.** Twelve groups: block format, line height and paragraph spacing · font and size · text style
 (bold, italic, underline, strikethrough, inline code, superscript, subscript,
 small caps, letter spacing, change case) · lists (bullet, numbered, task,
-list style, restart numbering, indent, outdent) · alignment · colours ·
+list style, multilevel list, restart numbering, indent, outdent) · alignment · colours ·
 insert (link, unlink, image, table grid, quote, rule) · format painter ·
 blocks (callout and columns pickers) · code (code block, copy, format JSON,
 format XML, minify) · tools (find, contents, outline, palette, focus,
@@ -722,7 +733,7 @@ shows groups.
 type `:` and a few letters for emoji. Both filter as you type, move with the
 arrow keys, pick with Enter and close with Escape.
 
-**Command palette.** `Ctrl+K` (or `Ctrl+Shift+P`) opens a searchable list of
+**Command palette.** `Ctrl+K` (or `Ctrl+Shift+P`, outside Firefox) opens a searchable list of
 every menu command, with its icon, menu and shortcut. The list is built from
 the menus as actually wired, so it can never drift out of step with them.
 
@@ -1272,8 +1283,9 @@ createEditor(options: EditorOptions): Editor
 `indent`, `outdent`, `setBlockAttrs`, `setBlockType`, `setParagraph`,
 `setHeading`, `splitBlock`, `joinBackward`, `insertHardBreak`,
 `insertHorizontalRule`, `wrapIn`, `toggleBulletList`, `toggleOrderedList`,
-`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `restartNumbering`,
-`continueNumbering`, `continueNumberingFromPrevious`, `splitListItem`,
+`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `setListNumbering`,
+`unwrapList`, `restartNumbering`, `continueNumbering`,
+`continueNumberingFromPrevious`, `splitListItem`,
 `sinkListItem`, `liftListItem`, `setCodeBlock`, `lift`, `selectAll`, `undo`,
 `redo`. Each returns `boolean`.
 
@@ -1314,8 +1326,9 @@ exported as plain functions too: `toggleMark`, `setBlockType`, `wrapIn`,
 `lift`, `splitBlock`, `joinBackward`, `joinForward`, `deleteSelection`,
 `insertText`, `insertContent`, `insertBlockAfter`, `insertInlineNode`,
 `toggleList`, `splitListItem`, `sinkListItem`, `liftListItem`,
-`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `restartNumbering`,
-`continueNumbering`, `setTextAlign`, `indentBlocks`, `convertCase`,
+`toggleTaskList`, `toggleTaskChecked`, `setListStyle`, `setListNumbering`,
+`unwrapList`, `listNumberingAt`, `restartNumbering`, `continueNumbering`,
+`setTextAlign`, `indentBlocks`, `convertCase`,
 `toggleSmallCaps`, `setLetterSpacing`, `setLineHeight`,
 `setParagraphSpacing`, `clearFormatting`, `clearAllFormatting`, `selectAll`,
 the code-block set (`typeInPreformatted`, `insertNewlineInPreformatted`,
@@ -1358,6 +1371,16 @@ schema claims them.
 `link`, `highlight`, `subscript`, `superscript`, `fontFamily`, `fontSize`,
 `textColor`, `backgroundColor`, `smallCaps`, `letterSpacing`.
 `LIST_STYLES`, `BULLET_LIST_STYLES`, `ORDERED_LIST_STYLES`, `listStylesFor`.
+
+Multilevel list numbering: `LIST_NUMBERING_SCHEMES` (`default` 1. a. i.,
+`parenthesis` 1) a) i), `outline` 1. 1.1. 1.1.1., `roman-outline` I. A. 1.,
+`symbols` ❖ ➢ ▪), `DEFAULT_LIST_NUMBERING`, `listNumberingScheme`,
+`listNumberingOf`, `storedNumbering`, `storedNumberingsFor`, `levelMarker`,
+`listMarker`, `formatListCounter`. A scheme is stored once, in the outermost
+list's `numbering` attr (written as `data-numbering`), and every list nested
+under it takes the marker for its depth, so an item indented later follows it
+with nothing written to the new list. The Word and RTF writers and the
+toolbar gallery all read this one table.
 
 ### View
 
@@ -1884,7 +1907,7 @@ Increase / Decrease · **Line height ▸** Default / Single / 1.15 / 1.5 / Doubl
 then space before none / medium / large, then space after none / medium /
 large · **Letter spacing ▸** Normal / Tight / Wide / Wider · **Lists ▸**
 Bullet / Numbered / Task, eight list styles, Restart numbering, Continue
-numbering · Format painter · Clear text formatting · Clear all formatting
+numbering, five multilevel lists · Format painter · Clear text formatting · Clear all formatting
 
 **Tools**: Find and replace… `Ctrl+F` · Command palette… `Ctrl+K` · Table of
 contents · Document outline · Source code… · Markdown source… · Edit as
@@ -1893,13 +1916,18 @@ Markdown · Edit as HTML · Format JSON · Format XML · Minify · Copy code blo
 Grammar / Passive voice / Repeated words / Long sentences · Spell check ·
 Word count
 
-**Table**: Insert table · Row above · Row below · Delete row · Column left ·
-Column right · Delete column · Merge cells · Split cell · Header row · Cell
-background… · **Cell alignment ▸** Left / Center / Right / Default ·
-**Borders ▸** All / Outside only / Rows only / No borders / Border colour… ·
-**Sort by this column ▸** Ascending / Descending · Convert text to table ·
-Convert table to text · Import CSV… · Copy as CSV · Distribute columns evenly
-· Reset column sizes · Delete table
+**Table**: Insert table · Draw table · Eraser · Border painter · Row above ·
+Row below · Delete row · Column left · Column right · Delete column · Merge
+cells · Split cells… · **Table style ▸** Table grid / Grid / Blue grid … /
+Header / Blue header … · **Style options ▸** Header row / Total row / Banded
+rows / First column / Last column / Banded columns · Cell background… ·
+**Cell alignment ▸** Left / Center / Right / Default · **Borders ▸** All /
+Outside only / Rows only / No borders / Border colour… · **Line style ▸**
+Solid / Dashed / Dotted / Double · **Line weight ▸** ½ pt / 1½ pt / 2¼ pt /
+3 pt · **Sort by this column ▸** Ascending / Descending · Convert text to
+table · Convert table to text · Import CSV… · Copy as CSV · **AutoFit ▸**
+AutoFit contents / AutoFit window / Fixed column width · Distribute rows evenly
+· Distribute columns evenly · Reset column sizes · Delete table
 
 **View**: **Theme ▸** Light / Dark / Match the system / Sepia / Nord /
 Solarized / High contrast / Midnight / Custom theme… / Custom CSS… · Add a
@@ -1937,13 +1965,21 @@ rebindable there.
 | Key | Action | | Key | Action |
 | --- | --- | --- | --- | --- |
 | `Mod+\` | Clear all formatting | | `Mod+X` / `Mod+C` / `Mod+V` | Cut / copy / paste (native) |
+| `Mod+Shift+X` | Strikethrough | | `Mod+Shift+0`, `Mod+Alt+0` | Normal text |
+| `Mod+Shift+1` to `6`, `Mod+Alt+1` to `6` | Heading 1 to 6 | | `Mod+Shift+7` / `8` / `9` | Numbered / bullet / task list |
+| `Mod+Shift+L` / `E` / `R` / `J` | Align left / center / right / justify | | `Mod+]` / `Mod+[` | Increase / decrease indent |
 | `Mod+A` | Select all | | `Mod+F` | Find and replace |
-| `Mod+K` · `Mod+Shift+P` | Command palette | | `Mod+Shift+K` | Insert link |
-| `Mod+Shift+E` | Emoji picker | | `Shift+Enter` | Line break |
+| `Mod+K`, `Mod+Shift+P` (not in Firefox) | Command palette | | `Mod+Shift+K` | Insert link |
+| `Mod+Shift+Space` | Emoji picker | | `Shift+Enter` | Line break |
 | `Mod+Alt+N` | New document | | `Mod+S` | Save now |
 | `Mod+O` | Open a file | | `Mod+P` | Print |
 | `Mod+Alt+P` | Protect with password | | `Mod+Shift+F` | Focus mode |
 | `Mod+Shift+Enter` | Fullscreen | | `Mod+Alt+S` | Split editor |
+
+Off a Mac, `Ctrl+Alt` is AltGr on most keyboards but the US one, and types a
+character (`Ctrl+Alt+E` is é or €) rather than reaching the editor, so the
+everyday keys have a first binding without it. On a Mac the paragraph styles
+are `⌘⌥0` to `6`. Details on [Shortcuts](https://trevixal-editor.vercel.app/using/shortcuts).
 
 **In context**
 

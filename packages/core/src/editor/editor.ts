@@ -32,12 +32,14 @@ import {
   continueNumberingFromPrevious,
   liftListItem,
   restartNumbering,
+  setListNumbering,
   setListStyle,
   sinkListItem,
   splitListItem,
   toggleList,
   toggleTaskChecked,
   toggleTaskList,
+  unwrapList,
 } from '../commands/lists'
 import { ADD_TO_HISTORY, History, type HistoryEntry, type HistoryOptions } from '../history/history'
 import type { InputRule } from '../input-rules/input-rules'
@@ -660,6 +662,16 @@ export class EditorCommands {
   /** Set the marker style of the list at the selection; `null` clears it. */
   setListStyle(style: string | null): boolean {
     return this.editor.exec(setListStyle(style))
+  }
+
+  /** Number the list tree at the selection with a multilevel scheme, by id. */
+  setListNumbering(schemeId: string): boolean {
+    return this.editor.exec(setListNumbering(schemeId))
+  }
+
+  /** Take the list at the selection apart into plain paragraphs. */
+  unwrapList(): boolean {
+    return this.editor.exec(unwrapList)
   }
 
   restartNumbering(): boolean {

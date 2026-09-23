@@ -1,8 +1,17 @@
 import type { Editor, EditorSnapshot } from '@trevixal/core'
+import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
-import type { ShortcutLabels } from './shortcuts'
+import { type ShortcutLabels, formatShortcut, parseShortcut } from './shortcuts'
+import {
+  TABLE_LINE_STYLE_ENTRIES,
+  TABLE_LINE_WEIGHT_ENTRIES,
+  TABLE_STYLE_OPTION_ENTRIES,
+  type TableDesignEntry,
+  type TableStyleTile,
+  tableStyleEntryName,
+} from './table-design'
 
 /** One entry in a menu. A `separator` draws a rule and takes no action. */
 export interface MenuItem {
@@ -55,19 +64,35 @@ export interface Menubar {
 
 const separator = (name: string): MenuItem => ({ name, label: '', separator: true })
 
+/** Menu entries for a set of Table design choices. */
+const designEntries = <Value>(entries: readonly TableDesignEntry<Value>[]): MenuItem[] =>
+  entries.map(({ entry, label, icon }) => ({ name: entry, label, icon }))
+
+export interface DefaultMenusOptions {
+  /**
+   * The table package's styles gallery, `tableUICommands().tableStyles`.
+   * With it, Table ▸ Table style lists every style; `createEditorUI` passes
+   * it on from its `tableCommands`.
+   */
+  readonly tableStyles?: readonly TableStyleTile[]
+}
+
 /**
  * The stock menu set. Pass your own `menus` to add, remove or reorder.
  * Nothing here is special-cased by {@link createMenubar}.
  */
-export function defaultMenus(): readonly Menu[] {
+export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[] {
+  const tableStyles = options.tableStyles ?? []
   return [
     {
       name: 'file',
       label: 'File',
       items: [
-        { name: 'newDocument', label: 'New document', icon: 'fileNew', shortcut: 'Ctrl+Alt+N' },
-        { name: 'openDocument', label: 'Open…', icon: 'folderOpen', shortcut: 'Ctrl+O' },
-        { name: 'saveDocument', label: 'Save', icon: 'save', shortcut: 'Ctrl+S' },
+        // No key beside these by default: nothing binds one without a shortcut
+        // manager, and Ctrl+O, Ctrl+S and Ctrl+P would reach the browser's own.
+        { name: 'newDocument', label: 'New document', icon: 'fileNew' },
+        { name: 'openDocument', label: 'Open…', icon: 'folderOpen' },
+        { name: 'saveDocument', label: 'Save', icon: 'save' },
         separator('file-sep-export'),
         {
           name: 'downloadAs',
@@ -93,13 +118,7 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'documentRestrictions', label: 'Restrictions…', icon: 'shield' },
         separator('file-sep-print'),
         { name: 'printPreview', label: 'Print preview…', icon: 'print' },
-        {
-          name: 'print',
-          label: 'Print…',
-          icon: 'print',
-          shortcut: 'Ctrl+P',
-          run: (editor) => editor.view?.dom.ownerDocument.defaultView?.print(),
-        },
+        { name: 'print', label: 'Print…', icon: 'print' },
       ],
     },
     {
@@ -158,7 +177,7 @@ export function defaultMenus(): readonly Menu[] {
           ],
         },
         separator('edit-sep-find'),
-        { name: 'findReplace', label: 'Find and replace…', icon: 'search', shortcut: 'Ctrl+F' },
+        { name: 'findReplace', label: 'Find and replace…', icon: 'search' },
         {
           name: 'selectAll',
           icon: 'selectAll',
@@ -173,7 +192,7 @@ export function defaultMenus(): readonly Menu[] {
       label: 'Insert',
       items: [
         { name: 'insertImage', label: 'Image…', icon: 'image' },
-        { name: 'insertLink', label: 'Link…', icon: 'link', shortcut: 'Ctrl+K' },
+        { name: 'insertLink', label: 'Link…', icon: 'link' },
         {
           name: 'removeLink',
           label: 'Remove link',
@@ -549,6 +568,19 @@ export function defaultMenus(): readonly Menu[] {
               run: (editor) => editor.commands.continueNumberingFromPrevious(),
               isEnabled: (snapshot) => snapshot.listType === 'orderedList',
             },
+            separator('list-sep-multilevel'),
+            // The toolbar gallery's schemes, by name. Its "None" is already
+            // here, as toggling a list off.
+            ...defaultListNumberings()
+              .filter((option) => option.value !== NO_LIST_NUMBERING)
+              .map((option) => ({
+                name: `listNumbering-${option.value}`,
+                label: `${option.label}: ${option.markers.join(' ')}`,
+                icon: 'multilevelList' as IconName,
+                run: (editor: Editor) => editor.commands.setListNumbering(option.value),
+                // A task list keeps its checkboxes, so no scheme applies there.
+                isEnabled: (snapshot: EditorSnapshot) => snapshot.listType !== 'taskList',
+              })),
           ],
         },
         separator('format-sep-2'),
@@ -571,7 +603,7 @@ export function defaultMenus(): readonly Menu[] {
       name: 'tools',
       label: 'Tools',
       items: [
-        { name: 'findReplace', label: 'Find and replace…', icon: 'search', shortcut: 'Ctrl+F' },
+        { name: 'findReplace', label: 'Find and replace…', icon: 'search' },
         {
           name: 'commandPalette',
           label: 'Command palette…',
@@ -615,6 +647,9 @@ export function defaultMenus(): readonly Menu[] {
       label: 'Table',
       items: [
         { name: 'insertTable', label: 'Insert table', icon: 'table' },
+        { name: 'drawTable', label: 'Draw table', icon: 'tableDraw' },
+        { name: 'tableEraser', label: 'Eraser', icon: 'tableEraser' },
+        { name: 'borderPainter', label: 'Border painter', icon: 'borderPainter' },
         separator('table-sep-1'),
         { name: 'addRowBefore', icon: 'tableRowAbove', label: 'Row above' },
         { name: 'addRowAfter', icon: 'tableRowBelow', label: 'Row below' },
@@ -625,8 +660,29 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'deleteColumn', icon: 'tableColumnDelete', label: 'Delete column' },
         separator('table-sep-3'),
         { name: 'mergeCells', icon: 'tableMerge', label: 'Merge cells' },
-        { name: 'splitCell', icon: 'tableSplit', label: 'Split cell' },
-        { name: 'toggleHeaderRow', icon: 'tableHeaderRow', label: 'Header row' },
+        { name: 'splitCell', icon: 'tableSplit', label: 'Split cells…' },
+        separator('table-sep-design'),
+        // Word's Table Design tab: its gallery, then its style options.
+        ...(tableStyles.length > 0
+          ? [
+              {
+                name: 'tableStyles',
+                icon: 'tableDesign',
+                label: 'Table style',
+                items: tableStyles.map((tile) => ({
+                  name: tableStyleEntryName(tile),
+                  label: tile.label,
+                  icon: 'tableDesign',
+                })),
+              },
+            ]
+          : []),
+        {
+          name: 'tableStyleOptions',
+          icon: 'tableHeaderRow',
+          label: 'Style options',
+          items: designEntries(TABLE_STYLE_OPTION_ENTRIES),
+        },
         separator('table-sep-cell'),
         { name: 'cellBackground', icon: 'cellBackground', label: 'Cell background…' },
         {
@@ -653,6 +709,18 @@ export function defaultMenus(): readonly Menu[] {
           ],
         },
         {
+          name: 'tableLineStyle',
+          icon: 'lineSolid',
+          label: 'Line style',
+          items: designEntries(TABLE_LINE_STYLE_ENTRIES),
+        },
+        {
+          name: 'tableLineWeight',
+          icon: 'lineWeight',
+          label: 'Line weight',
+          items: designEntries(TABLE_LINE_WEIGHT_ENTRIES),
+        },
+        {
           name: 'tableSort',
           icon: 'tableSort',
           label: 'Sort by this column',
@@ -666,6 +734,18 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'convertTableToText', icon: 'convertTextTable', label: 'Convert table to text' },
         { name: 'importCsv', icon: 'csvImport', label: 'Import CSV…' },
         { name: 'exportCsv', icon: 'csvExport', label: 'Copy as CSV' },
+        separator('table-sep-size'),
+        {
+          name: 'tableAutoFit',
+          icon: 'tableAutoFit',
+          label: 'AutoFit',
+          items: [
+            { name: 'autoFitContents', label: 'AutoFit contents', icon: 'tableAutoFit' },
+            { name: 'autoFitWindow', label: 'AutoFit window', icon: 'tableAutoFit' },
+            { name: 'fixColumnWidths', label: 'Fixed column width', icon: 'tableAutoFit' },
+          ],
+        },
+        { name: 'distributeRows', icon: 'tableDistributeRows', label: 'Distribute rows evenly' },
         { name: 'distributeColumns', icon: 'tableDistribute', label: 'Distribute columns evenly' },
         { name: 'clearTableSizing', icon: 'resizeColumns', label: 'Reset column sizes' },
         separator('table-sep-delete'),
@@ -908,7 +988,9 @@ function renderMenuItem(
   shortcut.hidden = true
   button.appendChild(shortcut)
   const slots = shortcutSlots.get(item.name)
-  const slot: ShortcutSlot = { element: shortcut, fallback: item.shortcut ?? '' }
+  // In this platform's own glyphs: a Mac reads ⌘Z where the menu says Ctrl+Z.
+  const fallback = item.shortcut ? formatShortcut(parseShortcut(item.shortcut)) : ''
+  const slot: ShortcutSlot = { element: shortcut, fallback }
   if (slots) slots.push(slot)
   else shortcutSlots.set(item.name, [slot])
 

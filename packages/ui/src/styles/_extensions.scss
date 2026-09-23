@@ -3,6 +3,246 @@
 // themes and consumer overrides apply.
 @use 'tokens' as t;
 
+// The words on a header row filled with a style's accent. The gallery's
+// accents are all dark enough to carry white, as Word's are.
+$on-accent: #fff;
+
+// A table's rows, whether they sit straight in it, as the editor renders
+// them, or in the `tbody` a browser's parser adds, as an exported or pasted
+// copy has them. Child combinators, so a table nested in a cell keeps its
+// own look.
+@mixin rows {
+  > tr,
+  > tbody > tr {
+    @content;
+  }
+}
+
+// The look of a table: its lines and the pen they are drawn with, its style
+// and Word's Table Style Options. A mixin because the style gallery's
+// previews wear the same rules, so a preview shows what picking it does.
+@mixin table-look {
+  // Everything below that a table can change, set on every table, so one
+  // nested in a styled table starts out plain rather than inheriting it.
+  --tvx-table-accent: initial;
+  --tvx-table-tone: var(--tvx-table-accent, #{t.token('color-text')});
+  --tvx-table-style-line: initial;
+  --tvx-table-strong: var(--tvx-table-line);
+  --tvx-table-rule: var(--tvx-table-strong);
+  --tvx-table-head-bg: #{t.token('color-code-bg')};
+  --tvx-table-band: color-mix(in srgb, #{t.token('color-text')} 6%, transparent);
+  --tvx-table-width: 1px;
+  --tvx-table-style: solid;
+  --tvx-cell-band: initial;
+  // The rule colour is a custom property so a table can recolour its own
+  // lines (`setTableBorderColor` writes it inline) without touching every
+  // cell: the pen's colour when there is one, else the style's, else the
+  // theme's.
+  --tvx-table-line: var(
+    --tvx-table-border,
+    var(--tvx-table-style-line, #{t.token('color-border')})
+  );
+
+  td,
+  th {
+    border: var(--tvx-table-width) var(--tvx-table-style) var(--tvx-table-line);
+    // A band only sets the variable, so a cell's own shading (inline) and the
+    // selection's fill (a class) still win over it.
+    background-color: var(--tvx-cell-band, transparent);
+  }
+
+  th {
+    background-color: var(--tvx-table-head-bg);
+    font-weight: 600;
+  }
+
+  // ---- the pen: one line style and weight for every line of the table ----
+  &[data-border-style='dashed'] {
+    --tvx-table-style: dashed;
+  }
+
+  &[data-border-style='dotted'] {
+    --tvx-table-style: dotted;
+  }
+
+  &[data-border-style='double'] {
+    --tvx-table-style: double;
+
+    // Two lines and the gap between them take three pixels at the least.
+    @include rows {
+      > td,
+      > th {
+        border-width: max(3px, var(--tvx-table-width));
+      }
+    }
+  }
+
+  // Whole pixels on screen, so each weight is one the eye can tell from the
+  // next; ½ pt, the default, is the 1px above.
+  &[data-border-width='1.5pt'] {
+    --tvx-table-width: 2px;
+  }
+
+  &[data-border-width='2.25pt'] {
+    --tvx-table-width: 3px;
+  }
+
+  &[data-border-width='3pt'] {
+    --tvx-table-width: 4px;
+  }
+
+  // ---- table styles ----
+  // A style draws its lines, its emphasis and its bands in one colour: the
+  // accent picked in the gallery, or else the text colour. Mixed with
+  // transparent rather than white, so the same tints work on a dark page.
+  &[data-table-style] {
+    --tvx-table-style-line: color-mix(in srgb, var(--tvx-table-tone) 45%, transparent);
+    --tvx-table-strong: var(--tvx-table-tone);
+    --tvx-table-band: color-mix(in srgb, var(--tvx-table-tone) 12%, transparent);
+  }
+
+  // Grid: the header row ruled off in the colour rather than filled.
+  &[data-table-style='grid'] {
+    --tvx-table-head-bg: transparent;
+
+    @include rows {
+      > th:not([data-hidden-borders~='bottom']) {
+        border-bottom: max(2px, var(--tvx-table-width)) solid var(--tvx-table-rule);
+      }
+    }
+  }
+
+  // Header: the header row filled with the colour.
+  &[data-table-style='header'] {
+    --tvx-table-head-bg: var(--tvx-table-tone);
+    --tvx-table-band: color-mix(in srgb, var(--tvx-table-tone) 16%, transparent);
+
+    @include rows {
+      > th {
+        color: $on-accent;
+      }
+    }
+
+    // In the text colour the fill is the ink, so its words take the page's colour.
+    &:not([data-accent-color]) {
+      @include rows {
+        > th {
+          color: t.token('color-bg');
+        }
+      }
+    }
+  }
+
+  // ---- Table Style Options ----
+  &[data-first-column] {
+    @include rows {
+      > :first-child {
+        font-weight: 600;
+      }
+    }
+  }
+
+  &[data-last-column] {
+    @include rows {
+      > :last-child {
+        font-weight: 600;
+      }
+    }
+  }
+
+  // The total row: in bold, under Word's double rule.
+  &[data-total-row] {
+    @include rows {
+      &:last-child > * {
+        font-weight: 600;
+      }
+
+      &:last-child > :not([data-hidden-borders~='top']) {
+        border-top: max(3px, var(--tvx-table-width)) double var(--tvx-table-rule);
+      }
+    }
+  }
+
+  // Bands shade the body, never the header row. Under a header row they
+  // start with the first row of the body, as Word's do.
+  &[data-banded-columns] {
+    @include rows {
+      > td:nth-child(odd) {
+        --tvx-cell-band: var(--tvx-table-band);
+      }
+    }
+  }
+
+  &[data-banded-rows]:not(:has(> tr:first-child > th, > tbody > tr:first-child > th)) {
+    @include rows {
+      &:nth-child(odd) > td {
+        --tvx-cell-band: var(--tvx-table-band);
+      }
+    }
+  }
+
+  &[data-banded-rows]:has(> tr:first-child > th, > tbody > tr:first-child > th) {
+    @include rows {
+      &:nth-child(even) > td {
+        --tvx-cell-band: var(--tvx-table-band);
+      }
+    }
+  }
+
+  // Border styles chosen from the Table menu. The cells keep their border
+  // box (so column widths never change), only the colour goes transparent,
+  // and with it a style's own rules under the header and over the total row.
+  &[data-borders='none'] {
+    --tvx-table-rule: transparent;
+
+    td,
+    th {
+      border-color: transparent;
+    }
+  }
+
+  &[data-borders='outer'] {
+    --tvx-table-rule: transparent;
+    border: var(--tvx-table-width) var(--tvx-table-style) var(--tvx-table-line);
+
+    td,
+    th {
+      border-color: transparent;
+    }
+  }
+
+  &[data-borders='horizontal'] {
+    td,
+    th {
+      border-left-color: transparent;
+      border-right-color: transparent;
+    }
+  }
+
+  // Lines taken out with the Eraser, one side of one cell at a time.
+  // `hidden` rather than a transparent colour: in the collapsed border
+  // model a hidden side beats its neighbour's visible one, so a line two
+  // cells share goes with whichever of them it was erased from.
+  td,
+  th {
+    &[data-hidden-borders~='top'] {
+      border-top-style: hidden;
+    }
+
+    &[data-hidden-borders~='right'] {
+      border-right-style: hidden;
+    }
+
+    &[data-hidden-borders~='bottom'] {
+      border-bottom-style: hidden;
+    }
+
+    &[data-hidden-borders~='left'] {
+      border-left-style: hidden;
+    }
+  }
+}
+
 .trevixal-content {
   // ---- tables ----------------------------------------------------------------
   // Tables are plain <table>/<tr>/<td> markup, so they need real styling to be
@@ -31,10 +271,6 @@
       // Without it a freshly inserted table cannot be typed into.
       min-width: 3rem;
       padding: t.token('space-2');
-      // The rule colour is a custom property so a table can recolour its
-      // own borders (`setTableBorderColor` writes it inline) without touching
-      // every cell.
-      border: 1px solid var(--tvx-table-border, #{t.token('color-border')});
       // Text grows downward from the top of a cell, which is what typing
       // expects; the default middle alignment makes lines jump as they wrap.
       vertical-align: top;
@@ -51,11 +287,6 @@
       }
     }
 
-    th {
-      background: t.token('color-code-bg');
-      font-weight: 600;
-    }
-
     // The cell holding the selection, so the caret's column is visible. An
     // inset ring rather than a border, which would shift the whole grid.
     td.trevixal-cell--selected,
@@ -63,30 +294,11 @@
       box-shadow: inset 0 0 0 2px t.token('color-accent');
     }
 
-    // Border styles chosen from the Table menu. The cells keep their border
-    // box (so column widths never change), only the colour goes transparent.
-    &[data-borders='none'] {
-      td,
-      th {
-        border-color: transparent;
-      }
-    }
-
-    &[data-borders='outer'] {
-      border: 1px solid var(--tvx-table-border, #{t.token('color-border')});
-
-      td,
-      th {
-        border-color: transparent;
-      }
-    }
-
-    &[data-borders='horizontal'] {
-      td,
-      th {
-        border-left-color: transparent;
-        border-right-color: transparent;
-      }
+    // Cells in a multi-cell selection. A fill rather than a ring: a ring
+    // around each cell of a range reads as several selections, not one.
+    td.trevixal-cell--range,
+    th.trevixal-cell--range {
+      background: t.token('color-selection');
     }
   }
 
@@ -246,6 +458,20 @@
       background: t.token('color-selection');
       color: t.token('color-accent');
     }
+
+    // An icon beside the label and a description under it, as quick insert has.
+    &--rich {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      column-gap: t.token('space-2');
+    }
+  }
+
+  &__detail {
+    grid-column: 2;
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
   }
 
   &__empty {
@@ -304,5 +530,90 @@
 
   &[hidden] {
     display: none;
+  }
+}
+
+// The look, written once for the document's tables and the gallery's previews
+// together, rather than once for each.
+.trevixal-content table,
+.trevixal-tabledesign__preview {
+  @include table-look;
+}
+
+// ---- table style gallery previews -------------------------------------------------
+// Each tile of the Table design gallery is a small table wearing the very
+// rules above, so it shows exactly what picking it does to the real one.
+.trevixal-tabledesign__preview {
+  border-collapse: collapse;
+  margin: auto;
+
+  td,
+  th {
+    width: 7px;
+    height: 5px;
+    padding: 0;
+  }
+}
+
+// ---- table drawing tools -----------------------------------------------------
+// Draw table's pencil and the Eraser. The guide shows what letting go would
+// do: the line a stroke would draw, the box a new table would fill, or the
+// side of a cell the Eraser is over.
+.trevixal-draw-guide {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  // A guide, never a target: the stroke carries on under it.
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &[data-shape='line'] {
+    background: t.token('color-accent');
+  }
+
+  &[data-shape='box'] {
+    border: 2px dashed t.token('color-accent');
+  }
+
+  &[data-shape='erase'] {
+    border-radius: 2px;
+    background: t.token('color-danger');
+  }
+
+  // The Border Painter's mark: the line it would draw back in.
+  &[data-shape='paint'] {
+    border-radius: 2px;
+    background: t.token('color-accent');
+  }
+}
+
+// The pointer is the tool: a pencil to draw with, an eraser to rub out. Set on
+// everything on the page as well, which otherwise keeps its own text cursor,
+// and without touch panning, which would take the stroke for a scroll.
+[data-table-tool] .trevixal-content {
+  touch-action: none;
+}
+
+[data-table-tool='draw'] .trevixal-content {
+  &,
+  * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M3 21l1.3-4.8L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L7.8 19.7z' fill='%23fff' stroke='%23222' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M4.3 16.2l3.5 3.5M14 6.5l3.5 3.5' fill='none' stroke='%23222' stroke-width='1.4'/%3E%3C/svg%3E") 3 21, crosshair;
+  }
+}
+
+[data-table-tool='paint'] .trevixal-content {
+  &,
+  * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M13.5 4.5l6 6-4.5 4.5-6-6z' fill='%23fff' stroke='%23222' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M9 9l6 6-2 2c-.8.8-2 .8-2.8 0l-1.4-1.4-3.6 4.2c-.7.8-1.9.8-2.6.1-.7-.7-.7-1.9.1-2.6l4.2-3.6L5.5 12.3c-.8-.8-.8-2 0-2.8z' fill='%236aa8f7' stroke='%23222' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 3 21, copy;
+  }
+}
+
+[data-table-tool='erase'] .trevixal-content {
+  &,
+  * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M6.2 11.8 12 6l6 6-5.8 5.8z' fill='%23fff' stroke='%23222' stroke-width='1.4' stroke-linejoin='round'/%3E%3Cpath d='M3 15l3.2-3.2 6 6L9 21z' fill='%23f28b82' stroke='%23222' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 6 18, cell;
   }
 }

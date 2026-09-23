@@ -17,7 +17,7 @@ import { type TableBorders, tableBorders } from './schema'
 
 // ---------------------------------------------------------------- cell styling
 
-interface CellRef {
+export interface CellRef {
   readonly path: Path
   readonly cell: EditorNode
 }
@@ -28,7 +28,7 @@ interface CellRef {
  * columns between the two. A caret yields just its own cell; a selection that
  * leaves the table yields nothing.
  */
-function cellsInSelection(state: EditorState): readonly CellRef[] {
+export function cellsInSelection(state: EditorState): readonly CellRef[] {
   const from = cellContextAt(state.doc, state.selection.from)
   const to = cellContextAt(state.doc, state.selection.to)
   if (!from) return []
@@ -95,9 +95,20 @@ export function setTableBorders(borders: TableBorders | null): Command {
     if (!context) return null
     const next = borders === null ? null : tableBorders(borders)
     if (borders !== null && !next) return null
-    if (context.table.attrs.borders === next) return null
     const tr = state.tr
-    tr.step(new SetNodeAttrsStep(context.tablePath, { ...context.table.attrs, borders: next }))
+    if (context.table.attrs.borders !== next) {
+      tr.step(new SetNodeAttrsStep(context.tablePath, { ...context.table.attrs, borders: next }))
+    }
+    // A style for the whole table also brings back every line erased from it,
+    // as Word's All Borders does; otherwise "all borders" would not be all.
+    context.table.content.children.forEach((row, rowIndex) => {
+      row.content.children.forEach((cell, cellIndex) => {
+        if (cell.attrs.hiddenBorders === null || cell.attrs.hiddenBorders === undefined) return
+        const path = cellPath(context.tablePath, rowIndex, cellIndex)
+        tr.step(new SetNodeAttrsStep(path, { ...cell.attrs, hiddenBorders: null }))
+      })
+    })
+    if (!tr.docChanged) return null
     tr.setSelection(new TextSelection(state.selection.from, state.selection.to))
     return tr
   }

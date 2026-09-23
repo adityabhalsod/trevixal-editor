@@ -119,9 +119,11 @@ describe('shortcut manager labels', () => {
     ui.setShortcutLabels(manager.labels())
     expect(printed('bold')).toBeNull()
 
-    // Without labels the menus fall back to their declared defaults.
+    // Without labels the menus fall back to the keys the engine itself
+    // answers. Nothing binds Ctrl+K to Link then, so nothing says so.
     ui.setShortcutLabels(undefined)
-    expect(printed('insertLink')).toBe('Ctrl+K')
+    expect(printed('insertLink')).toBeNull()
+    expect(printed('bold')).toBe('Ctrl+B')
     ui.destroy()
     manager.destroy()
     editor.destroy()
@@ -161,6 +163,152 @@ describe('shortcut manager labels', () => {
     ui.destroy()
     manager.destroy()
     editor.destroy()
+  })
+})
+
+describe('shortcut manager keys', () => {
+  it('reads a key Shift turned into a symbol by the key, and leaves AltGr typing', () => {
+    const editor = mountEditor()
+    const list = vi.fn()
+    const heading = vi.fn()
+    const manager = createShortcutManager(editor, {
+      isMac: false,
+      actions: [
+        { name: 'listOrdered', label: 'Numbered list', keys: 'Mod-Shift-7', run: list },
+        { name: 'styleHeading2', label: 'Heading 2', keys: 'Mod-Alt-2', run: heading },
+      ],
+    })
+    // Shift+7 types `&` on a US keyboard and `/` on a German one.
+    expect(manager.handle(key({ key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true }))).toBe(
+      true,
+    )
+    expect(manager.handle(key({ key: '/', code: 'Digit7', ctrlKey: true, shiftKey: true }))).toBe(
+      true,
+    )
+    expect(list).toHaveBeenCalledTimes(2)
+    // Ctrl+Alt is AltGr off a Mac: AltGr+2 types `²`, and must go on typing it.
+    expect(manager.handle(key({ key: '²', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
+      false,
+    )
+    expect(manager.handle(key({ key: '2', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
+      true,
+    )
+    expect(heading).toHaveBeenCalledOnce()
+    // The recorder writes down the key, not the character.
+    expect(
+      manager.keysFromEvent(key({ key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true })),
+    ).toBe('Mod-Shift-7')
+    manager.destroy()
+    editor.destroy()
+  })
+
+  it('reads ⌥ chords on a Mac by the key, not the character ⌥ types', () => {
+    const editor = mountEditor()
+    const split = vi.fn()
+    const manager = createShortcutManager(editor, {
+      isMac: true,
+      actions: [{ name: 'splitEditor', label: 'Split editor', keys: 'Mod-Alt-s', run: split }],
+    })
+    expect(manager.handle(key({ key: 'ß', code: 'KeyS', metaKey: true, altKey: true }))).toBe(true)
+    expect(split).toHaveBeenCalledOnce()
+    manager.destroy()
+    editor.destroy()
+  })
+})
+
+describe('shortcuts dialog', () => {
+  /** A manager over two marks, with its dialog open. */
+  function openShortcuts() {
+    const editor = mountEditor()
+    const manager = createShortcutManager(editor, {
+      isMac: false,
+      actions: [
+        { name: 'bold', label: 'Bold', group: 'Format', keys: 'Mod-b', run: () => undefined },
+        { name: 'italic', label: 'Italic', group: 'Format', keys: 'Mod-i', run: () => undefined },
+      ],
+    })
+    const closed = manager.openDialog(document)
+    const row = (name: string) =>
+      document.querySelector<HTMLElement>(`[data-trevixal-shortcut="${name}"]`)
+    const change = (name: string) =>
+      row(name)?.querySelector<HTMLButtonElement>('.trevixal-shortcuts__change') ?? null
+    const press = (init: KeyboardEventInit): void => {
+      document.activeElement?.dispatchEvent(key(init))
+    }
+    const search = (text: string): void => {
+      const input = document.querySelector<HTMLInputElement>('.trevixal-shortcuts__search')
+      if (!input) throw new Error('no search box')
+      input.value = text
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    const done = (): void => {
+      manager.destroy()
+      editor.destroy()
+    }
+    return { manager, closed, row, change, press, search, done }
+  }
+
+  it('refuses a key with no Ctrl, Alt or ⌘, which would stop it being typed', () => {
+    const { manager, row, change, press, done } = openShortcuts()
+    change('bold')?.click()
+    press({ key: 'q' })
+    expect(manager.keysFor('bold')).toBe('Mod-b')
+    expect(document.querySelector('.trevixal-shortcuts__status')?.textContent).toContain(
+      'Ctrl, Alt or ⌘',
+    )
+    // Still listening, so the next chord lands.
+    expect(row('bold')?.classList.contains('trevixal-shortcuts__row--recording')).toBe(true)
+    press({ key: 'q', ctrlKey: true, shiftKey: true })
+    expect(manager.keysFor('bold')).toBe('Mod-Shift-q')
+    // Keys do nothing behind a dialog, so it says where to try the new one.
+    expect(document.querySelector('.trevixal-shortcuts__status')?.textContent).toContain(
+      'Close this dialog',
+    )
+    done()
+  })
+
+  it('records the character the keyboard types, and that key then fires', () => {
+    const { manager, change, press, done } = openShortcuts()
+    // Ctrl+Alt+E on a UK or US-International Windows keyboard: AltGr+E, é.
+    const altGrE = { key: 'é', code: 'KeyE', ctrlKey: true, altKey: true }
+    change('bold')?.click()
+    press(altGrE)
+    expect(manager.keysFor('bold')).toBe('Mod-Alt-é')
+    expect(manager.displayFor('bold')).toBe('Ctrl+Alt+É')
+    expect(manager.handle(key(altGrE))).toBe(true)
+    done()
+  })
+
+  it('keeps focus on the row being changed, and gives it back on close', async () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { closed, change, press, done } = openShortcuts()
+    change('bold')?.click()
+    expect(document.activeElement).toBe(change('bold'))
+    expect(change('bold')?.textContent).toBe('Cancel')
+    press({ key: 'b', ctrlKey: true, shiftKey: true })
+    expect(document.activeElement).toBe(change('bold'))
+    expect(change('bold')?.textContent).toBe('Change')
+    press({ key: 'Escape' })
+    await closed
+    expect(document.activeElement).toBe(opener)
+    done()
+  })
+
+  it('narrows the list to the shortcuts a search matches', async () => {
+    const { closed, row, press, search, done } = openShortcuts()
+    expect(document.activeElement?.className).toBe('trevixal-shortcuts__search')
+    search('ital')
+    expect(row('italic')).not.toBeNull()
+    expect(row('bold')).toBeNull()
+    // The keys match as they are printed.
+    search('ctrl+b')
+    expect(row('bold')).not.toBeNull()
+    expect(row('italic')).toBeNull()
+    press({ key: 'Escape' })
+    await closed
+    done()
   })
 })
 
@@ -340,6 +488,35 @@ describe('host hooks in the menus', () => {
     expect(item('writingPassive')?.getAttribute('aria-checked')).toBe('true')
     item('writingPassive')?.click()
     expect(item('writingPassive')?.getAttribute('aria-checked')).toBe('false')
+    ui.destroy()
+    editor.destroy()
+  })
+
+  it('prints the document alone from Print…, never the page around it', () => {
+    const editor = mountEditor()
+    editor.setContent({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Only the document' }] }],
+    })
+    const pagePrint = vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    const print = (ui: { element: HTMLElement }): void =>
+      ui.element.querySelector<HTMLButtonElement>('[data-trevixal-item="print"]')?.click()
+
+    // A host with no print of its own still gets the document, in a frame.
+    const bare = createEditorUI(editor, { container })
+    print(bare)
+    const frame = document.querySelector<HTMLIFrameElement>('.trevixal-print-frame')
+    expect(frame?.srcdoc ?? '').toContain('Only the document')
+    bare.destroy()
+
+    // A host's print wins: the assembled editor's is the one Ctrl+P and
+    // PDF (via print) already run, and it asks the restrictions first.
+    const exportPDF = vi.fn()
+    const ui = createEditorUI(editor, { container, fileActions: { exportPDF } })
+    print(ui)
+    expect(exportPDF).toHaveBeenCalledOnce()
+    expect(pagePrint).not.toHaveBeenCalled()
+    pagePrint.mockRestore()
     ui.destroy()
     editor.destroy()
   })

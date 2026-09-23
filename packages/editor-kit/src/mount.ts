@@ -35,7 +35,13 @@ import {
 } from '@trevixal/extension-image'
 import { mathUICommands } from '@trevixal/extension-math'
 import {} from '@trevixal/extension-security'
-import { highlightActiveCell, tableKeymap, tableUICommands } from '@trevixal/extension-table'
+import {
+  createTableTools,
+  enableCellSelection,
+  highlightActiveCell,
+  tableKeymap,
+  tableUICommands,
+} from '@trevixal/extension-table'
 import { TrackChanges, createTrackChangesBar } from '@trevixal/extension-track-changes'
 import {
   analyzeText,
@@ -55,13 +61,13 @@ import {
   createShortcutManager,
   createTableOfContents,
   createTypewriter,
-  defaultToolbarGroups,
   editorTheme,
   openConfirmDialog,
   openCustomizeToolbarDialog,
   openDialog,
   openInfoDialog,
   paletteCommandsFromMenus,
+  quickInsertItemsFromMenus,
   setEditorWidth,
 } from '@trevixal/ui'
 import { initialContent } from './content'
@@ -146,6 +152,12 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // ------------------------------------------------------- document extensions
 
   disposers.push(highlightActiveCell(editor))
+  // Double click a cell to select it, drag to take in more. The highlighter
+  // above is what makes the result visible.
+  disposers.push(enableCellSelection(editor))
+  // Table ▸ Draw table and Eraser: tools the pointer holds over the page.
+  const tableTools = createTableTools(editor, { container: editorHost })
+  disposers.push(() => tableTools.destroy())
   // One highlighter for every surface: a split pane installs the same one
   // rather than building a second with its own caches.
   const highlighter = createHighlighter({ autoDetect: true })
@@ -204,7 +216,18 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ------------------------------------------------------- suggestion menus
 
-  const suggestions = createSuggestionMenus(editor, images)
+  /**
+   * Run a wired menu entry by name, as picking it from its menu would. Found
+   * when it runs, because the menus are wired further down: the `/` menu's
+   * Video opens Insert ▸ Video… this way, and Ctrl+F the find bar.
+   */
+  function runMenuEntry(name: string): void {
+    paletteCommandsFromMenus(ui.menus)
+      .find((command) => command.name === name)
+      ?.run(editor)
+  }
+
+  const suggestions = createSuggestionMenus(editor, images, runMenuEntry)
   // The two extensions say `dispose` rather than `destroy`, so they go in
   // this list; their popups are UI, and go on the destroy list at the end.
   disposers.push(() => suggestions.dispose())
@@ -276,7 +299,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     flushAutosave: () => void saving.autosave.flush(),
     newDocument: () => void newDocument(),
     openDocument: () => void openDocument(),
-    openFindReplace: () => ui.findReplace?.open() ?? openFind(),
+    // Through the menu entry, which builds the bar on first use: asking for
+    // `ui.findReplace` found nothing until the menu had, so Ctrl+F did nothing.
+    openFindReplace: () => runMenuEntry('findReplace'),
     openLinkDialog: () => ui.openLinkDialog(),
     openPalette: () => palette.open(),
     pickEmoji: () => void suggestions.pickEmoji(),
@@ -299,11 +324,6 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     scopes: [editorHost, chromeHost],
   })
 
-  /** Open find & replace even before the Tools menu has built it. */
-  function openFind(): void {
-    ui.element.querySelector<HTMLElement>('.trevixal-findbar')?.removeAttribute('hidden')
-  }
-
   // --------------------------------------------------------- command palette
 
   const palette = createCommandPalette(editor, {
@@ -312,11 +332,16 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     // filter narrows it the moment anything is typed; capping it at the default
     // 50 would hide entries from anyone browsing rather than searching.
     maxResults: 300,
+    // What was run last opens the list, and is remembered across visits.
+    recent: preferences.paletteRecent,
+    onRecent: (recent) => remember({ paletteRecent: recent }),
     // Collected on open, from the menus as actually wired. Hand-listing them
     // meant the palette offered a dozen commands while the menus offered two
     // hundred, and every feature added since had to be remembered twice.
     commands: () => [
-      ...paletteCommandsFromMenus(ui.menus),
+      // With the manager's labels, so Link reads Ctrl+Shift+K here as it does
+      // in the menu, and a rebind shows the next time the palette opens.
+      ...paletteCommandsFromMenus(ui.menus, shortcuts.labels()),
       // Demo-only, with no menu entry to derive from.
       {
         name: 'resetToolbar',
@@ -327,8 +352,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
         group: 'Help',
         icon: 'sliders',
         run: () => {
-          ui.toolbar.setGroupOrder(defaultToolbarGroups().map((group) => group.name))
-          remember({ toolbarOrder: undefined })
+          ui.toolbar.setVisibleGroups(ui.toolbar.groups.map((group) => group.name))
+          remember({ toolbarOrder: undefined, toolbarGroups: undefined })
         },
       },
     ],
@@ -441,7 +466,6 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     toolbar: {
       reorderable: true,
       groupOrder: preferences.toolbarOrder,
-      groupNames: preferences.toolbarGroups,
       onReorder: (order) => remember({ toolbarOrder: order }),
       blockCommands: blockUICommands(),
       codeFormatCommands: codeFormatUICommands(),
@@ -460,8 +484,25 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       onCommandPalette: () => palette.open(),
       onToggleFocusMode: () => focus.toggle(),
       onToggleFullscreen: () => void fullscreen.toggle(),
+      // Collected as the "+" opens, from the menus as wired: everything under
+      // Insert, and a table, which Insert leaves to the Table menu.
+      quickAccess: {
+        tracker: usage,
+        insertItems: () =>
+          quickInsertItemsFromMenus(
+            ui.menus.flatMap((menu) => {
+              if (menu.name === 'insert') return [menu]
+              if (menu.name !== 'table') return []
+              return [{ ...menu, items: menu.items.filter((item) => item.name === 'insertTable') }]
+            }),
+          ),
+      },
     },
-    tableCommands: tableUICommands(),
+    tableCommands: {
+      ...tableUICommands({ editor }),
+      toggleTableTool: (tool) => tableTools.toggle(tool),
+      activeTableTool: () => tableTools.tool,
+    },
     blockCommands: blockUICommands(),
     codeFormatCommands: codeFormatUICommands(),
     embedCommands: { ...embedUICommands(), pickAttachment: () => files.pickFiles() },
@@ -589,14 +630,11 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       customizeToolbar: () => {
         void openCustomizeToolbarDialog({
           document,
-          groups: defaultToolbarGroups().map((group) => ({
-            name: group.name,
-            label: group.label ?? group.name,
-          })),
+          groups: ui.toolbar.groups,
           visible: ui.toolbar.getGroupOrder(),
           onApply: (visible) => {
+            ui.toolbar.setVisibleGroups(visible)
             remember({ toolbarGroups: visible, toolbarOrder: visible })
-            window.location.reload()
           },
         })
       },
@@ -618,6 +656,15 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     },
   })
 
+  // Every group is built, the hidden ones too, so Customize toolbar can bring
+  // one back on the spot rather than reloading the page to build it.
+  const savedGroups = preferences.toolbarGroups
+  if (savedGroups) {
+    ui.toolbar.setVisibleGroups(
+      ui.toolbar.getGroupOrder().filter((name) => savedGroups.includes(name)),
+    )
+  }
+
   // ------------------------------------------------------- floating controls
 
   const floating = createFloatingControls(editor, editorHost, images)
@@ -632,12 +679,6 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     if (event.key === 'Escape') painter.cancel()
   }
   document.addEventListener('keydown', cancelPainter)
-
-  // Record which tools get used, so the tray can offer them back.
-  ui.toolbar.element.addEventListener('click', (event) => {
-    const item = (event.target as HTMLElement).closest<HTMLElement>('[data-trevixal-item]')
-    if (item?.dataset.trevixalItem) usage.record(item.dataset.trevixalItem)
-  })
 
   // ---------------------------------------------------------------- startup
 

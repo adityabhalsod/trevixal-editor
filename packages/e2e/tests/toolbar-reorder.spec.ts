@@ -31,10 +31,11 @@ test.describe('rearranging toolbar groups', () => {
       await page.goto(server.origin)
       await page.waitForSelector('#chrome .trevixal-toolbar')
       const before = await order(page)
-      expect(before[0]).toBe('block')
+      // Quick access leads the bar, the way Word's leads its ribbon.
+      expect(before[0]).toBe('quick')
 
       const grip = await page.locator('#chrome [data-trevixal-grip="history"]').boundingBox()
-      const first = await page.locator('#chrome [data-trevixal-group="block"]').boundingBox()
+      const first = await page.locator('#chrome [data-trevixal-group="quick"]').boundingBox()
       if (!grip || !first) throw new Error('missing grip or group')
 
       await page.mouse.move(centre(grip).x, centre(grip).y)

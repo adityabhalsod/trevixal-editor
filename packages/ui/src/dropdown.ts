@@ -159,6 +159,8 @@ export function createDropdown(options: DropdownOptions): Dropdown {
     if (!open || event.key !== 'Escape') return
     if (element.contains(event.target as globalThis.Node | null)) return
     dropdown.close()
+    // Answered: an Escape that closed a menu should not also leave fullscreen.
+    event.preventDefault()
   }
   document.addEventListener('keydown', onDocumentKeyDown, true)
 

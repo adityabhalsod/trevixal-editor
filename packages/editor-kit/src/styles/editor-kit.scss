@@ -199,6 +199,24 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   min-height: 24rem;
 }
 
+// Fullscreen is the page and nothing else: the sidebar, the banners and the
+// side panes stay behind, and the document sits in the middle of the screen.
+// The UI kit's `.trevixal-fullscreen` is what makes the shell cover the window.
+.editor-shell.trevixal-viewmode--fullscreen {
+  justify-content: center;
+
+  > #sidebar,
+  > .trevixal-banner,
+  > #split,
+  > #mirror {
+    display: none;
+  }
+
+  > #editor {
+    flex: 0 1 60rem;
+  }
+}
+
 // ------------------------------------------------------------- the readouts
 
 .statusline {

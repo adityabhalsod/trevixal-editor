@@ -14,12 +14,27 @@ import {
   serializeToMarkdown,
   setLinkTarget,
 } from '@trevixal/core'
+import { collectDocumentCSS } from './collect-css'
 import { type DialogField, openCharacterPicker, openDialog } from './dialog'
+import { printDocument } from './documents'
 import { type FindReplace, createFindReplace } from './find-replace'
 import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
 import type { ShortcutLabels } from './shortcuts'
 import { type StatusBar, createStatusBar } from './status-bar'
+import {
+  TABLE_LINE_STYLE_ENTRIES,
+  TABLE_LINE_WEIGHT_ENTRIES,
+  TABLE_STYLE_OPTION_ENTRIES,
+  type TableDesignCommands,
+  type TableDesignState,
+  type TableLineStyle,
+  type TableLineWeight,
+  type TableStyleOptionName,
+  type TableStyleTile,
+  tableStyleEntryName,
+} from './table-design'
+import { openSplitCellsDialog } from './table-toolbar'
 import {
   type BlockCommands,
   type CodeFormatCommands,
@@ -43,6 +58,8 @@ export interface TableCommands {
   readonly deleteColumn?: Command
   readonly mergeCells?: Command
   readonly splitCell?: Command
+  /** Word's Split Cells; when present, Table ▸ Split asks how many columns. */
+  readonly splitCellInto?: (columns: number) => Command
   readonly toggleHeaderRow?: Command
   readonly deleteTable?: Command
   // Data-shaping commands, from `tableUICommands()`. Menu entries for the
@@ -60,6 +77,32 @@ export interface TableCommands {
   readonly csvAtSelection?: (state: EditorState) => string | null
   readonly distributeColumns?: Command
   readonly clearSizing?: Command
+  /** Word's AutoFit: columns to their content, the table to the window, or the columns held as they are. */
+  readonly autoFitContents?: Command
+  readonly autoFitWindow?: Command
+  readonly fixColumnWidths?: Command
+  readonly distributeRows?: Command
+  /**
+   * Word's Draw Table, Eraser and Border Painter, which the pointer holds
+   * rather than runs: picking one from the Table menu takes it up, picking
+   * it again puts it down. `createTableTools` from the table package
+   * supplies all three.
+   */
+  readonly toggleTableTool?: (tool: 'draw' | 'erase' | 'paint') => void
+  /** The tool held now, so its menu entry shows a tick. */
+  readonly activeTableTool?: () => 'draw' | 'erase' | 'paint' | null
+  // Word's Table Design tab, from `tableUICommands()`. With all of them, the
+  // toolbar gains the Table design dropdown; each also has Table-menu entries.
+  /** The styles gallery, in order. */
+  readonly tableStyles?: readonly TableStyleTile[]
+  readonly setTableStyle?: (style: string | null, accentColor: string | null) => Command
+  /** Word's Table Style Options, the header row included. */
+  readonly toggleStyleOption?: (option: TableStyleOptionName) => Command
+  /** The pen every line is drawn with; its colour is `setTableBorderColor`. */
+  readonly setTableBorderStyle?: (style: TableLineStyle | null) => Command
+  readonly setTableBorderWidth?: (width: TableLineWeight | null) => Command
+  /** The design of the table at the selection, for the toolbar and the ticks; a reader. */
+  readonly tableDesignAt?: (state: EditorState) => TableDesignState | null
 }
 
 /** Media and embed commands, from `@trevixal/extension-embed`. */
@@ -101,6 +144,11 @@ export interface FileActions {
   readonly importDocument?: () => void
   readonly exportSelection?: () => void
   readonly printPreview?: () => void
+  /**
+   * Print the document alone; the browser's print dialog is where the PDF
+   * comes from. File ▸ Print… runs this too, or prints the document itself
+   * when a host leaves it out.
+   */
   readonly exportPDF?: () => void
   readonly backups?: () => void
   /** Set (or lift) a password and expiry; `@trevixal/extension-security` does the crypto. */
@@ -280,7 +328,7 @@ export interface EditorUI {
    * available here for a host that wants to open it from its own shortcut.
    */
   readonly findReplace: FindReplace | null
-  /** Re-print the menus' shortcuts, e.g. after the user rebinds one. */
+  /** Re-print the menus' and the toolbar's shortcuts, e.g. after the user rebinds one. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
   /** The link dialog the toolbar and Insert ▸ Link open; bind it to a shortcut. */
   openLinkDialog(): void
@@ -310,10 +358,13 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     findReplace.open()
   }
 
-  const actions = createActions(options, openFindReplace)
+  const actions = createActions(editor, options, openFindReplace)
   // Wired once and kept: the command palette is built from exactly what the
   // menus ended up offering, so the two can never drift apart.
-  const wiredMenus = withActions(options.menus ?? defaultMenus(), actions)
+  const wiredMenus = withActions(
+    options.menus ?? defaultMenus({ tableStyles: options.tableCommands?.tableStyles }),
+    actions,
+  )
   const menubar =
     options.showMenubar === false
       ? null
@@ -330,6 +381,8 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     onImage: options.toolbar?.onImage ?? actions.image,
     onInsertTable:
       options.toolbar?.onInsertTable ?? ((target, rows, cols) => actions.table(target, rows, cols)),
+    tableDesign: options.toolbar?.tableDesign ?? tableDesignCommands(options.tableCommands),
+    shortcutLabels: options.toolbar?.shortcutLabels ?? options.shortcutLabels,
   })
 
   const statusBar = options.showStatusBar === false ? null : createStatusBar(editor, root)
@@ -346,6 +399,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     },
     setShortcutLabels(labels) {
       menubar?.setShortcutLabels(labels)
+      toolbar.setShortcutLabels(labels)
     },
     openLinkDialog() {
       actions.link(editor)
@@ -371,6 +425,7 @@ interface WiredActions {
 }
 
 function createActions(
+  editor: Editor,
   options: EditorUIOptions,
   openFindReplace: (editor: Editor) => void,
 ): WiredActions {
@@ -840,6 +895,18 @@ function createActions(
     }
   }
 
+  // Print… prints the document alone, never the page around it. The host's
+  // print wins: the assembled editor's is the one Ctrl+P and PDF (via print)
+  // run, and it asks the document's restrictions before it opens anything.
+  const hostPrint = files?.exportPDF
+  byName.set(
+    'print',
+    hostPrint
+      ? () => hostPrint()
+      : (target) =>
+          printDocument(target, document, { styles: () => collectDocumentCSS({ document }) }),
+  )
+
   // Media, equations and diagrams.
   const embeds = options.embedCommands
   if (embeds) {
@@ -954,10 +1021,42 @@ function createActions(
       ['convertTextToTable', commands.convertTextToTable],
       ['convertTableToText', commands.convertTableToText],
       ['distributeColumns', commands.distributeColumns],
+      ['distributeRows', commands.distributeRows],
+      ['autoFitContents', commands.autoFitContents],
+      ['autoFitWindow', commands.autoFitWindow],
+      ['fixColumnWidths', commands.fixColumnWidths],
       ['clearTableSizing', commands.clearSizing],
     ]
     for (const [name, command] of entries) {
       if (command) byName.set(name, (target) => target.exec(command))
+    }
+    const toggleTool = commands.toggleTableTool
+    if (toggleTool) {
+      const tools: readonly [string, 'draw' | 'erase' | 'paint'][] = [
+        ['drawTable', 'draw'],
+        ['tableEraser', 'erase'],
+        ['borderPainter', 'paint'],
+      ]
+      const activeTool = commands.activeTableTool
+      for (const [name, tool] of tools) {
+        byName.set(name, (target) => {
+          toggleTool(tool)
+          // Back to the page, where the tool is used and Escape puts it down.
+          target.view?.focus()
+        })
+        if (activeTool) activeByName.set(name, () => activeTool() === tool)
+      }
+    }
+    wireTableDesign(editor, commands, byName, activeByName)
+    // Word's Split Cells asks how many columns; without it, Split un-merges.
+    const splitInto = commands.splitCellInto
+    if (splitInto) {
+      byName.set('splitCell', (target) => {
+        void openSplitCellsDialog(document).then((columns) => {
+          target.view?.focus()
+          if (columns !== null) target.exec(splitInto(columns))
+        })
+      })
     }
     const align = commands.setCellAlign
     if (align) {
@@ -1109,6 +1208,112 @@ function applyLink(target: Editor, values: Readonly<Record<string, string>>): vo
   const href = values.kind === 'anchor' ? `#${values.anchor ?? ''}` : (values.href ?? '').trim()
   if (href === '#' || !safeHref(href)) return
   if (target.commands.setLink(href, title)) target.exec(setLinkTarget(tab))
+}
+
+/**
+ * Table ▸ Table style, Style options, Line style and Line weight, each entry
+ * ticked while the table at the selection has it. Header row keeps its own
+ * wiring above; here it only gains its tick.
+ */
+function wireTableDesign(
+  editor: Editor,
+  commands: TableCommands,
+  byName: Map<string, (editor: Editor) => void>,
+  activeByName: Map<string, () => boolean>,
+): void {
+  const read = commands.tableDesignAt
+  const design = (): TableDesignState | null => (read ? read(editor.state) : null)
+  const tick = (name: string, isOn: (current: TableDesignState) => boolean): void => {
+    if (!read || !byName.has(name)) return
+    activeByName.set(name, () => {
+      const current = design()
+      return current !== null && isOn(current)
+    })
+  }
+
+  const setStyle = commands.setTableStyle
+  if (setStyle) {
+    for (const tile of commands.tableStyles ?? []) {
+      const name = tableStyleEntryName(tile)
+      byName.set(name, (target) => target.exec(setStyle(tile.style, tile.accentColor)))
+      tick(
+        name,
+        (current) => current.style === tile.style && current.accentColor === tile.accentColor,
+      )
+    }
+  }
+  const toggleOption = commands.toggleStyleOption
+  for (const { value, entry } of TABLE_STYLE_OPTION_ENTRIES) {
+    if (toggleOption && !byName.has(entry)) {
+      byName.set(entry, (target) => target.exec(toggleOption(value)))
+    }
+    tick(entry, (current) => current.options[value])
+  }
+  const setLineStyle = commands.setTableBorderStyle
+  if (setLineStyle) {
+    for (const { value, entry } of TABLE_LINE_STYLE_ENTRIES) {
+      byName.set(entry, (target) => target.exec(setLineStyle(value)))
+      tick(entry, (current) => current.borderStyle === value)
+    }
+  }
+  const setLineWeight = commands.setTableBorderWidth
+  if (setLineWeight) {
+    for (const { value, entry } of TABLE_LINE_WEIGHT_ENTRIES) {
+      byName.set(entry, (target) => target.exec(setLineWeight(value)))
+      tick(entry, (current) => current.borderWidth === value)
+    }
+  }
+}
+
+/**
+ * What the toolbar's Table design dropdown drives, when the host supplied
+ * every part of it; the dropdown is left out otherwise.
+ */
+function tableDesignCommands(commands: TableCommands | undefined): TableDesignCommands | undefined {
+  if (!commands) return undefined
+  const {
+    tableStyles,
+    tableDesignAt,
+    setTableStyle,
+    toggleStyleOption,
+    setTableBorders,
+    setTableBorderStyle,
+    setTableBorderWidth,
+    setTableBorderColor,
+    setCellBackground,
+    toggleTableTool,
+    activeTableTool,
+  } = commands
+  if (
+    !tableStyles ||
+    !tableDesignAt ||
+    !setTableStyle ||
+    !toggleStyleOption ||
+    !setTableBorders ||
+    !setTableBorderStyle ||
+    !setTableBorderWidth ||
+    !setTableBorderColor ||
+    !setCellBackground
+  ) {
+    return undefined
+  }
+  return {
+    styles: tableStyles,
+    designAt: tableDesignAt,
+    setStyle: setTableStyle,
+    toggleOption: toggleStyleOption,
+    setBorders: setTableBorders,
+    setBorderStyle: setTableBorderStyle,
+    setBorderWidth: setTableBorderWidth,
+    setBorderColor: setTableBorderColor,
+    setShading: setCellBackground,
+    ...(toggleTableTool
+      ? {
+          toggleBorderPainter: () => toggleTableTool('paint'),
+          isBorderPainterOn: () => activeTableTool?.() === 'paint',
+        }
+      : {}),
+  }
 }
 
 /**

@@ -127,7 +127,9 @@ export {
   continueNumberingFromPrevious,
   isListItemTypeName,
   liftListItem,
+  listNumberingAt,
   restartNumbering,
+  setListNumbering,
   setListStyle,
   setTaskChecked,
   sinkListItem,
@@ -135,6 +137,7 @@ export {
   toggleList,
   toggleTaskChecked,
   toggleTaskList,
+  unwrapList,
 } from './commands/lists'
 export {
   type InsertEmailLinkOptions,
@@ -224,6 +227,19 @@ export {
   safeLength,
   safeLineHeight,
 } from './schema/basic'
+export {
+  DEFAULT_LIST_NUMBERING,
+  formatListCounter,
+  LIST_NUMBERING_SCHEMES,
+  type ListCounterStyle,
+  type ListNumberingScheme,
+  levelMarker,
+  listMarker,
+  listNumberingOf,
+  listNumberingScheme,
+  storedNumbering,
+  storedNumberingsFor,
+} from './schema/list-numbering'
 
 // view
 export { EditorView, type EditorViewOptions, type NodeViewFactory } from './view/editor-view'

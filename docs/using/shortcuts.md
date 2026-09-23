@@ -23,14 +23,44 @@ These come from the engine's base keymap and work in any editor built on
 | Key | Action | | Key | Action |
 | --- | --- | --- | --- | --- |
 | `Mod+\` | Clear all formatting | | `Mod+X` / `Mod+C` / `Mod+V` | Cut / copy / paste (native) |
+| `Mod+Shift+X` | Strikethrough | | `Mod+Shift+0`, `Mod+Alt+0` | Normal text |
+| `Mod+Shift+1` to `6`, `Mod+Alt+1` to `6` | Heading 1 to 6 | | `Mod+Shift+7` / `8` / `9` | Numbered / bullet / task list |
+| `Mod+Shift+L` / `E` / `R` / `J` | Align left / center / right / justify | | `Mod+]` / `Mod+[` | Increase / decrease indent |
 | `Mod+A` | Select all | | `Mod+F` | Find and replace |
-| `Mod+K`, `Mod+Shift+P` | Command palette | | `Mod+Shift+K` | Insert link |
-| `Mod+Shift+E` | Emoji picker | | `Shift+Enter` | Line break |
+| `Mod+K`, `Mod+Shift+P` (not in Firefox) | Command palette | | `Mod+Shift+K` | Insert link |
+| `Mod+Shift+Space` | Emoji picker | | `Shift+Enter` | Line break |
 | `Mod+Alt+N` | New document | | `Mod+S` | Save now |
 | `Mod+O` | Open a file | | `Mod+P` | Print |
 | `Mod+Alt+P` | Protect with password | | `Mod+Shift+F` | Focus mode |
 | `Mod+Shift+Enter` | Fullscreen | | `Mod+Alt+S` | Split editor |
 | `Mod+.` | Writing suggestions for the word under the caret | | | |
+
+On a Mac the paragraph styles are `⌘⌥0` to `6` alone: `⌘⇧3`, `4` and `5` are
+the Mac's screenshot keys.
+
+The paragraph keys follow Google Docs rather than Word, whose keys were made
+for a desktop app and collide in a browser (`Ctrl+E` is inline code here,
+`Ctrl+L` the address bar). Docs' own `Ctrl+Alt+0` to `6` still work, second.
+They come second because on Windows `Ctrl+Alt` is AltGr on most keyboards but
+the US one: `Ctrl+Alt+E` types é on a UK keyboard and € on a German one, and
+`Ctrl+Alt+2` types ² or @. The browser reports that character, and the editor
+lets it type rather than take it from you, so a `Ctrl+Alt` key works only
+where the keyboard leaves it free. Every everyday key therefore has a first
+binding without `Ctrl+Alt`, and the emoji picker is on `Mod+Shift+Space`.
+New document, Protect and Split editor stay on `Ctrl+Alt+N`, `P` and `S`,
+which AltGr takes only on US-International and a few others; rebind them in
+the dialog if yours is one. A Mac keeps `⌘⌥`, since ⌥ never types in a chord
+with ⌘.
+
+A key is matched by the key pressed, so `Mod+Shift+7` works on a layout where
+Shift turns 7 into `/`. Firefox keeps `Ctrl+Shift+P` for a private window and
+never lets a page see it, so there the palette opens on `Ctrl+K` alone.
+
+*Change* in the dialog wants Ctrl, Alt or ⌘ (or a function key) with the key:
+a letter on its own would fire instead of typing. It records what your
+keyboard sends: where `Ctrl+Alt+E` types é, it records `Ctrl+Alt+É`, and
+that then works. Keys do nothing while the dialog is open, so close it to try
+a new one. The search box narrows the list by name or by keys.
 
 ## In context
 
@@ -68,8 +98,10 @@ so `Mod+Z` undoes it as one step.
 
 Type `/` at the start of a line. Nine items ship with the extension (Text,
 Heading 1 to 3, Bullet list, Numbered list, Code block, Quote, Divider), each
-with keywords such as `h1`, `ul` and `hr`. The assembled editor adds Table,
-Image, Diagram, Equation, Callout, Columns and Toggle.
+with keywords such as `h1`, `ul` and `hr`. The assembled editor adds To-do
+list, Table, Image, Video, Diagram, Equation, Callout, Columns, Tabs, Toggle
+and Page break, and shows every entry with an icon and a line saying what it
+makes. The highlight stays in view however far down the list it goes.
 
 Type to filter. Prefix matches rank first, then word boundaries, then any
 subsequence: typing `co` puts "Code block" above "Bullet list", although both
@@ -81,7 +113,7 @@ Type `:` and at least one letter. 114 built-in emoji with names and keywords
 (`:smi` finds smile). An exact name outranks a prefix, which outranks a
 substring, which outranks a keyword hit, so `heart` returns the red heart
 before the heart-eyes face. *Insert > Emoji...* opens the same set as a
-picker dialog (`Mod+Shift+E` in the assembled editor).
+picker dialog (`Mod+Shift+Space` in the assembled editor).
 
 Both triggers are detected against the document model, never by inspecting
 the DOM, so a syntax colour or a node view cannot confuse them. `/` fires only

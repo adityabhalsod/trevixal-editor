@@ -123,6 +123,62 @@ export function tableColumns(table: EditorNode): number {
   return columns
 }
 
+/** A side of a table cell, as the table's `hiddenBorders` attribute names it. */
+export type CellSide = 'top' | 'right' | 'bottom' | 'left'
+
+const CELL_SIDES: readonly CellSide[] = ['top', 'right', 'bottom', 'left']
+
+/** The sides of a cell whose line the Eraser took out. */
+function erasedSides(cell: EditorNode): Set<CellSide> {
+  const words = (attrString(cell.attrs, 'hiddenBorders') ?? '').split(/\s+/)
+  return new Set(CELL_SIDES.filter((side) => words.includes(side)))
+}
+
+/**
+ * The sides of a cell to leave undrawn in a word processor's file.
+ *
+ * The editor hides a line two cells share when either of them erased it: an
+ * erased side is drawn `hidden`, which wins over the neighbour's. Word and
+ * RTF draw a shared line when either cell has one, so both have to leave it
+ * out: a side goes undrawn when this cell erased it, or when every cell
+ * across it erased the side facing it.
+ */
+export function hiddenCellSides(
+  table: EditorNode,
+  rowIndex: number,
+  cellIndex: number,
+): Set<CellSide> {
+  const row = table.child(rowIndex)
+  const cell = row.child(cellIndex)
+  const hidden = erasedSides(cell)
+  const before = row.content.maybeChild(cellIndex - 1)
+  if (before && erasedSides(before).has('right')) hidden.add('left')
+  const after = row.content.maybeChild(cellIndex + 1)
+  if (after && erasedSides(after).has('left')) hidden.add('right')
+  let start = 0
+  for (let index = 0; index < cellIndex; index++) start += cellSpan(row.child(index))
+  const end = start + cellSpan(cell)
+  if (erasedAcross(table.content.maybeChild(rowIndex - 1), start, end, 'bottom')) hidden.add('top')
+  if (erasedAcross(table.content.maybeChild(rowIndex + 1), start, end, 'top')) hidden.add('bottom')
+  return hidden
+}
+
+/** Whether every cell of `row` over the columns `start` to `end` has `side` erased. */
+function erasedAcross(row: EditorNode | null, start: number, end: number, side: CellSide): boolean {
+  if (!row) return false
+  let column = 0
+  let facing = 0
+  for (const cell of row.content.children) {
+    const next = column + cellSpan(cell)
+    if (next > start && column < end) {
+      if (!erasedSides(cell).has(side)) return false
+      facing++
+    }
+    column = next
+  }
+  return facing > 0
+}
+
 export interface DataURL {
   readonly mime: string
   readonly bytes: Uint8Array

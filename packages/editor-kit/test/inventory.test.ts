@@ -39,7 +39,7 @@ test('registers every menu and menu entry it did before', () => {
     Insert: 35,
     Format: 20,
     Tools: 21,
-    Table: 27,
+    Table: 37,
     View: 22,
     Help: 3,
   })
@@ -56,9 +56,9 @@ test('renders the whole chrome, not just the menus', () => {
     everythingNamed: count('[data-trevixal-item]'),
   }).toEqual({
     menuTriggers: 8,
-    toolbarGroups: 13,
-    toolbarItems: 61,
-    everythingNamed: 305,
+    toolbarGroups: 14,
+    toolbarItems: 65,
+    everythingNamed: 353,
   })
 })
 
@@ -80,7 +80,7 @@ test('every menu entry that carries an action can be run', () => {
  * The parts built by hand, outside the chrome literal.
  *
  * The two tests above count what `createEditorUI` builds from one object.
- * These ten are separate calls in the body of the mount, and nothing else in
+ * These eleven are separate calls in the body of the mount, and nothing else in
  * the package asserts they happened: a mount that quietly stopped installing
  * the bubble menu, or one of the two suggestion popups, would still pass
  * every other test here and show up only as a feature that does nothing.
@@ -100,6 +100,7 @@ test('installs the suggestion popups and every floating control', () => {
     tableToolbar: count('.trevixal-tabletoolbar'),
     tableResizeGuide: count('.trevixal-resize-guide'),
     tableResizeCorner: count('.trevixal-table-resize-handle'),
+    tableDrawGuide: count('.trevixal-draw-guide'),
     imageToolbar: count('.trevixal-image-toolbar'),
     imageResizeHandles: count('.trevixal-image-handles__handle'),
     codeLanguageSelect: count('.trevixal-codelang'),
@@ -111,6 +112,7 @@ test('installs the suggestion popups and every floating control', () => {
     tableToolbar: 1,
     tableResizeGuide: 1,
     tableResizeCorner: 1,
+    tableDrawGuide: 1,
     imageToolbar: 1,
     imageResizeHandles: 4,
     codeLanguageSelect: 1,

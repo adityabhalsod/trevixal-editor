@@ -1,6 +1,7 @@
 import type { Editor, EditorSnapshot } from '@trevixal/core'
 import { type IconName, createIcon } from './icons'
 import type { Menu, MenuItem } from './menubar'
+import type { ShortcutLabels } from './shortcuts'
 
 /** One entry the palette can run. The host decides what is on offer. */
 export interface PaletteCommand {
@@ -34,7 +35,20 @@ export interface CommandPaletteOptions {
   readonly bindShortcuts?: boolean
   /** Cap on rendered rows (default 50). The filter runs over everything. */
   readonly maxResults?: number
+  /**
+   * Names of the commands run last, newest first, listed before everything
+   * else until something is typed. Pass what `onRecent` last reported to keep
+   * them from one session to the next.
+   */
+  readonly recent?: readonly string[]
+  /** Called with the updated list each time a command runs. */
+  readonly onRecent?: (recent: readonly string[]) => void
+  /** Heading over the recent commands (default "Recently used"). */
+  readonly recentLabel?: string
 }
+
+/** How many recently run commands the palette remembers and lists first. */
+const RECENT_LIMIT = 5
 
 export interface CommandPalette {
   readonly element: HTMLElement
@@ -77,27 +91,43 @@ export function fuzzyScore(query: string, candidate: string): number | null {
   return score - candidate.length * 0.01
 }
 
+/**
+ * Rank items against a query by whichever of their texts scores best; an
+ * empty query keeps the given order. The palette and quick insert both search
+ * this way, so the same letters find the same things in either.
+ */
+export function rankItems<T>(
+  items: readonly T[],
+  query: string,
+  textsOf: (item: T) => readonly string[],
+): readonly T[] {
+  const trimmed = query.trim()
+  if (trimmed.length === 0) return items
+  const scored: { item: T; score: number }[] = []
+  for (const item of items) {
+    let best: number | null = null
+    for (const text of textsOf(item)) {
+      const score = fuzzyScore(trimmed, text)
+      if (score !== null && (best === null || score > best)) best = score
+    }
+    if (best !== null) scored.push({ item, score: best })
+  }
+  // Stable within equal scores, because sort is stable and the input order is
+  // the host's chosen order.
+  scored.sort((a, b) => b.score - a.score)
+  return scored.map((entry) => entry.item)
+}
+
 /** Rank commands against a query; an empty query keeps the given order. */
 export function filterCommands(
   commands: readonly PaletteCommand[],
   query: string,
 ): readonly PaletteCommand[] {
-  const trimmed = query.trim()
-  if (trimmed.length === 0) return commands
-  const scored: { command: PaletteCommand; score: number }[] = []
-  for (const command of commands) {
-    const haystacks = [command.label, ...(command.keywords ?? []), command.group ?? '']
-    let best: number | null = null
-    for (const haystack of haystacks) {
-      const score = fuzzyScore(trimmed, haystack)
-      if (score !== null && (best === null || score > best)) best = score
-    }
-    if (best !== null) scored.push({ command, score: best })
-  }
-  // Stable within equal scores, because sort is stable and the input order is
-  // the host's chosen order.
-  scored.sort((a, b) => b.score - a.score)
-  return scored.map((entry) => entry.command)
+  return rankItems(commands, query, (command) => [
+    command.label,
+    ...(command.keywords ?? []),
+    command.group ?? '',
+  ])
 }
 
 /**
@@ -110,7 +140,7 @@ export function filterCommands(
  * relative to the offset parent and only equals the list when the list
  * happens to be positioned.
  */
-function scrollRowIntoView(list: HTMLElement, row: HTMLElement): void {
+export function scrollRowIntoView(list: HTMLElement, row: HTMLElement): void {
   if (typeof list.getBoundingClientRect !== 'function') return
   const listBox = list.getBoundingClientRect()
   const rowBox = row.getBoundingClientRect()
@@ -164,10 +194,14 @@ export function createCommandPalette(
 
   let results: readonly PaletteCommand[] = []
   let selected = 0
+  // Read back from wherever the host kept it, which may be anything by now.
+  let recent: readonly string[] = Array.isArray(options.recent)
+    ? options.recent.filter((name) => typeof name === 'string').slice(0, RECENT_LIMIT)
+    : []
   /** Where focus was before the palette took it, to hand it back on close. */
   let previouslyFocused: HTMLElement | null = null
   /** Rows parallel to `results`. */
-  let rows: HTMLElement[] = []
+  let rows: HTMLButtonElement[] = []
 
   const render = (): void => {
     const snapshot = editor.getSnapshot()
@@ -242,25 +276,61 @@ export function createCommandPalette(
     })
   }
 
+  /**
+   * With nothing typed: the commands run last, under their own heading, then
+   * the rest without them. A name no command answers to this session stays
+   * remembered but is not listed.
+   */
+  const withRecent = (available: readonly PaletteCommand[]): readonly PaletteCommand[] => {
+    const byName = new Map(available.map((command) => [command.name, command]))
+    const group = options.recentLabel ?? 'Recently used'
+    const first = recent.flatMap((name) => {
+      const command = byName.get(name)
+      return command ? [{ ...command, group }] : []
+    })
+    const listed = new Set(first.map((command) => command.name))
+    return [...first, ...available.filter((command) => !listed.has(command.name))]
+  }
+
   const refresh = (): void => {
     const available = typeof options.commands === 'function' ? options.commands() : options.commands
-    results = filterCommands(available, input.value)
+    results =
+      input.value.trim().length === 0
+        ? withRecent(available)
+        : filterCommands(available, input.value)
     selected = 0
     render()
+    // Start on the first row that can run, not a disabled one above it.
+    const first = rows.findIndex((row) => !row.disabled)
+    if (first > 0) {
+      selected = first
+      markSelected()
+    }
   }
 
   const run = (command: PaletteCommand | undefined): void => {
     if (!command) return
     if (command.isEnabled && !command.isEnabled(editor.getSnapshot())) return
+    recent = [command.name, ...recent.filter((name) => name !== command.name)].slice(
+      0,
+      RECENT_LIMIT,
+    )
+    options.onRecent?.(recent)
     api.close()
     editor.view?.focus()
     command.run(editor)
   }
 
+  /** Step to the next row that can run: landing on a disabled one leaves Enter doing nothing. */
   const move = (delta: number): void => {
-    if (rows.length === 0) return
-    selected = (selected + delta + rows.length) % rows.length
-    markSelected()
+    let next = selected
+    for (let tries = 0; tries < rows.length; tries++) {
+      next = (next + delta + rows.length) % rows.length
+      if (rows[next]?.disabled) continue
+      selected = next
+      markSelected()
+      return
+    }
   }
 
   const onInput = (): void => refresh()
@@ -371,7 +441,8 @@ export function createCommandPalette(
 
 /**
  * Turn wired menus into palette commands. Every entry the menus offer, with
- * the icon and shortcut it already prints.
+ * the icon and shortcut it already prints. Pass the shortcut manager's
+ * `labels()` when the menus have them, so both print what actually fires.
  *
  * Hand-listing the palette's contents means it drifts: the menus grow and the
  * palette quietly keeps offering the dozen commands somebody typed out once.
@@ -383,7 +454,10 @@ export function createCommandPalette(
  * command, `Word document (.docx)` is. The parent's label is folded into the
  * child's keywords so typing `download docx` still finds it.
  */
-export function paletteCommandsFromMenus(menus: readonly Menu[]): PaletteCommand[] {
+export function paletteCommandsFromMenus(
+  menus: readonly Menu[],
+  shortcutLabels?: ShortcutLabels,
+): PaletteCommand[] {
   const commands: PaletteCommand[] = []
   const seen = new Set<string>()
 
@@ -401,12 +475,15 @@ export function paletteCommandsFromMenus(menus: readonly Menu[]): PaletteCommand
       if (seen.has(item.name)) continue
       seen.add(item.name)
       const run = item.run
+      // The rule the menubar prints by: with labels, only what the manager
+      // binds, since the menu's own default may belong to another action.
+      const shortcut = shortcutLabels ? shortcutLabels[item.name] : item.shortcut
       commands.push({
         name: item.name,
         label: item.label,
         group,
         ...(item.icon ? { icon: item.icon } : {}),
-        ...(item.shortcut ? { shortcut: item.shortcut } : {}),
+        ...(shortcut ? { shortcut } : {}),
         ...(trail.length > 0 ? { keywords: trail } : {}),
         ...(item.isEnabled ? { isEnabled: item.isEnabled } : {}),
         run: (editor) => run(editor),

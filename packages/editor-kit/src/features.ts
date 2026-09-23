@@ -47,6 +47,8 @@ export interface Preferences {
   toolbarGroups?: readonly string[]
   shortcuts?: Readonly<Record<string, string | null>>
   usage?: { recent: readonly string[]; favorites: readonly string[] }
+  /** The command palette's recently run commands, newest first. */
+  paletteRecent?: readonly string[]
   customCSS?: string
   goal?: number
 }

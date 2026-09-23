@@ -238,6 +238,43 @@ describe('serializeToRTF tables', () => {
     expect(output).toContain('\\intbl\\f0\\fs22 pear\\cell')
   })
 
+  it('leaves out a line the Eraser took, on both cells that share it', () => {
+    const rtf = serializeToRTF(
+      doc(table(undefined, row(cell('a', { hiddenBorders: 'right' }), cell('b')))),
+    )
+    // The row definition, one border list per cell, each closed by its edge.
+    const definition = rtf.slice(rtf.indexOf('\\trowd'), rtf.indexOf('\\intbl'))
+    const perCell = definition.split('\\cellx').slice(0, -1)
+    const sides = perCell.map((part) =>
+      [...part.matchAll(/\\clbrdr([tlbr])/g)].map((match) => match[1]).join(''),
+    )
+    expect(sides).toEqual(['tlb', 'tbr'])
+  })
+
+  it('draws a table style for RTF readers: the pen, the fills and the header ink', () => {
+    const rtf = serializeToRTF(
+      doc(
+        table(
+          {
+            tableStyle: 'header',
+            accentColor: '#156082',
+            bandedRows: true,
+            borderStyle: 'dotted',
+            borderWidth: '3pt',
+          },
+          row(cell('Region', { header: true })),
+          row(cell('North')),
+        ),
+      ),
+    )
+    expect(rtf).toContain('\\clbrdrt\\brdrdot\\brdrw60')
+    // The accent and white join the colour table, and the header cell uses both.
+    expect(rtf).toContain('\\red21\\green96\\blue130;')
+    expect(rtf).toMatch(/\\clcbpat\d+\\cellx/)
+    expect(rtf).toContain('\\red255\\green255\\blue255;')
+    expect(rtf).toMatch(/\\intbl\\cf\d+\\b/)
+  })
+
   it('draws cell borders unless the table asks for none', () => {
     expect(output).toContain('\\clbrdrt\\brdrs\\brdrw10')
     const bare = serializeToRTF(doc(table({ borders: 'none' }, row(cell('x')))))
