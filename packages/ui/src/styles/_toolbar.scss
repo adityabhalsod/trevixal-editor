@@ -28,17 +28,17 @@
     flex-wrap: wrap;
 
     & + & {
-      margin-left: t.token('space-2');
-      padding-left: t.token('space-2');
-      border-left: 1px solid t.token('color-border');
+      margin-inline-start: t.token('space-2');
+      padding-inline-start: t.token('space-2');
+      border-inline-start: 1px solid t.token('color-border');
     }
 
     // A group that wraps onto a new row would otherwise start with a stray
     // divider hanging off its left edge.
     &:first-child {
-      margin-left: 0;
-      padding-left: 0;
-      border-left: none;
+      margin-inline-start: 0;
+      padding-inline-start: 0;
+      border-inline-start: none;
     }
   }
 
@@ -189,9 +189,9 @@
       // Once every group wraps, the dividers land mid-row as often as at a
       // row's start, so they read as noise. The gap alone separates groups.
       & + & {
-        margin-left: 0;
-        padding-left: 0;
-        border-left: none;
+        margin-inline-start: 0;
+        padding-inline-start: 0;
+        border-inline-start: none;
       }
     }
 

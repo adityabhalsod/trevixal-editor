@@ -4,6 +4,7 @@ import type { Mark } from '../model/mark'
 import type { EditorNode } from '../model/node'
 import { normalizeDoc } from '../model/normalize'
 import type { MarkType, NodeType, ParseRule, Schema } from '../model/schema'
+import { documentSettingsElement, parseDocumentSettings } from '../schema/document-settings'
 
 /**
  * Sanitizing HTML import. Security model: sanitize-by-construction. The
@@ -89,7 +90,11 @@ class HTMLParser {
 
   parse(root: globalThis.Node): EditorNode {
     const children = this.parseChildren(root, [], false)
-    const doc = this.schema.topType.create(undefined, Fragment.from(children))
+    // The wrapper carrying the document's settings is an unknown element to
+    // the rules above, so its blocks were kept; its attributes are the doc's.
+    const carrier = 'querySelector' in root ? documentSettingsElement(root as ParentNode) : null
+    const attrs = carrier ? parseDocumentSettings(carrier) : undefined
+    const doc = this.schema.topType.create(attrs, Fragment.from(children))
     return normalizeDoc(doc)
   }
 

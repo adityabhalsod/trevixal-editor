@@ -25,7 +25,9 @@ const TARGETS = [
     note: "the brief's ceiling",
   },
   { name: '@trevixal/ui', entry: 'packages/ui/dist/index.js', budgetKb: 80 },
-  { name: '@trevixal/ui styles.css', entry: 'packages/ui/dist/styles.css', budgetKb: 14 },
+  // Raised from 14 kB with heading numbering, captions, the index, line
+  // numbers and the block menu: the measured 14.3 kB plus about 10%.
+  { name: '@trevixal/ui styles.css', entry: 'packages/ui/dist/styles.css', budgetKb: 16 },
   {
     // The assembled editor pulls every extension in with it, so this is not a
     // package's own size but the whole thing as a consuming app receives it.
@@ -46,7 +48,10 @@ const TARGETS = [
     // thing here by design. See `packages/editor-kit/src/cdn.ts`.
     name: '@trevixal/editor-kit (CDN)',
     entry: 'packages/editor-kit/dist/trevixal-editor-kit.iife.js',
-    budgetKb: 200,
+    // Raised from 200 kB with the document-structure features (heading
+    // numbering, captions, cross-references, the index, line numbers, RTL):
+    // the measured 210.8 kB plus about 10%.
+    budgetKb: 232,
     note: 'already minified',
   },
   {

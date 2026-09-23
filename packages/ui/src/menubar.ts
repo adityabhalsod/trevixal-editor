@@ -1,4 +1,10 @@
-import type { Editor, EditorSnapshot } from '@trevixal/core'
+import {
+  type Editor,
+  type EditorSnapshot,
+  HEADING_NUMBERING_SCHEMES,
+  type TextDirection,
+  listMarker,
+} from '@trevixal/core'
 import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
@@ -63,6 +69,15 @@ export interface Menubar {
 }
 
 const separator = (name: string): MenuItem => ({ name, label: '', separator: true })
+
+/** The direction the whole document runs in, which a block without its own follows. */
+function documentDirection(editor: Editor): TextDirection {
+  return editor.state.doc.attrs.direction === 'rtl' ? 'rtl' : 'ltr'
+}
+
+function snapshotDirection(snapshot: EditorSnapshot): TextDirection {
+  return snapshot.documentAttrs.direction === 'rtl' ? 'rtl' : 'ltr'
+}
 
 /** Menu entries for a set of Table design choices. */
 const designEntries = <Value>(entries: readonly TableDesignEntry<Value>[]): MenuItem[] =>
@@ -266,9 +281,30 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'insertButton', label: 'Button…', icon: 'buttonBlock' },
         { name: 'insertAnchor', label: 'Anchor…', icon: 'anchor' },
         { name: 'insertFootnote', label: 'Footnote', icon: 'footnote' },
+        { name: 'insertEndnote', label: 'Endnote', icon: 'footnote' },
         { name: 'insertCitation', label: 'Citation…', icon: 'footnote' },
         { name: 'insertReferenceList', label: 'References list', icon: 'footnote' },
         { name: 'renumberCitations', label: 'Renumber citations', icon: 'restartNumbering' },
+        separator('insert-sep-references'),
+        { name: 'insertCaption', label: 'Caption…', icon: 'caption' },
+        { name: 'insertCrossReference', label: 'Cross-reference…', icon: 'crossReference' },
+        {
+          name: 'insertCaptionList',
+          label: 'Table of figures',
+          icon: 'tableOfFigures',
+          items: [
+            { name: 'captionList-figure', label: 'Figures', icon: 'image' },
+            { name: 'captionList-table', label: 'Tables', icon: 'table' },
+            { name: 'captionList-equation', label: 'Equations', icon: 'specialChar' },
+          ],
+        },
+        {
+          name: 'markIndexEntry',
+          label: 'Mark index entry…',
+          icon: 'markIndexEntry',
+          isEnabled: (snapshot) => !snapshot.selectionEmpty,
+        },
+        { name: 'insertDocumentIndex', label: 'Index', icon: 'documentIndex' },
         separator('insert-sep-break'),
         { name: 'insertPageBreak', label: 'Page break', icon: 'pageBreak' },
       ],
@@ -388,6 +424,33 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           ],
         },
         {
+          // A document setting, as Word links a multilevel list to its
+          // heading styles: every top-level heading takes its level's number.
+          name: 'headingNumbering',
+          label: 'Heading numbering',
+          icon: 'multilevelList',
+          items: [
+            {
+              name: 'headingNumbering-none',
+              label: 'None',
+              icon: 'langPlain',
+              run: (editor) => editor.commands.setHeadingNumbering(null),
+              isActive: (snapshot) => !snapshot.documentAttrs.headingNumbering,
+            },
+            ...HEADING_NUMBERING_SCHEMES.map((scheme) => ({
+              name: `headingNumbering-${scheme.id}`,
+              // The scheme's first three levels, as the gallery draws them.
+              label: [[1], [1, 1], [1, 1, 1]]
+                .map((numbers) => listMarker(scheme, numbers))
+                .join(' '),
+              icon: 'multilevelList' as IconName,
+              run: (editor: Editor) => editor.commands.setHeadingNumbering(scheme.id),
+              isActive: (snapshot: EditorSnapshot) =>
+                snapshot.documentAttrs.headingNumbering === scheme.id,
+            })),
+          ],
+        },
+        {
           name: 'alignMenu',
           label: 'Align',
           icon: 'alignLeft',
@@ -418,6 +481,43 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
               isEnabled: (snapshot) => snapshot.indent > 0,
             },
           ],
+        },
+        {
+          name: 'textDirection',
+          label: 'Text direction',
+          icon: 'textDirectionLtr',
+          items: [
+            ...(['ltr', 'rtl'] as const).map((dir) => ({
+              name: `textDirection-${dir}`,
+              label: dir === 'ltr' ? 'Left to right' : 'Right to left',
+              icon: (dir === 'ltr' ? 'textDirectionLtr' : 'textDirectionRtl') as IconName,
+              // The document's own direction is stored as nothing, so a
+              // paragraph set back to it follows the document again.
+              run: (editor: Editor) =>
+                editor.commands.setTextDirection(dir === documentDirection(editor) ? null : dir),
+              isActive: (snapshot: EditorSnapshot) =>
+                (snapshot.blockAttrs?.dir ?? snapshotDirection(snapshot)) === dir,
+            })),
+            separator('direction-sep-document'),
+            {
+              name: 'documentRightToLeft',
+              label: 'Whole document right to left',
+              icon: 'textDirectionRtl',
+              run: (editor) =>
+                editor.commands.setDocumentDirection(
+                  documentDirection(editor) === 'rtl' ? 'ltr' : 'rtl',
+                ),
+              isActive: (snapshot) => snapshotDirection(snapshot) === 'rtl',
+            },
+          ],
+        },
+        {
+          name: 'lineNumbers',
+          label: 'Line numbers',
+          icon: 'lineNumbers',
+          run: (editor) =>
+            editor.commands.setLineNumbers(editor.state.doc.attrs.lineNumbers !== true),
+          isActive: (snapshot) => snapshot.documentAttrs.lineNumbers === true,
         },
         separator('format-sep-spacing'),
         {
@@ -1028,7 +1128,7 @@ function renderMenuItem(
   panel.appendChild(button)
 }
 
-/** Left/right arrows move between menus, as the menubar pattern requires. */
+/** Left/right arrows move between menus, as the menubar pattern requires, in the order they are drawn. */
 function bindMenubarNavigation(root: HTMLElement, dropdowns: readonly Dropdown[]): void {
   root.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
@@ -1037,7 +1137,9 @@ function bindMenubarNavigation(root: HTMLElement, dropdowns: readonly Dropdown[]
       (dropdown) => dropdown.trigger === active || dropdown.panel.contains(active),
     )
     if (index === -1) return
-    const delta = event.key === 'ArrowRight' ? 1 : -1
+    // Mirrored with a right-to-left document, the next menu is to the left.
+    const rtl = root.ownerDocument.defaultView?.getComputedStyle(root).direction === 'rtl'
+    const delta = (event.key === 'ArrowRight') !== rtl ? 1 : -1
     const next = dropdowns[(index + delta + dropdowns.length) % dropdowns.length]
     if (!next) return
     const wasOpen = dropdowns[index]?.isOpen

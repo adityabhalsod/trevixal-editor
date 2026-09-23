@@ -48,7 +48,7 @@ ui.openLinkDialog()
 | --- | --- | --- |
 | `tableCommands` | `TableCommands` | The Table menu and grid: `insertTable(rows, cols)` plus optional row, column, merge, split, header and delete commands, `setCellAlign`, `setCellBackground`, `setTableBorders`, `setTableBorderColor`, `sortAscending` / `sortDescending`, `convertTextToTable`, `convertTableToText`, `insertTableFromCSV`, `csvAtSelection`, `distributeColumns`, `clearSizing` |
 | `images` | `ImageActions` | `pickFiles()`, `insertImage({ src, alt?, title? })`: the image button and dialog |
-| `blockCommands` | from `blockUICommands()` | Insert > Callout, Toggle, Columns, Card, Timeline, Tabs, Accordion, Badge, Button, Anchor, Footnote, Citation, References, Page break |
+| `blockCommands` | from `blockUICommands()` | Insert > Callout, Toggle, Columns, Card, Timeline, Tabs, Accordion, Badge, Button, Anchor, Footnote, Endnote, Citation, References, Caption…, Cross-reference…, Table of figures, Mark index entry…, Index, Page break |
 | `embedCommands` | `EmbedCommands` | `insertEmbed(url)`, `insertVideo`, `insertAudio`, `insertIframe`, `insertLinkCard`, `pickAttachment` |
 | `mathCommands` | `MathCommands` | `insertMath(latex)`, `insertMathBlock(latex)` |
 | `diagramCommands` | `DiagramCommands` | `insertDiagram(code?)` |
@@ -107,6 +107,7 @@ createToolbar(editor, container, {
 | Navigation | `createTableOfContents`, `createDocumentOutline` + `defaultOutlineBlockKinds`, `createFindReplace` + `compileSearch` + `findAll`, `createCommandPalette` (`recent` + `onRecent` to open on what ran last) + `paletteCommandsFromMenus(menus, shortcutLabels?)` + `filterCommands` + `fuzzyScore`, `createHistoryPanel` |
 | Shortcuts | `createShortcutManager({ actions, overrides?, onChange?, scopes?, isMac? })`, `openShortcutsDialog`, `formatShortcut`, `parseShortcut`, `isApplePlatform`; `toolbar.setShortcutLabels(manager.labels())` (or the toolbar's `shortcutLabels` option) makes each tooltip name the key that fires, which `ui.setShortcutLabels` does for menus and toolbar together |
 | View modes | `createFocusMode`, `createTypewriter`, `createFullscreenToggle`, `setEditorWidth` + `EDITOR_WIDTHS` (narrow 38rem, normal 48rem, wide 64rem, full) |
+| Long documents | `createLineNumbers(editor, { container })` (drawn while the document's `lineNumbers` is on; `measureLines`, `numberLinesIn` for a rendered page, which the print uses), `createReferenceNavigation(editor)` (Ctrl/⌘+click follows a `data-href`, and the page's `#id` scrolls to its block), `referenceTarget`; the block grip's menu (turn into, duplicate, move, copy link, delete) comes with `createBlockDragHandle`; a right-to-left document sets `dir` on the chrome |
 | Files | `builtinExporters({ scripts? })` (html, markdown, text, json), `builtinImporters()`, `exportDocument`, `importFile`, `importerFor`, `acceptFor`, `pickFile`, `readFileText`, `downloadFile`, `suggestFileName`, `documentTitle`, `selectionDocument`, `textToDocument`, `printDocument`, `openPrintPreview`, `printableHTML`, `editorTheme` |
 | Source modes | `createSourceMode(editor, { format: 'markdown' \| 'html' })` |
 | Persistence | `createAutosave(editor, { storage, key?, delayMs?, backups?: { intervalMs?, keep? } \| false, onState? })`, `createAutosaveIndicator`, `offerDraftRecovery`, `openBackupsDialog`, `createWebStorage`, `createMemoryStorage`, `formatSavedAt` |

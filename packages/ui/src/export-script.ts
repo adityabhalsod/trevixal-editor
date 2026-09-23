@@ -83,6 +83,30 @@ function applyDocumentBehaviour(document: Document): void {
   })
 
   /**
+   * A cross-reference, a table-of-figures or index entry, a note marker:
+   * each names its target as `data-href="#id"`, on a span, because an `<a>`
+   * would import back into the editor as a link. On a page nothing else
+   * follows them, so a click here does, to an element with that id or to the
+   * words an index entry marks.
+   */
+  document.addEventListener('click', (event) => {
+    const element = event.target as Element | null
+    const source =
+      element && typeof element.closest === 'function' ? element.closest('[data-href^="#"]') : null
+    const id = source ? (source.getAttribute('data-href') ?? '').slice(1) : ''
+    if (!id) return
+    // Compared as values, not written into a selector the id could break.
+    const named = (attribute: string): Element | undefined =>
+      [...document.querySelectorAll(`[${attribute}]`)].find(
+        (candidate) => candidate.getAttribute(attribute) === id,
+      )
+    const target = named('id') ?? named('data-index-term')
+    if (!target) return
+    event.preventDefault()
+    target.scrollIntoView({ block: 'center' })
+  })
+
+  /**
    * The titles are buttons, so the keyboard has to work too. A control that
    * announces itself as pressable and then ignores Enter is worse than one
    * that never claimed to be pressable. The arrows move along the strip as

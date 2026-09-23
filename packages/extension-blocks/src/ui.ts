@@ -1,4 +1,4 @@
-import type { Command } from '@trevixal/core'
+import type { Command, EditorNode } from '@trevixal/core'
 import { addAccordionItem, insertAccordion } from './accordion'
 import { insertCitation, insertReferenceList, renumberCitations } from './citations'
 import {
@@ -17,6 +17,16 @@ import {
   setColumnCount,
   toggleToggleOpen,
 } from './commands'
+import { type ReferenceTarget, referenceTargets } from './fields'
+import {
+  insertCaption,
+  insertCaptionList,
+  insertCrossReference,
+  insertDocumentIndex,
+  insertEndnote,
+  markIndexEntry,
+} from './reference-commands'
+import { captionKind, crossReferenceFormat } from './references'
 import { badgeTone, calloutVariant } from './schema'
 import { addTab, insertTabs, removeTab } from './tabs'
 
@@ -53,6 +63,18 @@ export interface BlockUICommands {
   readonly setColumnCount: (count: number) => Command
   readonly insertTimelineItem: Command
   readonly toggleToggleOpen: Command
+  // The reference apparatus: captions, cross-references, the lists built from
+  // them, the index and endnotes. Kinds and formats arrive as plain strings.
+  readonly insertCaption: (kind: string, label: string, text: string) => Command
+  readonly referenceTargets: (doc: EditorNode) => readonly ReferenceTarget[]
+  readonly insertCrossReference: (
+    target: Pick<ReferenceTarget, 'id' | 'path'>,
+    format: string,
+  ) => Command
+  readonly insertCaptionList: (kind: string) => Command
+  readonly insertDocumentIndex: Command
+  readonly markIndexEntry: (entry: string, sub: string) => Command
+  readonly insertEndnote: Command
 }
 
 export function blockUICommands(): BlockUICommands {
@@ -83,5 +105,13 @@ export function blockUICommands(): BlockUICommands {
     setColumnCount: (count) => setColumnCount(count),
     insertTimelineItem,
     toggleToggleOpen,
+    insertCaption: (kind, label, text) => insertCaption(captionKind(kind), { label, text }),
+    referenceTargets,
+    insertCrossReference: (target, format) =>
+      insertCrossReference(target, crossReferenceFormat(format)),
+    insertCaptionList: (kind) => insertCaptionList(captionKind(kind)),
+    insertDocumentIndex,
+    markIndexEntry: (entry, sub) => markIndexEntry({ entry, sub }),
+    insertEndnote: insertEndnote(),
   }
 }

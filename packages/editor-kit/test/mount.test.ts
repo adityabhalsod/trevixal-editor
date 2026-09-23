@@ -180,3 +180,85 @@ test('applies Customize toolbar in place, and a fresh mount keeps it', () => {
   // Hidden, not unbuilt, so the dialog can bring it back the same way.
   expect(mounted.ui.toolbar.groups.map((group) => group.name)).toContain('lists')
 })
+
+test('numbers captions and keeps cross-references current as part of each edit', async () => {
+  const { insertCaption, insertCrossReference, referenceTargets } = await import(
+    '@trevixal/extension-blocks'
+  )
+  mounted = mountFullEditor({
+    element: host,
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'See ' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Body' }] },
+      ],
+    } as never,
+  })
+  const { editor } = mounted
+  const { TextSelection, pos } = await import('@trevixal/core')
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([1], 4))))
+  editor.exec(insertCaption('figure', { label: 'Figure', text: 'A cat' }))
+  const cat = referenceTargets(editor.state.doc).find((target) => target.kind === 'figure')
+  expect(cat?.full).toBe('Figure 1: A cat')
+  if (!cat) return
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 4))))
+  editor.exec(insertCrossReference(cat, 'label'))
+  const reference = () => editor.state.doc.child(0).content.children.find((child) => child.isAtom)
+  expect(reference()?.attrs.text).toBe('Figure 1')
+  // A figure added before it makes it Figure 2, reference and all.
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 0))))
+  editor.exec(insertCaption('figure', { label: 'Figure', text: 'Earlier' }))
+  expect(reference()?.attrs.text).toBe('Figure 2')
+  expect(host.querySelector('.trevixal-xref')?.textContent).toBe('Figure 2')
+})
+
+test('records an edit to a caption as a suggestion, fields and all', async () => {
+  const { insertCaption, insertCaptionList } = await import('@trevixal/extension-blocks')
+  mounted = mountFullEditor({
+    element: host,
+    content: {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }],
+    } as never,
+  })
+  const { editor } = mounted
+  const { TextSelection, inlineLength, pos } = await import('@trevixal/core')
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 4))))
+  editor.exec(insertCaption('figure', { label: 'Figure', text: 'A cat' }))
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 0))))
+  editor.exec(insertCaptionList('figure'))
+  host.querySelector<HTMLElement>('.trevixal-trackchanges__toggle')?.click()
+
+  // Typing in the caption changes the table of figures in the same edit, and
+  // the typing is still a suggestion rather than going straight in.
+  const end = inlineLength(editor.state.doc.child(2).content)
+  editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([2], end))))
+  editor.commands.insertText('s')
+  const inserted = editor.state.doc
+    .child(2)
+    .content.children.filter((child) => child.marks.some((mark) => mark.type.name === 'insertion'))
+  expect(inserted.map((child) => child.textContent)).toEqual(['s'])
+  expect(host.querySelector('.trevixal-caption-list')?.textContent).toContain('A cats')
+})
+
+test('turns the whole editor round for a right-to-left document', () => {
+  mounted = mountFullEditor({ element: host })
+  // The layout's root is the host itself: chrome, sidebar and panes all turn.
+  const root = host
+  mounted.editor.commands.setDocumentDirection('rtl')
+  expect(root.getAttribute('dir')).toBe('rtl')
+  expect(host.querySelector('.trevixal-content')?.getAttribute('dir')).toBe('rtl')
+  mounted.editor.commands.setDocumentDirection('ltr')
+  expect(root.hasAttribute('dir')).toBe(false)
+})
+
+test('leaves a host’s own direction as it found it', () => {
+  host.setAttribute('dir', 'rtl')
+  mounted = mountFullEditor({ element: host })
+  // A document with no direction of its own takes the page's.
+  expect(host.getAttribute('dir')).toBe('rtl')
+  mounted.destroy()
+  mounted = null
+  expect(host.getAttribute('dir')).toBe('rtl')
+})

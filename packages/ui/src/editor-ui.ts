@@ -5,11 +5,12 @@ import {
   type EditorState,
   Fragment,
   ReplaceNodesStep,
+  SetNodeAttrsStep,
+  attrsEq,
   insertBlockAfter,
   insertEmailLink,
   isEmailAddress,
   parseHTML,
-  parseMarkdown,
   safeHref,
   serializeToMarkdown,
   setLinkTarget,
@@ -20,7 +21,9 @@ import { printDocument } from './documents'
 import { type FindReplace, createFindReplace } from './find-replace'
 import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
+import { referenceEntries } from './reference-dialogs'
 import type { ShortcutLabels } from './shortcuts'
+import { parseMarkdownSource } from './source-mode'
 import { type StatusBar, createStatusBar } from './status-bar'
 import {
   TABLE_LINE_STYLE_ENTRIES,
@@ -387,6 +390,15 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
 
   const statusBar = options.showStatusBar === false ? null : createStatusBar(editor, root)
 
+  // A right-to-left document mirrors the chrome with it: menus open from the
+  // right, the toolbar runs right to left, as a right-to-left reader expects.
+  const syncDirection = (): void => {
+    if (editor.state.doc.attrs.direction === 'rtl') root.setAttribute('dir', 'rtl')
+    else root.removeAttribute('dir')
+  }
+  syncDirection()
+  const stopSyncingDirection = editor.on('update', syncDirection)
+
   options.container.appendChild(root)
   return {
     element: root,
@@ -405,6 +417,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
       actions.link(editor)
     },
     destroy() {
+      stopSyncingDirection()
       findReplace?.destroy()
       statusBar?.destroy()
       toolbar.destroy()
@@ -600,7 +613,7 @@ function createActions(
     }).then((values) => {
       target.view?.focus()
       if (values?.markdown === undefined) return
-      target.setContent(parseMarkdown(values.markdown, target.schema), { addToHistory: true })
+      target.setContent(parseMarkdownSource(target, values.markdown), { addToHistory: true })
     })
   })
 
@@ -702,6 +715,8 @@ function createActions(
         })
       })
     }
+    // Captions, cross-references, their lists, the index and endnotes.
+    for (const [name, run] of referenceEntries(blocks, document)) byName.set(name, run)
   }
 
   // Code formatting, when the host supplies the extension's commands.
@@ -1368,7 +1383,9 @@ function tidySeparators(items: readonly MenuItem[]): readonly MenuItem[] {
 function replaceDocumentHTML(editor: Editor, html: string): void {
   const parsed = parseHTML(editor.schema, html, editor.view?.dom.ownerDocument)
   const content = parsed.content.childCount > 0 ? parsed.content : Fragment.empty
-  editor.dispatch(
-    editor.state.tr.step(new ReplaceNodesStep([], 0, editor.state.doc.childCount, content)),
-  )
+  const tr = editor.state.tr.step(new ReplaceNodesStep([], 0, editor.state.doc.childCount, content))
+  // The source carries the document's settings on its wrapper; edited there,
+  // they are applied with the rest.
+  if (!attrsEq(tr.doc.attrs, parsed.attrs)) tr.step(new SetNodeAttrsStep([], parsed.attrs))
+  editor.dispatch(tr)
 }

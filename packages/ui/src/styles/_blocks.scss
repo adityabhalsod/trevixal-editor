@@ -18,7 +18,7 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     border-radius: t.token('radius-md');
     // The left accent is a border rather than a pseudo-element so it grows
     // with the panel and needs no positioning context.
-    border-left: 4px solid t.token('color-tone-info-accent');
+    border-inline-start: 4px solid t.token('color-tone-info-accent');
     background: t.token('color-tone-info-bg');
 
     // Block children keep their own margins, which would push the first line
@@ -35,13 +35,13 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     // from the document ever reaches the stylesheet.
     &[data-icon]::before {
       content: attr(data-icon) ' ';
-      margin-right: t.token('space-1');
+      margin-inline-end: t.token('space-1');
       font-style: normal;
     }
 
     @each $tone in $tones {
       &--#{$tone} {
-        border-left-color: t.token('color-tone-#{$tone}-accent');
+        border-inline-start-color: t.token('color-tone-#{$tone}-accent');
         background: t.token('color-tone-#{$tone}-bg');
       }
     }
@@ -215,14 +215,14 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     margin: t.token('space-3') 0;
     // The rail replaces the list's own numbering, which would compete with
     // the markers authors put on each item.
-    padding-left: t.token('space-4');
-    border-left: 2px solid t.token('color-border');
+    padding-inline-start: t.token('space-4');
+    border-inline-start: 2px solid t.token('color-border');
     list-style: none;
 
     &__item {
       position: relative;
       // Room for the dot, which sits outside the item's own box.
-      padding-left: t.token('space-3');
+      padding-inline-start: t.token('space-3');
       padding-bottom: t.token('space-3');
 
       &:last-child {
@@ -234,7 +234,7 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
       &::before {
         content: '';
         position: absolute;
-        left: calc(-1 * (t.token('space-4') + 5px));
+        inset-inline-start: calc(-1 * (t.token('space-4') + 5px));
         top: 0.45em;
         width: 8px;
         height: 8px;
@@ -276,7 +276,7 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
       content: 'Page break';
       position: absolute;
       top: -0.7em;
-      right: 0;
+      inset-inline-end: 0;
       padding: 0 t.token('space-2');
       background: t.token('color-bg');
       color: t.token('color-text-muted');
@@ -338,10 +338,11 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     }
   }
 
-  // ---- footnotes -------------------------------------------------------------
+  // ---- footnotes and endnotes ----------------------------------------------------
   // The ref is a <span>, not a <sup> (core's superscript mark owns that tag,
   // see the node's own comment), so the raised position is set here.
-  .trevixal-footnote-ref {
+  .trevixal-footnote-ref,
+  .trevixal-endnote-ref {
     color: t.token('color-accent');
     cursor: pointer;
     font-size: 0.75em;
@@ -360,7 +361,8 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     }
   }
 
-  .trevixal-footnotes {
+  .trevixal-footnotes,
+  .trevixal-endnotes {
     margin-top: t.token('space-4');
     padding-top: t.token('space-3');
     // The list is document apparatus, not body text: a rule sets it apart.
@@ -385,6 +387,81 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
       > :last-child {
         margin-bottom: 0;
       }
+    }
+  }
+
+  // Endnotes count i, ii, iii, as their markers do.
+  .trevixal-endnotes {
+    list-style-type: lower-roman;
+  }
+
+  // ---- captions and cross-references ---------------------------------------------
+  // A caption is any paragraph (or figure caption) holding a caption number,
+  // so it needs no node of its own: "Figure 3: …" in the Caption style.
+  p:has(> .trevixal-caption-number),
+  figcaption:has(> .trevixal-caption-number) {
+    color: t.token('color-text-muted');
+    font-size: 0.9em;
+    font-style: italic;
+  }
+
+  // A reference reads as running text, marked just enough to be found, and
+  // taken to its target with Ctrl+click (a plain click on a saved page).
+  .trevixal-xref,
+  .trevixal-ref-link {
+    color: t.token('color-accent');
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+  }
+
+  // ---- table of figures and the index ---------------------------------------------
+  .trevixal-caption-list,
+  .trevixal-index {
+    margin: t.token('space-3') 0;
+  }
+
+  .trevixal-caption-list__items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    li {
+      margin: 0.25em 0;
+    }
+  }
+
+  .trevixal-caption-list__empty,
+  .trevixal-index__empty {
+    margin: 0;
+    color: t.token('color-text-muted');
+    font-style: italic;
+  }
+
+  // Two columns, as an index is set in Word, with each letter's entries kept
+  // together under it.
+  .trevixal-index {
+    column-gap: t.token('space-4');
+    columns: 2 12rem;
+
+    ul {
+      margin: 0;
+      padding-inline-start: 0;
+      list-style: none;
+    }
+
+    li li {
+      padding-inline-start: 1.25em;
+    }
+
+    &__group {
+      break-inside: avoid;
+      margin-bottom: t.token('space-3');
+    }
+
+    &__letter {
+      margin: 0 0 0.25em;
+      font-weight: 700;
     }
   }
 

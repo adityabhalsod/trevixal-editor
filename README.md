@@ -204,10 +204,18 @@ chrome, a menu entry, a toolbar control or a key binding, and was audited
 against the code. The two exceptions are marked. The same list, kept as a
 checklist, is kept by the maintainers.
 
-**Document structure**: headings 1-6 · blockquote · horizontal rule · page
-break · collapsible sections (toggle blocks) · table of contents · document
-outline panel · anchor links and bookmarks · find and replace with regular
-expressions.
+**Document structure**: headings 1-6 · heading numbering (`1. 1.1. 1.1.1.`,
+`1. a. i.`, `1) a) i)`, `I. A. 1.`) · numbered captions for figures, tables
+and equations · cross-references that follow their target's number · tables of
+figures, tables and equations · an index built from marked words · footnotes
+and endnotes · line numbers in the margin, on screen and in print ·
+right-to-left and bidirectional text, with the chrome mirrored · a block menu
+(turn into, duplicate, move, copy a link, delete) · blockquote · horizontal
+rule · page break · collapsible sections (toggle blocks) · table of contents ·
+document outline panel · anchor links and bookmarks · find and replace with
+regular expressions. In a `.docx` these are Word's own wherever Word has one:
+heading numbering, `SEQ`, `REF`, `TOC`, `XE` and `INDEX` fields, line
+numbering and bidi; footnotes and endnotes go as text.
 
 **Formatting**: bold, italic, underline, strikethrough · superscript and
 subscript · inline code · text highlight · text and background colour · font
@@ -364,7 +372,7 @@ file.
 | [`@trevixal/web-component`](packages/web-component) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dweb-component&label=) | 28 | `<trevixal-editor>` custom element plus a bundler-free IIFE CDN build. |
 | [`@trevixal/extension-table`](packages/extension-table) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-table&label=) | 104 | Tables: structure, merge/split (colspan), header row, alignment, background, borders, sort, resize, CSV in and out, text ↔ table. |
 | [`@trevixal/extension-image`](packages/extension-image) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-image&label=) | 95 | Images: pluggable storage, drag/paste/pick upload with progress and cancellation, resize handles, crop, rotate, compress, captions, alignment, a floating toolbar. |
-| [`@trevixal/extension-blocks`](packages/extension-blocks) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-blocks&label=) | 105 | Callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes, tabs, accordions, citations and reference lists, anchors. |
+| [`@trevixal/extension-blocks`](packages/extension-blocks) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-blocks&label=) | 105 | Callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes and endnotes, tabs, accordions, citations and reference lists, anchors, numbered captions, cross-references, tables of figures and an index, kept current as fields. |
 | [`@trevixal/extension-embed`](packages/extension-embed) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-embed&label=) | 110 | Video, audio, YouTube/Vimeo and allowlisted iframes, file attachments with pluggable storage, link preview cards. |
 | [`@trevixal/extension-math`](packages/extension-math) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-math&label=) | 118 | LaTeX → MathML for inline and display equations, `$…$` input rule, pluggable renderer. |
 | [`@trevixal/extension-diagram`](packages/extension-diagram) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-diagram&label=) | 32 | Live diagram previews under code blocks through any renderer; Mermaid adapter and lazy CDN loader included. |
@@ -905,7 +913,7 @@ The host contracts, as declared in [`editor-ui.ts`](packages/ui/src/editor-ui.ts
 | --- | --- | --- |
 | `tableCommands` | `TableCommands` | The Table menu and grid: `insertTable(rows, cols)` plus optional row/column/merge/split/header/delete, `setCellAlign`, `setCellBackground`, `setTableBorders`, `setTableBorderColor`, `sortAscending/Descending`, `convertTextToTable`, `convertTableToText`, `insertTableFromCSV`, `csvAtSelection`, `distributeColumns`, `clearSizing` |
 | `images` | `ImageActions` | `pickFiles()`, `insertImage({ src, alt?, title? })`. The image button and dialog |
-| `blockCommands` | from `blockUICommands()` | Insert ▸ Callout/Toggle/Columns/Card/Timeline/Tabs/Accordion/Badge/Button/Anchor/Footnote/Citation/References/Page break |
+| `blockCommands` | from `blockUICommands()` | Insert ▸ Callout/Toggle/Columns/Card/Timeline/Tabs/Accordion/Badge/Button/Anchor/Footnote/Endnote/Citation/References/Caption/Cross-reference/Table of figures/Mark index entry/Index/Page break |
 | `embedCommands` | `EmbedCommands` | `insertEmbed(url)`, `insertVideo`, `insertAudio`, `insertIframe`, `insertLinkCard`, `pickAttachment` |
 | `mathCommands` | `MathCommands` | `insertMath(latex)`, `insertMathBlock(latex)` |
 | `diagramCommands` | `DiagramCommands` | `insertDiagram(code?)` |
@@ -1895,14 +1903,19 @@ break `Shift+Enter` · Special character… · Emoji… · Video… · Audio… 
 link… · Link preview card… · File attachment… · Equation… · Display equation…
 · Diagram · **Callout ▸** Info / Success / Warning / Danger / Note · Toggle
 block · **Columns ▸** 2 / 3 / 4 columns · Card · Timeline · **Tabs ▸** 2 / 3
-tabs · Accordion · Badge… · Button… · Anchor… · Footnote · Citation… ·
-References list · Renumber citations · Page break
+tabs · Accordion · Badge… · Button… · Anchor… · Footnote · Endnote ·
+Citation… · References list · Renumber citations · Caption… · Cross-reference…
+· **Table of figures ▸** Figures / Tables / Equations · Mark index entry… ·
+Index · Page break
 
 **Format**: Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` ·
 Strikethrough · **Formats ▸** Superscript / Subscript / Code / Small caps /
 Highlight · **Paragraph styles ▸** Paragraph / Heading 1-6 / Quote / Code
-block · **Align ▸** Left / Center / Right / Justify · **Indentation ▸**
-Increase / Decrease · **Line height ▸** Default / Single / 1.15 / 1.5 / Double
+block · **Heading numbering ▸** None / 1. 1.1. 1.1.1. / 1. a. i. / 1) a) i) /
+I. A. 1. · **Align ▸** Left / Center / Right / Justify · **Indentation ▸**
+Increase / Decrease · **Text direction ▸** Left to right / Right to left /
+Whole document right to left · Line numbers · **Line height ▸** Default /
+Single / 1.15 / 1.5 / Double
 · **Paragraph spacing ▸** before and after none / small / medium / large,
 then space before none / medium / large, then space after none / medium /
 large · **Letter spacing ▸** Normal / Tight / Wide / Wider · **Lists ▸**

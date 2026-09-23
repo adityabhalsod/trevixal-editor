@@ -17,7 +17,12 @@ import {
   sentenceCount,
   serializeToHTMLDocument,
 } from '@trevixal/core'
-import { blockBindings, blockKeymap, blockUICommands } from '@trevixal/extension-blocks'
+import {
+  blockBindings,
+  blockKeymap,
+  blockUICommands,
+  installFieldUpdater,
+} from '@trevixal/extension-blocks'
 import {
   codeHighlight,
   copyToClipboard,
@@ -235,6 +240,20 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // --------------------------------------------------------- review surfaces
 
   const track = new TrackChanges(editor, { author })
+  // Caption numbers, cross-references, tables of figures and the index kept
+  // current inside each edit. The updater has to run after track changes, so
+  // it sees the transaction actually applied: an edit it has added field steps
+  // to is no longer one track changes can record. Track changes adds itself
+  // when Suggesting is switched on, so the updater goes back on after it.
+  let removeFieldUpdater = installFieldUpdater(editor)
+  const stopFollowingTrackChanges = track.onEnabledChange(() => {
+    removeFieldUpdater()
+    removeFieldUpdater = installFieldUpdater(editor)
+  })
+  disposers.push(() => {
+    stopFollowingTrackChanges()
+    removeFieldUpdater()
+  })
   const writing = createWritingAssistant(editor, { longSentences: true })
   // Point at any wavy underline for what was flagged; click it for the fix.
   // Ctrl+. opens the same menu for the issue under the caret.
@@ -243,6 +262,25 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // ------------------------------------------------------------------ chrome
 
   const chrome = createChrome(editor, editorShell, layout.root, preferences, remember)
+  // A right-to-left document mirrors the whole editor with it: the chrome, the
+  // sidebar and the panes, as well as the text.
+  // The root is the host's own element, so a `dir` it came with is its
+  // direction whenever the document has none, and it is handed back as lent.
+  const hostDirection = layout.root.getAttribute('dir')
+  const restoreDirection = (): void => {
+    if (hostDirection === null) layout.root.removeAttribute('dir')
+    else layout.root.setAttribute('dir', hostDirection)
+  }
+  const syncDirection = (): void => {
+    if (editor.state.doc.attrs.direction === 'rtl') layout.root.setAttribute('dir', 'rtl')
+    else restoreDirection()
+  }
+  syncDirection()
+  const stopSyncingDirection = editor.on('update', syncDirection)
+  disposers.push(() => {
+    stopSyncingDirection()
+    restoreDirection()
+  })
   const focus = createFocusMode(editor)
   const fullscreen = createFullscreenToggle(editor, { target: editorShell })
   const typewriter = createTypewriter(editor)

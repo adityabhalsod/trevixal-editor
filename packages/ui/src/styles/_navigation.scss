@@ -17,7 +17,7 @@
 
   // The outermost list sits flush; only nested levels indent.
   > .trevixal-toc__list {
-    padding-left: 0;
+    padding-inline-start: 0;
   }
 
   &__item {
@@ -87,7 +87,7 @@
     background: transparent;
     color: t.token('color-text-muted');
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -113,7 +113,7 @@
   // stays a themable decision.
   @for $depth from 0 through 5 {
     &__row[data-trevixal-depth='#{$depth}'] {
-      padding-left: calc(#{$depth} * 12px + 8px);
+      padding-inline-start: calc(#{$depth} * 12px + 8px);
     }
   }
 
@@ -223,7 +223,7 @@
     min-width: 6ch;
     color: t.token('color-text-muted');
     font-variant-numeric: tabular-nums;
-    text-align: right;
+    text-align: end;
   }
 
   &__nav,
@@ -364,7 +364,7 @@
     color: t.token('color-text');
     font: inherit;
     font-size: 0.875rem;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:disabled {

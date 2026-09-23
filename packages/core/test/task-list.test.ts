@@ -300,6 +300,28 @@ describe('clicking a task checkbox', () => {
     editor.destroy()
   })
 
+  it('takes the press at the right, where right-to-left text draws the checkbox', () => {
+    const view = mount(doc(taskList(task(false, p('a')))))
+    const item = view.dom.querySelector('li') as HTMLElement
+    item.style.direction = 'rtl'
+    const box = item.getBoundingClientRect()
+    const press = (clientX: number): boolean => {
+      const event = new window.MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX,
+      })
+      item.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    // The left is where the text ends: not a toggle.
+    expect(press(box.left - 4)).toBe(false)
+    expect(press(box.right + 4)).toBe(true)
+    expect(editor.state.doc.eq(doc(taskList(task(true, p('a')))))).toBe(true)
+    editor.destroy()
+  })
+
   it('ignores a press on the item text', () => {
     const view = mount(doc(taskList(task(false, p('a')))))
     const item = view.dom.querySelector('li') as HTMLElement

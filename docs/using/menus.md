@@ -32,7 +32,9 @@ a link... · Link preview card... · File attachment... · Equation... · Displa
 equation... · Diagram · **Callout >** Info / Success / Warning / Danger / Note
 · Toggle block · **Columns >** 2 / 3 / 4 columns · Card · Timeline · **Tabs >**
 2 / 3 tabs · Accordion · Badge... · Button... · Anchor... · Footnote ·
-Citation... · References list · Renumber citations · Page break
+Endnote · Citation... · References list · Renumber citations · Caption... ·
+Cross-reference... · **Table of figures >** Figures / Tables / Equations ·
+Mark index entry... · Index · Page break
 
 ## Format
 
@@ -40,9 +42,12 @@ Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` · Strikethrough
 `Ctrl+Shift+X` · **Formats >** Superscript / Subscript / Code `Ctrl+E` / Small
 caps / Highlight · **Paragraph styles >** Paragraph `Ctrl+Shift+0`,
 `Ctrl+Alt+0` / Heading 1 to 6 `Ctrl+Shift+1` to `6`, `Ctrl+Alt+1` to `6` /
-Quote / Code block · **Align >** Left / Center / Right / Justify
+Quote / Code block · **Heading numbering >** None / 1. 1.1. 1.1.1. / 1. a.
+i. / 1) a) i) / I. A. 1. · **Align >** Left / Center / Right / Justify
 `Ctrl+Shift+L` / `E` / `R` / `J` · **Indentation >** Increase `Ctrl+]` /
-Decrease `Ctrl+[` · **Line height >** Default / Single / 1.15 / 1.5 / Double ·
+Decrease `Ctrl+[` · **Text direction >** Left to right / Right to left /
+Whole document right to left · Line numbers · **Line height >** Default /
+Single / 1.15 / 1.5 / Double ·
 **Paragraph spacing >** before and after none / small / medium / large, then
 space before none / medium / large, then space after none / medium / large ·
 **Letter spacing >** Normal / Tight / Wide / Wider · **Lists >** Bullet

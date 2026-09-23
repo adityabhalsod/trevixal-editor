@@ -138,9 +138,9 @@ describe('block layout', () => {
   it('steps indent up and down, clamped at both ends', () => {
     const editor = editorWith('indent me')
     editor.exec(indentBlocks(1))
-    expect(editor.getHTML()).toContain('margin-left: 2.5rem')
+    expect(editor.getHTML()).toContain('margin-inline-start: 2.5rem')
     editor.exec(indentBlocks(1))
-    expect(editor.getHTML()).toContain('margin-left: 5rem')
+    expect(editor.getHTML()).toContain('margin-inline-start: 5rem')
     expect(editor.getSnapshot().indent).toBe(2)
 
     // Outdent past zero is a no-op rather than a negative margin.

@@ -28,6 +28,12 @@ import {
   wrapIn,
 } from '../commands/commands'
 import {
+  setDocumentDirection,
+  setHeadingNumbering,
+  setLineNumbers,
+  setTextDirection,
+} from '../commands/document'
+import {
   continueNumbering,
   continueNumberingFromPrevious,
   liftListItem,
@@ -53,9 +59,11 @@ import { normalizeDoc } from '../model/normalize'
 import { pos } from '../model/position'
 import type { Schema } from '../model/schema'
 import { type Path, nodeAtPath } from '../model/tree'
+import type { TextDirection } from '../schema/document-settings'
 import { serializeToHTML, serializeToText } from '../serialize/html'
 import { EditorState } from '../state/editor-state'
 import { type Selection, TextSelection, selectionNear } from '../state/selection'
+import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import { ReplaceNodesStep } from '../state/steps/replace-nodes'
 import type { Transaction } from '../state/transaction'
 import { EditorView, type NodeViewFactory } from '../view/editor-view'
@@ -144,6 +152,11 @@ export interface EditorSnapshot {
   readonly canUndo: boolean
   readonly canRedo: boolean
   readonly selectionEmpty: boolean
+  /**
+   * The document's own settings (heading numbering, direction, line
+   * numbers), for the menu entries that tick what is on.
+   */
+  readonly documentAttrs: Attrs
 }
 
 /**
@@ -307,6 +320,9 @@ export class Editor {
     )
     const tr = this.state.tr
     tr.step(new ReplaceNodesStep([], 0, this.state.doc.childCount, doc.content))
+    // The document's own settings are part of it too: a file saved with its
+    // headings numbered opens with them numbered.
+    if (!attrsEq(tr.doc.attrs, doc.attrs)) tr.step(new SetNodeAttrsStep([], doc.attrs))
     tr.setSelection(selectionNear(tr.doc, pos([0], 0)))
     if (options.addToHistory !== true) tr.setMeta(ADD_TO_HISTORY, false)
     this.dispatch(tr)
@@ -401,6 +417,7 @@ export class Editor {
       canUndo: this.canUndo,
       canRedo: this.canRedo,
       selectionEmpty: selection.empty,
+      documentAttrs: this.state.doc.attrs,
     }
     // Hand back the previous object when nothing a toolbar draws has changed.
     // The comparison costs a handful of scalar checks; the alternative costs
@@ -484,6 +501,7 @@ function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
     a.selectionEmpty === b.selectionEmpty &&
     sameStrings(a.activeMarks, b.activeMarks) &&
     sameAttrs(a.blockAttrs, b.blockAttrs) &&
+    sameAttrs(a.documentAttrs, b.documentAttrs) &&
     sameAttrMap(a.markAttrs, b.markAttrs)
   )
 }
@@ -672,6 +690,26 @@ export class EditorCommands {
   /** Take the list at the selection apart into plain paragraphs. */
   unwrapList(): boolean {
     return this.editor.exec(unwrapList)
+  }
+
+  /** Number the document's headings with a scheme, by id; null stops. */
+  setHeadingNumbering(schemeId: string | null): boolean {
+    return this.editor.exec(setHeadingNumbering(schemeId))
+  }
+
+  /** The whole document's direction. */
+  setDocumentDirection(direction: TextDirection): boolean {
+    return this.editor.exec(setDocumentDirection(direction))
+  }
+
+  /** Show or hide line numbers in the margin. */
+  setLineNumbers(on: boolean): boolean {
+    return this.editor.exec(setLineNumbers(on))
+  }
+
+  /** The selected blocks' direction; null follows the document's. */
+  setTextDirection(dir: TextDirection | null): boolean {
+    return this.editor.exec(setTextDirection(dir))
   }
 
   restartNumbering(): boolean {

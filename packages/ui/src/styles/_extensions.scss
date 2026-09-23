@@ -274,7 +274,7 @@ $on-accent: #fff;
       // Text grows downward from the top of a cell, which is what typing
       // expects; the default middle alignment makes lines jump as they wrap.
       vertical-align: top;
-      text-align: left;
+      text-align: start;
 
       // Cells hold block content, so paragraph margins inside them have to go
       // or every cell gains a blank line above its text.
@@ -326,7 +326,7 @@ $on-accent: #fff;
   ul[data-type='taskList'] {
     list-style: none;
     // Cancel the browser's default marker indent; the gutter replaces it.
-    padding-left: 0;
+    padding-inline-start: 0;
 
     // The box and the gutter are both in `em` so they scale together: a fixed
     // px gutter leaves the tick crowding the text as soon as the item holds a
@@ -336,7 +336,7 @@ $on-accent: #fff;
 
     li[data-type='taskItem'] {
       position: relative;
-      padding-left: calc(var(--tvx-task-box) + var(--tvx-task-gap));
+      padding-inline-start: calc(var(--tvx-task-box) + var(--tvx-task-gap));
       // Items sat flush against each other, so a list of tasks read as one
       // block of text rather than as separate, clickable rows.
       margin: 0.15em 0;
@@ -347,7 +347,7 @@ $on-accent: #fff;
         // Centres the box on the first line's cap height, so it lines up with
         // the text rather than floating above or below it.
         top: calc((1lh - var(--tvx-task-box)) / 2);
-        left: 0;
+        inset-inline-start: 0;
         width: var(--tvx-task-box);
         height: var(--tvx-task-box);
         box-sizing: border-box;
@@ -372,7 +372,7 @@ $on-accent: #fff;
         // Positioned off the box, so the two stay locked together when the
         // box size changes.
         top: calc((1lh - var(--tvx-task-box)) / 2 + 0.21em);
-        left: 0.36em;
+        inset-inline-start: 0.36em;
         width: 0.3em;
         height: 0.55em;
         box-sizing: border-box;
@@ -446,7 +446,7 @@ $on-accent: #fff;
     background: transparent;
     color: inherit;
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {

@@ -380,6 +380,24 @@ const PATHS: Readonly<Record<string, string>> = {
   fontAdd: 'M3.5 17 8 6l4.5 11M5.4 13.5h5.2M15.5 14.5h6M18.5 11.5v6',
   // Quick insert: the plain "+" every editor puts on the button that adds things.
   quickInsert: 'M12 5v14M5 12h14',
+  // A picture frame over the line of text that names it.
+  caption: 'M4 4h16v11H4zM4 12l4-4 4 4 3-3 5 5M7 19h10',
+  // Lines of text, and an arrow turning back to point at one of them.
+  crossReference: 'M4 6h8M4 10h5M4 14h5M4 18h8M20 7v5a3 3 0 0 1-3 3h-4m2-3-3 3 3 3',
+  // A list whose entries each start with a small picture.
+  tableOfFigures: 'M4 5h4v4H4zM4 15h4v4H4zM11 7h9M11 17h9',
+  // A tag hung on a word: what marking an index entry attaches.
+  markIndexEntry: 'M4 19h8M13 4h7v7l-8 8-7-7zM17 7.5h.01',
+  // An index page: a letter heading, then entries and their references.
+  documentIndex: 'M4 4h5v5H4zM11 6h9M4 13h9M16 13h4M4 18h7M15 18h5',
+  // A paragraph mark, and the way its lines run under it.
+  textDirectionLtr: 'M10 4v10M14 4v10M15 4h-5a3 3 0 0 0 0 6h4M4 19h15m-3-3 3 3-3 3',
+  textDirectionRtl: 'M10 4v10M14 4v10M15 4h-5a3 3 0 0 0 0 6h4M20 19H5m3-3-3 3 3 3',
+  // A column of line numbers beside the lines they count.
+  lineNumbers: 'M9 6h12M9 12h12M9 18h12M4 4.5v3M3.5 11h1.5v2M3.5 17h1.5l-1 2h1',
+  // The block menu's entries.
+  turnInto: 'M4 8h13l-3-3m3 3-3 3M20 16H7l3-3m-3 3 3 3',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
 }
 
 export type IconName = keyof typeof PATHS | (string & {})
@@ -393,10 +411,29 @@ export function iconNames(): readonly string[] {
  * Build an SVG element for `name`. Unknown names render nothing so a custom
  * item can supply a text label instead.
  */
+/**
+ * Icons drawn for a reading direction: an indent arrow, a list's markers on
+ * the left, undo turning back. Right-to-left chrome mirrors them; everything
+ * else (align left, a table, a picture) means the same either way round.
+ */
+const DIRECTIONAL: ReadonlySet<string> = new Set([
+  'indent',
+  'outdent',
+  'undo',
+  'redo',
+  'bulletList',
+  'orderedList',
+  'taskList',
+  'multilevelList',
+  'lineNumbers',
+  'crossReference',
+])
+
 export function createIcon(document: Document, name: IconName): SVGElement | null {
   const path = PATHS[name]
   if (!path) return null
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  if (DIRECTIONAL.has(name)) svg.setAttribute('class', 'trevixal-icon--directional')
   svg.setAttribute('viewBox', '0 0 24 24')
   svg.setAttribute('width', '18')
   svg.setAttribute('height', '18')

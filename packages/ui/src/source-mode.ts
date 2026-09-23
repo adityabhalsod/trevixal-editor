@@ -1,5 +1,6 @@
 import {
   type Editor,
+  type EditorNode,
   parseHTML,
   parseMarkdown,
   serializeToHTML,
@@ -7,6 +8,16 @@ import {
 } from '@trevixal/core'
 
 export type SourceFormat = 'markdown' | 'html'
+
+/**
+ * Markdown source read back as `editor`'s document, keeping the document's
+ * own settings (heading numbering, direction, line numbers). Markdown has no
+ * way to write them, so applying its source must not switch them off.
+ */
+export function parseMarkdownSource(editor: Editor, markdown: string): EditorNode {
+  const parsed = parseMarkdown(markdown, editor.schema)
+  return editor.schema.node('doc', editor.state.doc.attrs, parsed.content)
+}
 
 export interface SourceModeOptions {
   /** Which source to show; switchable later with `setFormat`. */
@@ -112,7 +123,7 @@ export function createSourceMode(editor: Editor, options: SourceModeOptions = {}
       if (apply && source !== serialize()) {
         const parsed =
           format === 'markdown'
-            ? parseMarkdown(source, editor.schema)
+            ? parseMarkdownSource(editor, source)
             : parseHTML(editor.schema, source, doc)
         editor.setContent(parsed, { addToHistory: true })
       }

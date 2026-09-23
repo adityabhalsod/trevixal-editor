@@ -1,13 +1,15 @@
 import {
   DEFAULT_LIST_NUMBERING,
   type EditorNode,
-  type Fragment,
+  Fragment,
   type ListNumberingScheme,
   type Mark,
   type TextNode,
+  headingNumberingOf,
   levelMarker,
   listNumberingOf,
   listStylesFor,
+  textDirection,
 } from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
@@ -38,6 +40,19 @@ import {
 } from './table-look'
 import { type DocumentPalette, type ThemeTokens, documentPalette } from './theme'
 import { EMU_PER_PX, lengthToHalfPoints, lengthToPx, lengthToTwips } from './units'
+import {
+  FIELD_END,
+  type ReferenceIds,
+  bookmarkEnd,
+  bookmarkName,
+  bookmarkStart,
+  fieldBegin,
+  indexEntryText,
+  jsonEntries,
+  referenceIds,
+  sequenceName,
+  simpleField,
+} from './word-fields'
 import { escapeXML } from './xml'
 import { createZip } from './zip'
 
@@ -104,6 +119,17 @@ interface Context {
   /** The colour a table line left to the default takes, as `w:color` wants it. */
   readonly rule: string
   drawingId: number
+  /** The document's direction; a paragraph without one of its own takes it. */
+  readonly direction: 'ltr' | 'rtl'
+  /** The caption and heading ids a cross-reference can name. */
+  readonly references: ReferenceIds
+  /** The scheme the document numbers its headings with, if it does. */
+  readonly headingScheme: ListNumberingScheme | null
+  /** The `w:num` every numbered heading shares, made when the first is written. */
+  headingNum: number | null
+  bookmarkId: number
+  /** A table of figures or an index needs Word to update its fields on open. */
+  updateFields: boolean
 }
 
 /**
@@ -123,6 +149,8 @@ interface RunContext {
   readonly italic?: boolean
   /** Ink for runs without a colour of their own, as `RRGGBB`: a styled table's header. */
   readonly color?: string
+  /** The run sits in a right-to-left paragraph. */
+  readonly rtl?: boolean
 }
 
 /**
@@ -157,8 +185,14 @@ export async function serializeToDOCX(
     // `auto` asks Word to pick, and on a dark page it picks against the theme.
     rule: palette.border ?? 'auto',
     drawingId: 0,
+    direction: textDirection(doc.attrs.direction) === 'rtl' ? 'rtl' : 'ltr',
+    references: referenceIds(doc),
+    headingScheme: headingNumberingOf(doc),
+    headingNum: null,
+    bookmarkId: 0,
+    updateFields: false,
   }
-  const body = writeBlocks(doc.content.children, context, {}).join('')
+  const body = writeBlocks(doc.content.children, context, {}, true).join('')
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   const entries = [
@@ -166,13 +200,13 @@ export async function serializeToDOCX(
     { name: '_rels/.rels', data: packageRelationships() },
     { name: 'docProps/core.xml', data: coreProperties(options, now) },
     { name: 'docProps/app.xml', data: appProperties() },
-    { name: 'word/document.xml', data: documentPart(body, palette) },
+    { name: 'word/document.xml', data: documentPart(body, palette, sectionXML(doc, context)) },
     {
       name: 'word/styles.xml',
       data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette),
     },
     { name: 'word/numbering.xml', data: numberingPart(context) },
-    { name: 'word/settings.xml', data: settingsPart() },
+    { name: 'word/settings.xml', data: settingsPart(context) },
     {
       name: 'word/_rels/document.xml.rels',
       data: `${XML_HEADER}<Relationships xmlns="${PACKAGE_REL}">${context.relationships.join('')}</Relationships>`,
@@ -298,11 +332,19 @@ function appProperties(): string {
   return `${XML_HEADER}<Properties ${APP_PROPS_XMLNS}>${body}</Properties>`
 }
 
-/** US Letter with 1in margins: the section the body always ends with. */
-const SECTION =
-  '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
+/**
+ * US Letter with 1in margins: the section the body always ends with. Line
+ * numbers are Word's own, so they count the lines Word lays out; a
+ * right-to-left document is a right-to-left section.
+ */
+function sectionXML(doc: EditorNode, context: Context): string {
+  const lines =
+    doc.attrs.lineNumbers === true ? '<w:lnNumType w:countBy="1" w:restart="continuous"/>' : ''
+  const bidi = context.direction === 'rtl' ? '<w:bidi/>' : ''
+  return `<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>${lines}${bidi}</w:sectPr>`
+}
 
-function documentPart(body: string, palette: DocumentPalette): string {
+function documentPart(body: string, palette: DocumentPalette, section: string): string {
   const xmlns = `xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:mc="${NS.mc}"`
   // `w:background` is the page's own colour, and it belongs between the
   // document element and the body. On its own it does nothing: Word only
@@ -314,18 +356,21 @@ function documentPart(body: string, palette: DocumentPalette): string {
     `<w:document ${xmlns}>`,
     background,
     `<w:body>${body}`,
-    SECTION,
+    section,
     '</w:body></w:document>',
   ].join('')
 }
 
 /**
- * The document-wide settings. Only one matters here, without it Word stores
- * the page colour and declines to draw it, but the part has to exist, be
- * declared and be related for Word to read any of it.
+ * The document-wide settings. Without `w:displayBackgroundShape` Word stores
+ * the page colour and declines to draw it, and the part has to exist, be
+ * declared and be related for Word to read any of it. A document holding a
+ * table of figures or an index also asks Word to update its fields on open,
+ * which is when their page numbers are filled in.
  */
-function settingsPart(): string {
-  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/></w:settings>`
+function settingsPart(context: Context): string {
+  const update = context.updateFields ? '<w:updateFields w:val="true"/>' : ''
+  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/>${update}</w:settings>`
 }
 
 /**
@@ -492,6 +537,35 @@ function styleLevelXML(style: string, ilvl: number): string | null {
   return format ? levelXML(ilvl, format, `%${ilvl + 1}.`) : null
 }
 
+/** The abstract numbering the headings share; well clear of the list schemes' ids. */
+const HEADING_ABSTRACT = 90
+
+/**
+ * A heading level's number: the scheme's marker with a space after it and no
+ * indent, since a heading sits at the margin rather than hanging like a list.
+ */
+function headingLevelXML(scheme: ListNumberingScheme, ilvl: number): string {
+  const marker = levelMarker(scheme, ilvl)
+  const text = scheme.outline
+    ? `${LEVELS.slice(0, ilvl + 1)
+        .map((level) => `%${level + 1}`)
+        .join('.')}.`
+    : `%${ilvl + 1}${scheme.suffix}`
+  const format = scheme.outline ? 'decimal' : (WORD_FORMATS[marker] ?? 'decimal')
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+    scheme.outline ? '<w:isLgl/>' : ''
+  }<w:suff w:val="space"/><w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="0" w:firstLine="0"/></w:pPr></w:lvl>`
+}
+
+/** The heading numbering's `w:num`, made the first time a numbered heading is written. */
+function headingNumbering(context: Context, level: number): { id: number; level: number } | null {
+  if (!context.headingScheme) return null
+  if (context.headingNum === null) {
+    context.headingNum = addNumbering(context, HEADING_ABSTRACT, 0, null).id
+  }
+  return { id: context.headingNum, level: Math.min(5, Math.max(0, level - 1)) }
+}
+
 function numberingPart(context: Context): string {
   const abstract = (id: number, type: string, body: string): string =>
     `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="${type}"/>${body}</w:abstractNum>`
@@ -510,12 +584,24 @@ function numberingPart(context: Context): string {
       LEVELS.map((ilvl) => schemeLevelXML(scheme, ilvl, context.basePt)).join(''),
     ),
   )
+  const headingScheme = context.headingScheme
+  const headings =
+    headingScheme && context.headingNum !== null
+      ? [
+          abstract(
+            HEADING_ABSTRACT,
+            'multilevel',
+            [0, 1, 2, 3, 4, 5].map((ilvl) => headingLevelXML(headingScheme, ilvl)).join(''),
+          ),
+        ]
+      : []
   return [
     XML_HEADER,
     `<w:numbering xmlns:w="${NS.w}">`,
     abstract(ABSTRACT_BULLETS, 'hybridMultilevel', bullets),
     abstract(ABSTRACT_NUMBERED, 'hybridMultilevel', numbered),
     ...schemes,
+    ...headings,
     context.numbers.map(numXML).join(''),
     '</w:numbering>',
   ].join('')
@@ -615,11 +701,28 @@ interface ParagraphProps {
   border?: boolean
   indentLeft?: number
   jc?: string
+  /** Right to left: `w:bidi`. */
+  bidi?: boolean
 }
 
-function writeBlocks(nodes: readonly EditorNode[], context: Context, run: RunContext): string[] {
+/**
+ * Write a run of blocks. At the top level of the document a heading takes
+ * the heading numbering, as the editor numbers only top-level headings.
+ */
+function writeBlocks(
+  nodes: readonly EditorNode[],
+  context: Context,
+  run: RunContext,
+  topLevel = false,
+): string[] {
   const out: string[] = []
-  for (const node of nodes) out.push(...writeBlock(node, context, run, {}))
+  for (const node of nodes) {
+    const numbering =
+      topLevel && node.type.name === NODE.heading
+        ? headingNumbering(context, headingLevel(node))
+        : null
+    out.push(...writeBlock(node, context, run, numbering ? { numbering } : {}))
+  }
   return out
 }
 
@@ -630,8 +733,11 @@ function writeBlock(
   props: ParagraphProps,
 ): string[] {
   switch (node.type.name) {
-    case NODE.paragraph:
-      return [paragraph(node, context, run, props)]
+    case NODE.paragraph: {
+      // A caption paragraph (one holding a caption number) takes Word's Caption style.
+      const caption = node.content.children.some((child) => child.type.name === 'captionNumber')
+      return [paragraph(node, context, run, caption ? { ...props, style: 'Caption' } : props)]
+    }
     case NODE.heading:
       return [paragraph(node, context, run, { ...props, style: `Heading${headingLevel(node)}` })]
     case NODE.blockquote:
@@ -676,6 +782,10 @@ function writeBlock(
           { ...props, style: 'Caption', jc: 'center' },
         ),
       ]
+    case 'captionList':
+      return captionListParagraphs(node, context)
+    case 'documentIndex':
+      return indexParagraphs(node, context)
     default:
       if (node.isTextblock) return [paragraph(node, context, run, props)]
       if (node.isAtom || node.childCount === 0) {
@@ -693,8 +803,110 @@ function paragraph(
   props: ParagraphProps,
   prefix = '',
 ): string {
-  return `<w:p>${pPr(props, node, context)}${prefix}${runs(node.content, context, run)}</w:p>`
+  const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
+  const properties = pPr(rtl ? { ...props, bidi: true } : props, node, context)
+  const body = paragraphBody(node, context, rtl ? { ...run, rtl: true } : run)
+  return `<w:p>${properties}${prefix}${body}</w:p>`
 }
+
+/**
+ * A paragraph's runs, with the bookmarks a cross-reference reads from. A
+ * caption's number is a SEQ field, and three bookmarks let each reference
+ * format come back as written: the number, "Figure 2", the whole caption. A
+ * heading with an id is bookmarked over its text.
+ */
+function paragraphBody(node: EditorNode, context: Context, run: RunContext): string {
+  const children = node.content.children
+  const at = children.findIndex((child) => child.type.name === 'captionNumber')
+  if (at < 0) {
+    const body = runs(node.content, context, run)
+    const id = node.type.name === NODE.heading ? attrString(node.attrs, 'id') : null
+    if (!id) return body
+    const mark = context.bookmarkId++
+    return `${bookmarkStart(mark, bookmarkName(context.references, 'heading', id))}${body}${bookmarkEnd(mark)}`
+  }
+  const atom = children[at] as EditorNode
+  const before = runs(Fragment.from(children.slice(0, at)), context, run)
+  const after = runs(Fragment.from(children.slice(at + 1)), context, run)
+  const number = String(atom.attrs.number ?? '')
+  const seq = simpleField(
+    `SEQ ${sequenceName(atom.attrs.kind)} \\* ARABIC`,
+    textRun(number, runProperties(atom.marks, context, run, false)),
+  )
+  const id = attrString(atom.attrs, 'id')
+  if (!id) return `${before}${seq}${after}`
+  const [full, label, only] = [context.bookmarkId++, context.bookmarkId++, context.bookmarkId++]
+  return [
+    bookmarkStart(full, bookmarkName(context.references, 'full', id)),
+    bookmarkStart(label, bookmarkName(context.references, 'label', id)),
+    before,
+    bookmarkStart(only, bookmarkName(context.references, 'number', id)),
+    seq,
+    bookmarkEnd(only),
+    bookmarkEnd(label),
+    after,
+    bookmarkEnd(full),
+  ].join('')
+}
+
+/**
+ * A generated list's paragraph properties: right to left in a right-to-left
+ * document, as the editor draws it, and indented for an index subentry.
+ */
+function listPPr(context: Context, indentLeft: number): string {
+  return pPr({ bidi: context.direction === 'rtl', indentLeft }, null, context)
+}
+
+/** A table of figures: Word's TOC over one caption kind, its result the editor's entries. */
+function captionListParagraphs(node: EditorNode, context: Context): string[] {
+  context.updateFields = true
+  const begin = fieldBegin(`TOC \\h \\z \\c "${sequenceName(node.attrs.kind)}"`)
+  const entries = jsonEntries(node.attrs.entries).filter(
+    (entry) => typeof entry.id === 'string' && typeof entry.text === 'string',
+  )
+  if (entries.length === 0) return [`<w:p>${listPPr(context, 0)}${begin}${FIELD_END}</w:p>`]
+  return entries.map((entry, index) => {
+    const anchor = escapeXML(bookmarkName(context.references, 'full', entry.id as string))
+    const link = `<w:hyperlink w:anchor="${anchor}" w:history="1">${textRun(entry.text as string, '')}</w:hyperlink>`
+    const start = index === 0 ? begin : ''
+    const end = index === entries.length - 1 ? FIELD_END : ''
+    return `<w:p>${listPPr(context, 0)}${start}${link}${end}</w:p>`
+  })
+}
+
+/** Word's INDEX: its result is the editor's entries, which Word redoes with page numbers. */
+function indexParagraphs(node: EditorNode, context: Context): string[] {
+  context.updateFields = true
+  const begin = fieldBegin('INDEX \\e ", "')
+  const labels = (locations: unknown): string =>
+    Array.isArray(locations)
+      ? locations
+          .map((location) => (location as Record<string, unknown>).label)
+          .filter((label): label is string => typeof label === 'string')
+          .join(', ')
+      : ''
+  const lines: { text: string; sub: boolean }[] = []
+  for (const entry of jsonEntries(node.attrs.entries)) {
+    if (typeof entry.term !== 'string') continue
+    const own = labels(entry.locations)
+    lines.push({ text: own ? `${entry.term}, ${own}` : entry.term, sub: false })
+    for (const sub of Array.isArray(entry.subentries) ? entry.subentries : []) {
+      const record = sub as Record<string, unknown>
+      if (typeof record.term === 'string') {
+        lines.push({ text: `${record.term}, ${labels(record.locations)}`, sub: true })
+      }
+    }
+  }
+  if (lines.length === 0) return [`<w:p>${listPPr(context, 0)}${begin}${FIELD_END}</w:p>`]
+  return lines.map((line, index) => {
+    const properties = listPPr(context, line.sub ? INDENT / 2 : 0)
+    const start = index === 0 ? begin : ''
+    const end = index === lines.length - 1 ? FIELD_END : ''
+    return `<w:p>${properties}${start}${textRun(line.text, '')}${end}</w:p>`
+  })
+}
+
+const MIRRORED_ALIGN: Readonly<Record<string, string>> = { left: 'right', right: 'left' }
 
 /** Paragraph properties in the order the schema requires. */
 function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): string {
@@ -707,6 +919,7 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   if (props.border) {
     out += '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr>'
   }
+  if (props.bidi) out += '<w:bidi/>'
   if (layout && (layout.spaceBefore !== null || layout.spaceAfter !== null || layout.lineHeight)) {
     let spacing = '<w:spacing'
     if (layout.spaceBefore !== null) spacing += ` w:before="${layout.spaceBefore}"`
@@ -721,7 +934,10 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   }
   const indent = (props.indentLeft ?? 0) + (layout?.indent ?? 0) * INDENT
   if (indent > 0 && !props.numbering) out += `<w:ind w:left="${indent}"/>`
-  const jc = layout?.align ?? props.jc
+  const align = layout?.align ?? props.jc
+  // Word reads left and right in a right-to-left paragraph as its start and
+  // end; the editor's alignment is the side of the page, so the two swap.
+  const jc = props.bidi ? (MIRRORED_ALIGN[align ?? ''] ?? align) : align
   if (jc) out += `<w:jc w:val="${jc === 'justify' ? 'both' : jc}"/>`
   return out ? `<w:pPr>${out}</w:pPr>` : ''
 }
@@ -771,7 +987,9 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
   // Word has the style's look spelt out, since its own table style is the
   // plain grid: the lines here, the fills and bold on each cell below.
   const look = tableLook(table, context.tableColors)
-  let tblPr = '<w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
+  // A right-to-left document lays its tables out from the right, as the editor does.
+  const bidiVisual = context.direction === 'rtl' ? '<w:bidiVisual/>' : ''
+  let tblPr = `<w:tblStyle w:val="TableGrid"/>${bidiVisual}<w:tblW w:w="5000" w:type="pct"/>`
   if (look.styled) {
     const edges = look.edges
     const sides = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as const
@@ -1014,6 +1232,30 @@ function encodeTarget(url: string): string {
 function runs(content: Fragment, context: Context, run: RunContext): string {
   let out = ''
   const children = content.children
+  // Words marked for the index are followed by their XE field, once the run
+  // of text under one mark ends, however many nodes other marks split it into.
+  let term: { id: string; mark: Mark; words: string } | null = null
+  const closeTerm = (): string => {
+    if (!term) return ''
+    const entry = indexWords(term.mark.attrs.entry) ?? indexWords(term.words)
+    const field = entry
+      ? simpleField(`XE "${indexEntryText(entry, indexWords(term.mark.attrs.sub))}"`, '')
+      : ''
+    term = null
+    return field
+  }
+  const track = (node: EditorNode): string => {
+    const mark = node.isText ? markNamed(node.marks, 'indexTerm') : undefined
+    const id = mark ? attrString(mark.attrs, 'id') : null
+    if (!mark || !id) return closeTerm()
+    if (term?.id === id) {
+      term.words += node.textContent
+      return ''
+    }
+    const closed = closeTerm()
+    term = { id, mark, words: node.textContent }
+    return closed
+  }
   let index = 0
   while (index < children.length) {
     const child = children[index] as EditorNode
@@ -1021,17 +1263,26 @@ function runs(content: Fragment, context: Context, run: RunContext): string {
     if (href) {
       let inner = ''
       while (index < children.length && linkHref(children[index] as EditorNode) === href) {
-        inner += inlineNode(children[index] as EditorNode, context, run, true)
+        const each = children[index] as EditorNode
+        inner += track(each) + inlineNode(each, context, run, true)
         index++
       }
+      inner += closeTerm()
       const id = addRelationship(context, 'hyperlink', encodeTarget(href), true)
       out += `<w:hyperlink r:id="${id}">${inner}</w:hyperlink>`
       continue
     }
-    out += inlineNode(child, context, run, false)
+    out += track(child) + inlineNode(child, context, run, false)
     index++
   }
-  return out
+  return out + closeTerm()
+}
+
+/** Index words as the editor files them: trimmed, and null when there are none. */
+function indexWords(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const words = value.replace(/\s+/g, ' ').trim()
+  return words.length > 0 ? words : null
 }
 
 function linkHref(node: EditorNode): string | null {
@@ -1045,12 +1296,56 @@ function inlineNode(node: EditorNode, context: Context, run: RunContext, inLink:
     return textRun((node as TextNode).text, runProperties(node.marks, context, run, inLink))
   }
   if (node.type.name === NODE.hardBreak) return '<w:r><w:br/></w:r>'
+  if (node.type.name === 'crossReference') return crossReference(node, context, run, inLink)
   if (node.type.name === NODE.image) {
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return textRun(`[${alt}]`, runProperties([], context, run, inLink))
   }
   const text = node.textContent || String(node.type.spec.toHTML?.(node)?.text ?? '')
   return text ? textRun(text, runProperties(node.marks, context, run, inLink)) : ''
+}
+
+/**
+ * A cross-reference as a REF field to the bookmark its format reads, showing
+ * the text the editor computed until Word updates it. A caption's text alone
+ * has no bookmark to read, and a note is not a Word note here, so those two
+ * go in as the text itself.
+ */
+function crossReference(
+  node: EditorNode,
+  context: Context,
+  run: RunContext,
+  inLink: boolean,
+): string {
+  const text = attrString(node.attrs, 'text') ?? ''
+  const rPr = runProperties(node.marks, context, run, inLink)
+  const result = textRun(text, rPr)
+  const target = attrString(node.attrs, 'target')
+  const format = node.attrs.format
+  if (!target) return result
+  if (context.references.captions.has(target)) {
+    if (format === 'text') return result
+    const part = format === 'number' ? 'number' : format === 'full' ? 'full' : 'label'
+    return simpleField(`REF ${bookmarkName(context.references, part, target)} \\h`, result)
+  }
+  if (!context.references.headings.has(target)) return result
+  const name = bookmarkName(context.references, 'heading', target)
+  // A heading Word does not number (none are, or this one is nested) has only
+  // its text to read, whatever the format.
+  if (format === 'text' || !context.references.numberedHeadings.has(target)) {
+    return simpleField(`REF ${name} \\h`, result)
+  }
+  if (format === 'full') {
+    const space = text.indexOf(' ')
+    const number = space < 0 ? text : text.slice(0, space)
+    const words = space < 0 ? '' : text.slice(space + 1)
+    return [
+      simpleField(`REF ${name} \\r \\h`, textRun(number, rPr)),
+      textRun(' ', rPr),
+      simpleField(`REF ${name} \\h`, textRun(words, rPr)),
+    ].join('')
+  }
+  return simpleField(`REF ${name} \\r \\h`, result)
 }
 
 /** A run whose text may hold tabs and newlines, which become `w:tab` and `w:br`. */
@@ -1169,5 +1464,6 @@ function runProperties(
   if (underline) out += '<w:u w:val="single"/>'
   if (shading) out += `<w:shd w:val="clear" w:color="auto" w:fill="${shading}"/>`
   if (vertical) out += `<w:vertAlign w:val="${vertical}"/>`
+  if (run.rtl) out += '<w:rtl/>'
   return out
 }

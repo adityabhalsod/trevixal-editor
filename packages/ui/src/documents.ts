@@ -23,6 +23,7 @@ import {
   renderedNodeHTML,
 } from './export-render'
 import { documentBehaviourScript } from './export-script'
+import { numberLinesIn } from './line-numbers'
 import { type ThemeSnapshot, readThemeSnapshot } from './theming'
 
 /**
@@ -399,14 +400,49 @@ export interface PrintOptions {
   readonly theme?: ThemeSnapshot
 }
 
+/**
+ * The printed text's width when its lines are numbered: A4 less 20 mm margins,
+ * which fits Letter too. A print is laid out afresh at whatever width the
+ * page gives it, so line numbers measured at any other width would count
+ * lines the paper does not have. Fixing both is what makes them agree.
+ */
+const LINE_NUMBERED_WIDTH = '170mm'
+
+/** Room beside the text for the numbers, inside the printed area: a page's margin clips what is drawn in it. */
+const LINE_NUMBER_GUTTER = '12mm'
+
+const LINE_NUMBERED_PAGE = [
+  '@page { margin: 20mm; }',
+  `.trevixal .trevixal-content { box-sizing: border-box !important; width: ${LINE_NUMBERED_WIDTH} !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }`,
+  // The settings' element carries the direction, so the gutter is on the side the text starts from.
+  `.trevixal .trevixal-content > [data-trevixal-document] { padding-inline-start: ${LINE_NUMBER_GUTTER} !important; }`,
+  // Each number hangs off the first character of its line (see `numberLinesIn`), out in the gutter.
+  '.trevixal-line-anchor { position: relative; }',
+  '.trevixal-line-anchor > .trevixal-line-number { position: absolute; top: 50%; transform: translateY(-50%); line-height: 1; white-space: nowrap; }',
+  "[data-line-numbers-side='left'] .trevixal-line-anchor > .trevixal-line-number { right: calc(100% + var(--trevixal-line-offset) + 3mm); }",
+  "[data-line-numbers-side='right'] .trevixal-line-anchor > .trevixal-line-number { left: calc(100% + var(--trevixal-line-offset) + 3mm); }",
+].join('\n')
+
+/** Whether a document numbers its lines, so its print has to be set up to match. */
+function numbersLines(editor: Editor): boolean {
+  return editor.state.doc.attrs.lineNumbers === true
+}
+
+/** Number the lines of a loaded print frame, at the width its print will have. */
+function numberFrameLines(frame: HTMLIFrameElement): void {
+  const content = frame.contentDocument?.querySelector<HTMLElement>('.trevixal-content')
+  if (content) numberLinesIn(content)
+}
+
 /** The standalone HTML a print job or preview renders. */
 export function printableHTML(editor: Editor, options: PrintOptions = {}): string {
   // The SVG the editor drew goes straight in, so nothing here has to wait on
   // a bitmap: printing happens inside a click and cannot be asynchronous.
   const rendered = captureRenderedBlocks(editor)
+  const styles = options.styles?.()
   return serializeToHTMLDocument(editor.state.doc, {
     title: options.title ?? documentTitle(editor.state.doc),
-    inlineCSS: options.styles?.(),
+    inlineCSS: numbersLines(editor) ? `${styles ?? ''}\n${LINE_NUMBERED_PAGE}` : styles,
     ...(rendered.size > 0 ? { renderNode: renderedNodeHTML(rendered) } : {}),
     // A print preview showing white while the editor behind it is dark reads
     // as the preview being broken, and "Export as PDF" is this same page.
@@ -432,9 +468,19 @@ export function printDocument(
   frame.style.height = '0'
   frame.style.border = '0'
   frame.style.opacity = '0'
+  const lineNumbers = numbersLines(editor)
+  if (lineNumbers) {
+    // Laid out at the printed width, off to one side, so the lines measured
+    // here are the lines the paper gets.
+    frame.style.width = LINE_NUMBERED_WIDTH
+    frame.style.height = '100px'
+    frame.style.left = '-10000px'
+    frame.style.pointerEvents = 'none'
+  }
   frame.srcdoc = printableHTML(editor, options)
   frame.addEventListener('load', () => {
     try {
+      if (lineNumbers) numberFrameLines(frame)
       frame.contentWindow?.focus()
       frame.contentWindow?.print()
     } catch {
@@ -470,6 +516,7 @@ export function openPrintPreview(
   frame.title = 'Print preview'
   frame.setAttribute('sandbox', 'allow-same-origin allow-modals')
   frame.srcdoc = printableHTML(editor, options)
+  if (numbersLines(editor)) frame.addEventListener('load', () => numberFrameLines(frame))
 
   const actions = document.createElement('div')
   actions.className = 'trevixal-dialog__actions'

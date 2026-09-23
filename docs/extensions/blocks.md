@@ -31,11 +31,45 @@ editor.exec(insertColumns(3))
 | Tabs | `insertTabs(count)`, `addTab`, `removeTab`, `moveTab`, `activateTab` |
 | Accordion | `insertAccordion`, `addAccordionItem`, `setAccordionItemOpen`, `toggleAccordionExclusive` |
 | Badge, button, anchor | `insertBadge`, `insertButton`, `insertAnchor` |
-| Footnotes, citations | `insertFootnote`, `insertCitation`, `insertReferenceList`, `renumberCitations` |
+| Footnotes, endnotes, citations | `insertFootnote`, `insertEndnote`, `insertCitation`, `insertReferenceList`, `renumberCitations` |
+| Captions, cross-references | `insertCaption(kind, { label, text?, position? })`, `insertCrossReference(target, format)`, `referenceTargets(doc)` |
+| Table of figures, index | `insertCaptionList(kind)`, `markIndexEntry({ entry?, sub? })`, `insertDocumentIndex` |
 | Page break | `insertPageBreak` |
 
 `blockUICommands()` hands the whole set to `createEditorUI`, which populates
 *Insert* with them.
+
+## Fields
+
+Caption numbers, cross-references, tables of figures and the index are
+fields, as in Word: each keeps its result in its own attributes, so every
+serializer writes what the reader sees without computing anything.
+`installFieldUpdater(editor)` keeps the results current. It adds a dispatch
+transform that appends the updates to the edit that made them necessary, so
+one undo takes back an inserted figure and the renumbering it caused. Install
+it after any other transform (track changes) so it sees the final edit; the
+kit does.
+
+```ts
+const stop = installFieldUpdater(editor)
+editor.exec(insertCaption('figure', { label: 'Figure', text: 'A cat' }))
+const target = referenceTargets(editor.state.doc).find((entry) => entry.kind === 'figure')
+if (target) editor.exec(insertCrossReference(target, 'label')) // "Figure 1", and it follows
+```
+
+| Node | Holds | HTML |
+| --- | --- | --- |
+| `captionNumber` (inline) | `kind` (figure, table, equation), `id`, `number` | `<span class="trevixal-caption-number" data-caption="figure" id="fig-1">1</span>` |
+| `crossReference` (inline) | `target`, `format` (label, number, text, full), `text` | `<span class="trevixal-xref" data-xref="fig-1" data-href="#fig-1">Figure 1</span>` |
+| `captionList` | `kind`, `entries` (JSON) | `<nav data-caption-list="figure">` |
+| `documentIndex` | `entries` (JSON) | `<div data-document-index>` |
+| `indexTerm` (mark, from `referenceMarks()`) | `id`, `entry`, `sub` | `<span data-index-term="xe-1">` |
+| `endnoteRef`, `endnoteList`, `endnoteItem` | as the footnote nodes | `data-endnote`, numbered i, ii, iii |
+
+A caption is any paragraph (or figure caption) holding a `captionNumber`, with
+the words before it ("Figure") as ordinary text. Results are recomputed rather
+than trusted on import, and a caption pasted twice gets a fresh id for its
+copy. `referenceMarks()` has to be added to the schema's marks for the index.
 
 ## Getting out of a container
 

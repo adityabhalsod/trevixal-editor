@@ -64,6 +64,7 @@ export default defineConfig({
           { text: 'Overview', link: '/using/' },
           { text: 'A tour of the editor', link: '/using/tour' },
           { text: 'Files', link: '/using/files' },
+          { text: 'Long documents', link: '/using/structure' },
           { text: 'Appearance', link: '/using/appearance' },
           { text: 'Protecting a document', link: '/using/protection' },
           { text: 'Reviewing with tracked changes', link: '/using/review' },

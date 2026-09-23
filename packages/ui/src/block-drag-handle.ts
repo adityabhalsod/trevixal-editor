@@ -5,6 +5,7 @@ import {
   createAnnouncer,
   editorDocument,
 } from '@trevixal/core'
+import { createBlockMenu } from './block-menu'
 import { createIcon } from './icons'
 
 /**
@@ -19,6 +20,10 @@ import { createIcon } from './icons'
  * The same contract the toolbar's group grips use, announced the same way,
  * because a reordering gesture only available to a mouse is not available at
  * all to a good many people.
+ *
+ * Clicked rather than dragged, the grip opens the block menu (turn into,
+ * duplicate, move, copy a link, delete); Shift+F10 or the menu key opens it
+ * from the keyboard.
  */
 
 export interface BlockDragHandleOptions {
@@ -59,8 +64,9 @@ export function createBlockDragHandle(
   grip.type = 'button'
   grip.className = 'trevixal-blockgrip'
   grip.dataset.trevixalItem = 'blockGrip'
-  grip.title = 'Move this block'
+  grip.title = 'Drag to move this block, or click for its menu'
   grip.setAttribute('aria-label', 'Move this block')
+  grip.setAttribute('aria-haspopup', 'menu')
   grip.hidden = true
   const glyph = createIcon(doc, 'grip')
   if (glyph) grip.appendChild(glyph)
@@ -70,11 +76,14 @@ export function createBlockDragHandle(
   indicator.hidden = true
 
   host.append(grip, indicator)
+  const menu = createBlockMenu(editor, { container: host, announcer })
 
   /** The index of the top-level block the grip currently belongs to. */
   let hovered: number | null = null
   /** The index being moved, once a move has started. */
   let carrying: number | null = null
+  /** Where a press on the grip began, to tell a click from a drag. */
+  let pressedAt: number | null = null
 
   const blocks = (): HTMLElement[] => {
     const surface = editor.view?.dom
@@ -95,7 +104,10 @@ export function createBlockDragHandle(
     const box = element.getBoundingClientRect()
     const hostBox = host.getBoundingClientRect()
     grip.hidden = false
-    grip.style.left = `${box.left - hostBox.left - host.clientLeft + host.scrollLeft - grip.offsetWidth - gap}px`
+    // Beside where the block's lines start: its right edge in right-to-left text.
+    const rtl = doc.defaultView?.getComputedStyle(element).direction === 'rtl'
+    const x = rtl ? box.right + gap : box.left - grip.offsetWidth - gap
+    grip.style.left = `${x - hostBox.left - host.clientLeft + host.scrollLeft}px`
     grip.style.top = `${box.top - hostBox.top - host.clientTop + host.scrollTop}px`
   }
 
@@ -168,6 +180,8 @@ export function createBlockDragHandle(
   const onGripDown = (event: PointerEvent): void => {
     if (hovered === null) return
     event.preventDefault()
+    menu.close()
+    pressedAt = event.clientY
     carrying = hovered
     grip.setAttribute('aria-pressed', 'true')
     grip.setPointerCapture(event.pointerId)
@@ -179,16 +193,27 @@ export function createBlockDragHandle(
     showDrop(gapNear(event.clientY))
   }
 
+  /** Pointer travel under which a press is a click, in px. */
+  const CLICK_SLOP = 4
+
   const onGripUp = (event: PointerEvent): void => {
     if (carrying === null) return
     const from = carrying
-    finish(from, targetFor(from, gapNear(event.clientY)))
+    const clicked = pressedAt !== null && Math.abs(event.clientY - pressedAt) < CLICK_SLOP
+    pressedAt = null
+    finish(from, clicked ? from : targetFor(from, gapNear(event.clientY)))
+    if (clicked) menu.open(from, grip)
   }
 
   // ------------------------------------------------------------ keyboard
 
   const onGripKey = (event: KeyboardEvent): void => {
     const count = blocks().length
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault()
+      if (hovered !== null && carrying === null) menu.open(hovered, grip)
+      return
+    }
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault()
       if (carrying === null) {
@@ -239,6 +264,7 @@ export function createBlockDragHandle(
   return {
     element: grip,
     reset() {
+      menu.close()
       indicator.hidden = true
       carrying = null
       hovered = null
@@ -249,6 +275,7 @@ export function createBlockDragHandle(
       const current = surfaceOf()
       current?.removeEventListener('pointermove', onSurfaceMove as EventListener)
       current?.removeEventListener('pointerleave', onLeave as EventListener)
+      menu.destroy()
       grip.remove()
       indicator.remove()
       if (ownsAnnouncer) announcer.destroy()

@@ -5,7 +5,9 @@ import {
   type NodeViewFactory,
   ReplaceNodesStep,
   Schema,
+  SetNodeAttrsStep,
   TextSelection,
+  attrsEq,
   createEditor,
   defaultMarks,
   defaultNodes,
@@ -211,6 +213,8 @@ export class TrevixalEditorElement extends ElementBase {
     if (!editor) return
     const tr = editor.state.tr
     tr.step(new ReplaceNodesStep([], 0, editor.state.doc.childCount, doc.content))
+    // The document's own settings (heading numbering, direction) come with it.
+    if (!attrsEq(tr.doc.attrs, doc.attrs)) tr.step(new SetNodeAttrsStep([], doc.attrs))
     tr.setSelection(TextSelection.atStart(tr.doc))
     editor.dispatch(tr)
   }

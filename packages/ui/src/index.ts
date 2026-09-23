@@ -1,6 +1,7 @@
 // Toolbar
 export {
   type BlockCommands,
+  type ReferenceTargetInfo,
   type CodeFormatCommands,
   createToolbar,
   defaultToolbarGroups,
@@ -72,6 +73,20 @@ export {
   type BlockDragHandleOptions,
   createBlockDragHandle,
 } from './block-drag-handle'
+// Line numbers in the margin, and following references to their targets
+export {
+  createLineNumbers,
+  type LineNumbers,
+  type LineNumbersOptions,
+  type MeasuredLine,
+  measureLines,
+  numberLinesIn,
+} from './line-numbers'
+export {
+  createReferenceNavigation,
+  type ReferenceNavigation,
+  referenceTarget,
+} from './reference-navigation'
 
 // Floating code-language select
 export {

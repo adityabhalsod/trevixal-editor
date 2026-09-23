@@ -8,7 +8,7 @@
  * no handle on either; it asks whether one is open and tells them to swap.
  */
 import type { Editor } from '@trevixal/core'
-import { blockBindings } from '@trevixal/extension-blocks'
+import { blockBindings, installFieldUpdater } from '@trevixal/extension-blocks'
 import { type Highlighter, codeHighlight } from '@trevixal/extension-code-highlight'
 import { diagram } from '@trevixal/extension-diagram'
 import { createSplitView } from '@trevixal/extension-workspace'
@@ -60,15 +60,19 @@ export function createSplitPanes(context: SplitPanesContext): SplitPanes {
    * the tab and accordion titles are click handlers. All of them installed per
    * editor. A mirror without them shows grey code, no diagrams, and tab titles
    * that do not respond, which makes the pane look broken rather than mirrored.
+   * The field updater too: an edit made here carries its renumbering with it
+   * into the editor, and a mirror without one would keep the old numbers.
    */
   function dressPane(pane: Editor): () => void {
     const offHighlight = codeHighlight(pane, highlighter)
     const offBindings = blockBindings(pane)
     const diagrams = diagram(pane, { render })
+    const offFields = installFieldUpdater(pane)
     return () => {
       offHighlight()
       offBindings()
       diagrams.destroy()
+      offFields()
     }
   }
 

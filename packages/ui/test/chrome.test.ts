@@ -196,7 +196,7 @@ describe('toolbar controls', () => {
     )
     expect(outdent?.disabled).toBe(true)
     toolbar.element.querySelector<HTMLButtonElement>('[data-trevixal-item="indent"]')?.click()
-    expect(editor.getHTML()).toContain('margin-left: 2.5rem')
+    expect(editor.getHTML()).toContain('margin-inline-start: 2.5rem')
     expect(outdent?.disabled).toBe(false)
     editor.destroy()
   })

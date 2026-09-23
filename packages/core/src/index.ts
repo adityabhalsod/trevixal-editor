@@ -140,6 +140,13 @@ export {
   unwrapList,
 } from './commands/lists'
 export {
+  setDocumentAttrs,
+  setDocumentDirection,
+  setHeadingNumbering,
+  setLineNumbers,
+  setTextDirection,
+} from './commands/document'
+export {
   type InsertEmailLinkOptions,
   insertEmailLink,
   isEmailAddress,
@@ -240,6 +247,22 @@ export {
   storedNumbering,
   storedNumberingsFor,
 } from './schema/list-numbering'
+export {
+  HEADING_NUMBERING_SCHEMES,
+  type HeadingNumber,
+  headingNumberingOf,
+  headingNumberingScheme,
+  headingNumbers,
+} from './schema/heading-numbering'
+export {
+  DOCUMENT_ATTRIBUTE,
+  documentAttrs,
+  documentSettingsAttrs,
+  documentSettingsElement,
+  parseDocumentSettings,
+  type TextDirection,
+  textDirection,
+} from './schema/document-settings'
 
 // view
 export { EditorView, type EditorViewOptions, type NodeViewFactory } from './view/editor-view'

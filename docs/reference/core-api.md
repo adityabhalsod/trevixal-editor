@@ -44,7 +44,8 @@ createEditor(options: EditorOptions): Editor
 `setListNumbering`, `unwrapList`, `restartNumbering`, `continueNumbering`,
 `continueNumberingFromPrevious`,
 `splitListItem`, `sinkListItem`, `liftListItem`, `setCodeBlock`, `lift`,
-`selectAll`, `undo`, `redo`. Each returns `boolean`.
+`setHeadingNumbering`, `setDocumentDirection`, `setLineNumbers`,
+`setTextDirection`, `selectAll`, `undo`, `redo`. Each returns `boolean`.
 
 **`editor.chain()`**: `focus()`, `command(cmd)`, `insertText()`,
 `toggleMark()`, `setBlockType()`, `setHeading()`, `setParagraph()`, then
@@ -140,6 +141,28 @@ list's `numbering` attr (written as `data-numbering`), and every list nested
 under it takes the marker for its depth, so an item indented later follows it
 with nothing written to the new list. The Word and RTF writers and the
 toolbar gallery all read this one table.
+
+Document settings: the doc node's attributes, `headingNumbering` (a numbered
+scheme's id), `direction` (`'rtl'`) and `lineNumbers`, from `documentAttrs()`.
+They are set with `setHeadingNumbering(id | null)`, `setDocumentDirection`,
+`setLineNumbers` or `setDocumentAttrs`, each one undoable step, and the
+snapshot carries them as `documentAttrs`. In HTML a document with any of them
+set is wrapped in one `<div data-trevixal-document …>` carrying them
+(`documentSettingsAttrs`, `parseDocumentSettings`); a document with none is
+written as it always was. The view puts the same attributes on the editing
+surface, so one stylesheet draws both.
+
+Heading numbering: `HEADING_NUMBERING_SCHEMES` (the numbered list schemes,
+outline first), `headingNumberingScheme`, `headingNumberingOf`, and
+`headingNumbers(doc)`, every top-level heading's number as the stylesheet's
+counters draw it (`1.0.1.` for a skipped level).
+
+Direction: paragraphs and headings take a `dir` attr (`'ltr'`, `'rtl'`, or
+null to follow the document), written as `dir`; `setTextDirection(dir)` sets
+it on the selected blocks. An indent is written as `margin-inline-start`, so
+it comes from the right in right-to-left text; `margin-left` still imports.
+Paragraphs take an `id` too, as headings do, and a split keeps it on the
+first half only.
 
 ## View
 

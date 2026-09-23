@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { type Editor, createEditor } from '../src/editor/editor'
 import { Fragment } from '../src/model/fragment'
 import { pos } from '../src/model/position'
-import { TextSelection } from '../src/state/selection'
+import { NodeSelection, TextSelection } from '../src/state/selection'
 import { SetNodeAttrsStep } from '../src/state/steps/attrs-step'
 import { ReplaceInlineStep } from '../src/state/steps/replace-inline'
 import type { EditorView } from '../src/view/editor-view'
-import { doc, p, testSchema } from './helpers'
+import { doc, hr, p, testSchema } from './helpers'
 
 function mount(document = doc(p('hello world'))): { editor: Editor; view: EditorView } {
   const host = window.document.createElement('div')
@@ -43,6 +43,33 @@ describe('EditorView.focus', () => {
     view.scrollSelectionIntoView({ block: 'start' })
 
     expect(scrolled).toEqual([{ block: 'start' }])
+  })
+})
+
+describe('reading the browser selection back', () => {
+  function report(): void {
+    window.document.dispatchEvent(new Event('selectionchange'))
+  }
+
+  it('keeps a node selection when the browser repeats the caret it had', () => {
+    const { editor, view } = mount(doc(p('hello'), hr()))
+    view.dom.focus()
+    const text = view.dom.querySelector('p')?.firstChild as globalThis.Node
+    window.document.getSelection()?.setBaseAndExtent(text, 2, text, 2)
+    report()
+    expect(editor.state.selection.eq(new TextSelection(pos([0], 2)))).toBe(true)
+
+    // Clicking an image selects it as a node, and the browser, which cannot
+    // show that, reports its unmoved caret again.
+    editor.dispatch(editor.state.tr.setSelection(new NodeSelection([1])))
+    report()
+    expect(editor.state.selection.eq(new NodeSelection([1]))).toBe(true)
+
+    // The reader moving the caret still takes the selection back to the text.
+    window.document.getSelection()?.setBaseAndExtent(text, 4, text, 4)
+    report()
+    expect(editor.state.selection.eq(new TextSelection(pos([0], 4)))).toBe(true)
+    editor.destroy()
   })
 })
 

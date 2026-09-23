@@ -1,5 +1,6 @@
 import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
+import { type TextDirection, documentAttrs, textDirection } from './document-settings'
 import { storedNumberingsFor } from './list-numbering'
 
 const SAFE_PROTOCOLS = /^(?:https?|mailto|tel|ftp):/i
@@ -95,7 +96,7 @@ export function safeLength(value: unknown): string | null {
   return /^\d+(\.\d+)?(px|pt|em|rem|%|vw|vh|ch)$/i.test(css) ? css : null
 }
 
-/** Alignment, indent and vertical-rhythm attrs shared by textblocks. */
+/** Alignment, indent, vertical-rhythm and direction attrs shared by textblocks. */
 export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
   return {
     align: { default: null },
@@ -103,6 +104,8 @@ export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
     lineHeight: { default: null },
     spaceBefore: { default: null },
     spaceAfter: { default: null },
+    // `rtl` or `ltr` against the document's own direction; null follows it.
+    dir: { default: null },
   }
 }
 
@@ -137,29 +140,48 @@ export function safeElementId(value: unknown): string | null {
   return value
 }
 
-/** Render align/indent/line-height/spacing as a sanitized style attribute. */
+/** Render align/indent/line-height/spacing/direction as sanitized attributes. */
 export function blockLayoutHTML(node: EditorNode): Record<string, string> {
   const declarations: string[] = []
   const align = typeof node.attrs.align === 'string' ? node.attrs.align : null
   if (align && ALIGNMENTS.has(align)) declarations.push(`text-align: ${align}`)
   const indent = typeof node.attrs.indent === 'number' ? node.attrs.indent : 0
   const steps = Math.min(MAX_INDENT, Math.max(0, Math.round(indent)))
-  if (steps > 0) declarations.push(`margin-left: ${steps * 2.5}rem`)
+  // The start side rather than the left: a right-to-left paragraph indents
+  // from the right, including one that takes its direction from the document.
+  if (steps > 0) declarations.push(`margin-inline-start: ${steps * 2.5}rem`)
   const lineHeight = safeLineHeight(node.attrs.lineHeight)
   if (lineHeight) declarations.push(`line-height: ${lineHeight}`)
   const before = safeLength(node.attrs.spaceBefore)
   if (before) declarations.push(`margin-top: ${before}`)
   const after = safeLength(node.attrs.spaceAfter)
   if (after) declarations.push(`margin-bottom: ${after}`)
-  return declarations.length > 0 ? { style: declarations.join('; ') } : {}
+  const attrs: Record<string, string> = {}
+  if (declarations.length > 0) attrs.style = declarations.join('; ')
+  const dir = textDirection(node.attrs.dir)
+  if (dir) attrs.dir = dir
+  return attrs
 }
 
-/** Read align/indent/line-height/spacing back from imported HTML. */
+/**
+ * The indent a block's markup carries, in rem: our own `margin-inline-start`,
+ * or the `margin-left` (`margin-right` when right-to-left) that other editors
+ * and older exports write.
+ */
+function indentOf(element: HTMLElement, dir: TextDirection | null): number {
+  const logical = /margin-inline-start:\s*([\d.]+)rem/i.exec(element.getAttribute('style') ?? '')
+  if (logical) return Number.parseFloat(logical[1] as string)
+  return Number.parseFloat(dir === 'rtl' ? element.style.marginRight : element.style.marginLeft)
+}
+
+/** Read align/indent/line-height/spacing/direction back from imported HTML. */
 export function parseBlockLayout(element: HTMLElement): Record<string, unknown> {
   const attrs: Record<string, unknown> = {}
   const align = element.style.textAlign || element.getAttribute('align')
   if (align && ALIGNMENTS.has(align)) attrs.align = align
-  const margin = Number.parseFloat(element.style.marginLeft)
+  const dir = textDirection(element.getAttribute('dir')?.toLowerCase())
+  if (dir) attrs.dir = dir
+  const margin = indentOf(element, dir)
   if (Number.isFinite(margin) && margin > 0) {
     attrs.indent = Math.min(MAX_INDENT, Math.round(margin / 2.5))
   }
@@ -295,13 +317,28 @@ function languageOf(element: HTMLElement): string | null {
 /** The built-in node set: doc, paragraph, headings, quote, code, lists, … */
 export function defaultNodes(): Record<string, NodeSpec> {
   return {
-    doc: { content: 'block+' },
+    // The whole document's settings are its attributes (document-settings.ts).
+    doc: { content: 'block+', attrs: documentAttrs() },
     paragraph: {
       content: 'inline*',
       group: 'block',
-      attrs: blockLayoutAttrs(),
-      toHTML: (node) => ({ tag: 'p', attrs: blockLayoutHTML(node) }),
-      parseHTML: [{ tag: 'p', getAttrs: parseBlockLayout }],
+      // `id` is what a link to this block points at, as a heading's is. Null
+      // until something (the block menu's "Copy link") asks for one.
+      attrs: { id: { default: null }, ...blockLayoutAttrs() },
+      toHTML: (node) => {
+        const attrs = blockLayoutHTML(node)
+        const id = safeElementId(node.attrs.id)
+        return { tag: 'p', attrs: id ? { ...attrs, id } : attrs }
+      },
+      parseHTML: [
+        {
+          tag: 'p',
+          getAttrs: (element) => ({
+            id: safeElementId(element.getAttribute('id')),
+            ...parseBlockLayout(element),
+          }),
+        },
+      ],
     },
     heading: {
       content: 'inline*',

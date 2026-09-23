@@ -118,7 +118,7 @@
   }
 
   &__label {
-    margin-right: auto;
+    margin-inline-end: auto;
     color: t.token('color-text-muted');
     font-size: 0.8rem;
   }
@@ -183,7 +183,7 @@
   font-size: 0.85rem;
 
   &__text {
-    margin-right: auto;
+    margin-inline-end: auto;
   }
 
   &__button {
@@ -221,7 +221,7 @@
   }
 
   &__label {
-    margin-right: auto;
+    margin-inline-end: auto;
     font-size: 0.85rem;
   }
 }
@@ -279,9 +279,9 @@
     background: none;
     color: inherit;
     border: 0;
-    border-left: 2px solid transparent;
+    border-inline-start: 2px solid transparent;
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -289,13 +289,13 @@
     }
 
     &[aria-current='step'] {
-      border-left-color: t.token('color-accent');
+      border-inline-start-color: t.token('color-accent');
       font-weight: 600;
     }
   }
 
   &__meta {
-    margin-left: auto;
+    margin-inline-start: auto;
     color: t.token('color-text-muted');
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
@@ -359,7 +359,7 @@
     border: 0;
     border-radius: t.token('radius-sm');
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover,
@@ -427,7 +427,7 @@
     display: flex;
     align-items: center;
     gap: t.token('space-2');
-    margin-right: auto;
+    margin-inline-end: auto;
     cursor: pointer;
   }
 
@@ -853,7 +853,7 @@ pre > .trevixal-diagram {
     border: 0;
     border-radius: t.token('radius-sm');
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover,
@@ -909,7 +909,7 @@ pre > .trevixal-diagram {
   }
 
   &__count {
-    margin-right: auto;
+    margin-inline-end: auto;
     color: t.token('color-text-muted');
   }
 }
@@ -991,7 +991,7 @@ pre > .trevixal-diagram {
       &::before {
         content: '▸';
         display: inline-block;
-        margin-right: t.token('space-2');
+        margin-inline-end: t.token('space-2');
         color: t.token('color-text-muted');
         transition: transform 120ms ease;
       }
@@ -1017,7 +1017,7 @@ pre > .trevixal-diagram {
 
   .trevixal-references {
     margin: t.token('space-4') 0 0;
-    padding-left: t.token('space-4');
+    padding-inline-start: t.token('space-4');
     border-top: 1px solid t.token('color-border');
     padding-top: t.token('space-3');
     font-size: 0.9em;
@@ -1050,7 +1050,7 @@ pre > .trevixal-diagram {
     display: flex;
     align-items: center;
     max-width: 14rem;
-    padding-right: 2px;
+    padding-inline-end: 2px;
     background: t.token('color-surface');
     border: 1px solid t.token('color-border');
     border-bottom: 0;
@@ -1206,7 +1206,7 @@ pre > .trevixal-diagram {
       border: 0;
       border-radius: t.token('radius-sm');
       font: inherit;
-      text-align: left;
+      text-align: start;
       cursor: pointer;
 
       &:hover,
@@ -1229,7 +1229,7 @@ pre > .trevixal-diagram {
     align-items: center;
     gap: t.token('space-1');
     padding: 2px t.token('space-1');
-    border-left: 2px solid transparent;
+    border-inline-start: 2px solid transparent;
     border-radius: t.token('radius-sm');
     cursor: pointer;
 
@@ -1238,7 +1238,7 @@ pre > .trevixal-diagram {
     }
 
     &[aria-current='true'] {
-      border-left-color: t.token('color-accent');
+      border-inline-start-color: t.token('color-accent');
       font-weight: 600;
     }
   }

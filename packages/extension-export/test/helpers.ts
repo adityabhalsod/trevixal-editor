@@ -14,7 +14,7 @@ import { base64Encode } from '../src/shared'
  * The table and image nodes both writers understand live in sibling packages
  * this one does not depend on, so the tests declare the same shapes locally.
  */
-function extraNodes(): Record<string, NodeSpec> {
+export function extraNodes(): Record<string, NodeSpec> {
   return {
     table: {
       content: 'tableRow+',

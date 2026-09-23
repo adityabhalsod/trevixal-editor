@@ -6,9 +6,11 @@ import {
   type Mark,
   type TextNode,
   formatListCounter,
+  headingNumbers,
   listMarker,
   listNumberingOf,
   listStylesFor,
+  textDirection,
 } from '@trevixal/core'
 import { type RGB, parseColor } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
@@ -32,6 +34,7 @@ import {
 import { type TableColors, type TableLine, type TableLook, tableLook } from './table-look'
 import { type ThemeTokens, documentPalette } from './theme'
 import { lengthToHalfPoints, lengthToTwips } from './units'
+import { jsonEntries, sequenceName } from './word-fields'
 
 export interface RTFOptions {
   /** Body font; Calibri by default. */
@@ -79,6 +82,14 @@ interface Context {
   /** The page and ink a table style's tints are mixed against. */
   readonly tableColors: TableColors
   readonly rendered: RenderedDocument
+  /** The document's direction; a paragraph without one of its own takes it. */
+  readonly direction: 'ltr' | 'rtl'
+  /**
+   * Each numbered heading's number, written as text before it: RTF readers
+   * number lists, but no simpler one links a list to heading styles.
+   */
+  /** Top-level headings' numbers, by their index in the document. */
+  readonly headingLabels: ReadonlyMap<number, string>
 }
 
 interface ParagraphState {
@@ -150,10 +161,18 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
       ink: parseColor(palette.text ? `#${palette.text}` : null) ?? BLACK,
     },
     rendered: options.rendered ?? new Map(),
+    direction: textDirection(doc.attrs.direction) === 'rtl' ? 'rtl' : 'ltr',
+    headingLabels: new Map(headingNumbers(doc).map((entry) => [entry.index, entry.label] as const)),
   }
   // The body is written first so the font and colour tables list exactly
   // what it references.
-  const body = writeBlocks(doc.content.children, context, ROOT_STATE).join('\n')
+  // Top level by index, which is how a heading's number is found: the same
+  // heading node can stand at two places in a document and be two numbers.
+  const body = doc.content.children
+    .flatMap((node, index) =>
+      writeBlock(node, context, ROOT_STATE, context.headingLabels.get(index)),
+    )
+    .join('\n')
 
   const fontTable = context.fonts
     .map(
@@ -167,7 +186,13 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
 
   const preamble = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033'
   const tables = `{\\fonttbl${fontTable}}{\\colortbl;${colorTable}}`
-  return `${preamble}${tables}${pageBackground(palette.background)}\\viewkind4\\uc1\n${body}\n}`
+  // Document and section settings: a right-to-left document, and Word's line
+  // numbers, counting every line and running on through the document.
+  const settings = [
+    context.direction === 'rtl' ? '\\rtldoc' : '',
+    doc.attrs.lineNumbers === true ? '\\sectd\\linemod1\\linex360\\linecont' : '',
+  ].join('')
+  return `${preamble}${tables}${pageBackground(palette.background)}\\viewkind4\\uc1${settings}\n${body}\n}`
 }
 
 /**
@@ -223,13 +248,19 @@ function writeBlocks(
 }
 
 /** One block as zero or more paragraphs, each terminated by `\par` (or `\row`). */
-function writeBlock(node: EditorNode, context: Context, state: ParagraphState): string[] {
+function writeBlock(
+  node: EditorNode,
+  context: Context,
+  state: ParagraphState,
+  headingLabel?: string,
+): string[] {
   switch (node.type.name) {
     case NODE.paragraph:
       return [textblock(node, context, state, `\\f0\\fs${context.sizeHp}`)]
     case NODE.heading: {
       const size = HEADING_SIZES[headingLevel(node) - 1] ?? 24
-      return [textblock(node, context, state, `\\sb240\\sa120\\keepn\\b\\f0\\fs${size}`)]
+      const number = headingLabel ? `${escapeRTF(headingLabel)} ` : ''
+      return [textblock(node, context, state, `\\sb240\\sa120\\keepn\\b\\f0\\fs${size}`, number)]
     }
     case NODE.blockquote:
       return writeBlocks(node.content.children, context, {
@@ -278,6 +309,22 @@ function writeBlock(node: EditorNode, context: Context, state: ParagraphState): 
           `\\f0\\fs${Math.max(2, context.sizeHp - 2)}`,
         ),
       ]
+    // A table of figures and an index are their entries, as text; a reader
+    // with fields of its own rebuilds them from the captions and marks. They
+    // are passed as the paragraph's node for the document's direction.
+    case 'captionList':
+      return jsonEntries(node.attrs.entries).flatMap((entry) =>
+        typeof entry.text === 'string'
+          ? [
+              `${paragraphStart(context, state, node)}\\f0\\fs${context.sizeHp} ${escapeRTF(entry.text)}\\par`,
+            ]
+          : [],
+      )
+    case 'documentIndex':
+      return indexLines(node).map(
+        (line) =>
+          `${paragraphStart(context, { ...state, indent: state.indent + (line.sub ? INDENT / 2 : 0) }, node)}\\f0\\fs${context.sizeHp} ${escapeRTF(line.text)}\\par`,
+      )
     default:
       if (node.isTextblock) return [textblock(node, context, state, `\\f0\\fs${context.sizeHp}`)]
       if (node.isAtom || node.childCount === 0) {
@@ -306,6 +353,9 @@ function writeBlock(node: EditorNode, context: Context, state: ParagraphState): 
 function paragraphStart(context: Context, state: ParagraphState, node: EditorNode | null): string {
   let out = '\\pard\\plain'
   if (state.inTable) out += '\\intbl'
+  // A paragraph's own direction, or the document's; code (no node) runs left to right.
+  const direction = node ? (textDirection(node.attrs.dir) ?? context.direction) : 'ltr'
+  if (direction === 'rtl') out += '\\rtlpar'
   if (context.background !== null) out += `\\cbpat${context.background}`
   if (context.text !== null) out += `\\cf${context.text}`
   if (state.ink !== undefined) out += `\\cf${state.ink}`
@@ -348,12 +398,37 @@ function textblock(
   context: Context,
   state: ParagraphState,
   props: string,
+  prefix = '',
 ): string {
   const marker = state.marker === null ? '' : `${state.marker}\\tab `
-  return `${paragraphStart(context, state, node)}${props} ${marker}${inline(
+  return `${paragraphStart(context, state, node)}${props} ${marker}${prefix}${inline(
     node.content,
     context,
   )}\\par`
+}
+
+/** An index's entries as lines of text: "apple, 1, 3", its subentries indented under it. */
+function indexLines(node: EditorNode): { text: string; sub: boolean }[] {
+  const labels = (locations: unknown): string =>
+    Array.isArray(locations)
+      ? locations
+          .map((location) => (location as Record<string, unknown>).label)
+          .filter((label): label is string => typeof label === 'string')
+          .join(', ')
+      : ''
+  const lines: { text: string; sub: boolean }[] = []
+  for (const entry of jsonEntries(node.attrs.entries)) {
+    if (typeof entry.term !== 'string') continue
+    const own = labels(entry.locations)
+    lines.push({ text: own ? `${entry.term}, ${own}` : entry.term, sub: false })
+    for (const sub of Array.isArray(entry.subentries) ? entry.subentries : []) {
+      const record = sub as Record<string, unknown>
+      if (typeof record.term === 'string') {
+        lines.push({ text: `${record.term}, ${labels(record.locations)}`, sub: true })
+      }
+    }
+  }
+  return lines
 }
 
 /**
@@ -554,7 +629,8 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
   const rows: string[] = []
   for (const [rowIndex, row] of table.content.children.entries()) {
     if (row.type.name !== NODE.tableRow) continue
-    let definition = '\\trowd\\trgaph108\\trleft-108'
+    // A right-to-left document lays its tables out from the right.
+    let definition = `\\trowd${context.direction === 'rtl' ? '\\rtlrow' : ''}\\trgaph108\\trleft-108`
     let right = 0
     const cells: string[] = []
     for (const [cellIndex, cell] of row.content.children.entries()) {
@@ -643,6 +719,11 @@ function inline(content: Fragment, context: Context): string {
 function inlineNode(node: EditorNode, context: Context): string {
   if (node.isText) return run(node as TextNode, context)
   if (node.type.name === NODE.hardBreak) return '\\line '
+  // A caption's number as the SEQ field Word writes, with its present value.
+  if (node.type.name === 'captionNumber') {
+    const number = escapeRTF(String(node.attrs.number ?? ''))
+    return `{\\field{\\*\\fldinst SEQ ${sequenceName(node.attrs.kind)} \\\\* ARABIC}{\\fldrslt ${number}}}`
+  }
   if (node.type.name === NODE.image) {
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return escapeRTF(`[${alt}]`)

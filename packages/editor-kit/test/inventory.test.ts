@@ -36,8 +36,8 @@ test('registers every menu and menu entry it did before', () => {
   expect(Object.fromEntries(menus)).toEqual({
     File: 15,
     Edit: 12,
-    Insert: 35,
-    Format: 20,
+    Insert: 42,
+    Format: 23,
     Tools: 21,
     Table: 37,
     View: 22,
@@ -58,7 +58,7 @@ test('renders the whole chrome, not just the menus', () => {
     menuTriggers: 8,
     toolbarGroups: 14,
     toolbarItems: 65,
-    everythingNamed: 353,
+    everythingNamed: 370,
   })
 })
 

@@ -1,5 +1,7 @@
 import type { EditorNode, NodeSpec } from '@trevixal/core'
 import { escapeHTML, safeHref, safeLength } from '@trevixal/core'
+import { safeAnchorId } from './ids'
+import { referenceNodes } from './references'
 
 /** Callout flavors, in the order a variant picker should present them. */
 export type CalloutVariant = 'info' | 'success' | 'warning' | 'danger' | 'note'
@@ -24,19 +26,7 @@ export const MAX_COLUMNS = 4
 /** A tab strip or accordion with more than this many entries stops being navigable. */
 export const MAX_SECTIONS = 12
 
-/**
- * Ids reach the DOM as both an `id` attribute and a `#fragment` href, so
- * they are held to a strict allowlist rather than escaped. This rejects the
- * whole class of `../`, `javascript:` and quote-breaking payloads outright.
- * A malformed id drops the attribute instead of emitting something clever.
- */
-const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/
-
-/** A document-fragment-safe identifier, or null when it fails the allowlist. */
-export function safeAnchorId(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  return SAFE_ID.test(value) ? value : null
-}
+export { safeAnchorId } from './ids'
 
 /** Coerce any input to a known callout variant, falling back to `info`. */
 export function calloutVariant(value: unknown): CalloutVariant {
@@ -655,6 +645,9 @@ export function blockNodes(): Record<string, NodeSpec> {
         },
       ],
     },
+
+    // Captions, cross-references, tables of figures, the index and endnotes.
+    ...referenceNodes(),
   }
 }
 

@@ -240,7 +240,8 @@ export function insertFootnote(id?: string): Command {
     const listIndex = findChildIndex(tr.doc, 'footnoteList')
     if (listIndex === null) {
       const list = schema.nodeType('footnoteList').create(undefined, Fragment.of(item))
-      const at = tr.doc.childCount
+      // Endnotes close the document, after the footnotes, as in Word.
+      const at = findChildIndex(tr.doc, 'endnoteList') ?? tr.doc.childCount
       tr.step(new ReplaceNodesStep([], at, at, Fragment.of(list)))
     } else {
       const list = tr.doc.child(listIndex)

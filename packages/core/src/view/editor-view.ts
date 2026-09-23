@@ -105,6 +105,36 @@ function detectMac(): boolean {
 /** `Node.TEXT_NODE`, without reaching for the DOM constant at runtime. */
 const TEXT_NODE = 3
 
+/** Where the browser's selection sat, to tell a reader's move from the browser repeating itself. */
+interface DOMSelectionSnapshot {
+  readonly anchorNode: globalThis.Node | null
+  readonly anchorOffset: number
+  readonly focusNode: globalThis.Node | null
+  readonly focusOffset: number
+}
+
+function snapshotOf(selection: Selection): DOMSelectionSnapshot {
+  return {
+    anchorNode: selection.anchorNode,
+    anchorOffset: selection.anchorOffset,
+    focusNode: selection.focusNode,
+    focusOffset: selection.focusOffset,
+  }
+}
+
+function isSameDOMSelection(
+  before: DOMSelectionSnapshot | null,
+  after: DOMSelectionSnapshot,
+): boolean {
+  return (
+    before !== null &&
+    before.anchorNode === after.anchorNode &&
+    before.anchorOffset === after.anchorOffset &&
+    before.focusNode === after.focusNode &&
+    before.focusOffset === after.focusOffset
+  )
+}
+
 export class EditorView {
   readonly dom: HTMLElement
   /** Advanced API: the renderer's DOM↔model mapping, used by adapters. */
@@ -121,6 +151,8 @@ export class EditorView {
   private editable = true
   private pastePlainOnce = false
   private highlights: readonly SearchMatch[] = []
+  /** The browser selection as this view last read or wrote it. */
+  private lastDOMSelection: DOMSelectionSnapshot | null = null
   private readonly decorationLayers = new Map<string, DecorationSource>()
   private readonly keydownInterceptors = new Set<(event: KeyboardEvent) => boolean>()
   private readonly announcer: Announcer | null
@@ -435,6 +467,7 @@ export class EditorView {
       domSelection.focusNode === head.node &&
       domSelection.focusOffset === head.offset
     ) {
+      this.lastDOMSelection = snapshotOf(domSelection)
       return
     }
     // Only steer the browser caret while we own focus.
@@ -448,6 +481,7 @@ export class EditorView {
       this.withDOMUpdate(() => {
         domSelection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset)
       })
+      this.lastDOMSelection = snapshotOf(domSelection)
     } catch {
       // Selection APIs vary across environments; the model stays correct.
     }
@@ -469,6 +503,14 @@ export class EditorView {
     const domSelection = this.document.getSelection?.()
     const anchorNode = domSelection?.anchorNode
     if (!domSelection || !anchorNode || !this.dom.contains(anchorNode)) return
+    // A selected node (an image, an equation) has no browser form, so the
+    // browser goes on showing the caret it had, and reports it again on the
+    // click that selected the node. That report is not the reader moving;
+    // reading it back would swap the selected image for a caret in some text.
+    const current = snapshotOf(domSelection)
+    const unmoved = isSameDOMSelection(this.lastDOMSelection, current)
+    this.lastDOMSelection = current
+    if (unmoved && !(this.editor.state.selection instanceof TextSelection)) return
     const anchor = positionFromDOMPoint(
       this.dom,
       this.renderer,
@@ -511,12 +553,13 @@ export class EditorView {
     const model = this.renderer.modelOf.get(element)
     if (model?.type.name !== 'taskItem') return
     const box = element.getBoundingClientRect()
-    const gutter = Number.parseFloat(
-      (element.ownerDocument.defaultView?.getComputedStyle(element).paddingLeft ?? '0') || '0',
-    )
-    const inGutter = Number.isFinite(gutter)
-      ? event.clientX < box.left + gutter
-      : event.clientX < box.left
+    // The checkbox is drawn at the start of the line: the right, in text that
+    // runs right to left.
+    const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+    const rtl = style?.direction === 'rtl'
+    const gutter = Number.parseFloat((rtl ? style?.paddingRight : style?.paddingLeft) || '0')
+    const width = Number.isFinite(gutter) ? gutter : 0
+    const inGutter = rtl ? event.clientX > box.right - width : event.clientX < box.left + width
     if (!inGutter) return
     const path = pathOfElement(this.dom, this.renderer, element)
     if (!path) return

@@ -1,4 +1,5 @@
 @use 'sass:list';
+@use 'sass:map';
 @use 'tokens' as t;
 
 // A list `$depth` levels down, counted over every kind of list, as the Word
@@ -102,7 +103,7 @@ $list-depth: 9;
   blockquote {
     margin: 0.75em 0;
     padding: t.token('space-1') t.token('space-4');
-    border-left: 3px solid t.token('color-accent');
+    border-inline-start: 3px solid t.token('color-accent');
     color: t.token('color-text-muted');
   }
 
@@ -136,7 +137,7 @@ $list-depth: 9;
   ul,
   ol {
     margin: 0 0 0.75em;
-    padding-left: 1.5em;
+    padding-inline-start: 1.5em;
   }
 
   li > p {
@@ -263,4 +264,102 @@ $list-depth: 9;
     color: t.token('color-text-muted');
     pointer-events: none;
   }
+}
+
+// ---- heading numbering -------------------------------------------------------
+// A document setting: `data-heading-numbering` sits on the editing surface in
+// the editor, and on the wrapper inside `.trevixal-content` on a saved page,
+// so every rule is written for both. Only headings at the top level count, as
+// `headingNumbers` in the core counts them, and a browser test holds the two
+// to the same numbers. The schemes are the list gallery's numbered ones.
+@mixin document-setting($attribute) {
+  .trevixal-content#{$attribute},
+  .trevixal-content > #{$attribute} {
+    @content;
+  }
+}
+
+$heading-counters: tvx-h1 tvx-h2 tvx-h3 tvx-h4 tvx-h5 tvx-h6;
+
+@include document-setting('[data-heading-numbering]') {
+  counter-reset: $heading-counters;
+
+  @for $level from 1 through 6 {
+    > h#{$level} {
+      counter-increment: list.nth($heading-counters, $level);
+      @if $level < 6 {
+        // Each heading starts the levels below it again. `counter-set`, not
+        // `counter-reset`: a reset on a sibling nests a new counter, and
+        // Chromium then keeps counting the old one (3. Results, 3.3. Retention).
+        $below: ();
+        @for $deeper from $level + 1 through 6 {
+          $below: list.append($below, list.nth($heading-counters, $deeper) 0, $separator: space);
+        }
+        counter-set: $below;
+      }
+
+      &::before {
+        margin-inline-end: 0.4em;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+}
+
+// Per scheme: each level's counter style, what follows it, and whether a
+// number carries its ancestors' (1.1.1.) or stands alone (a., i.).
+$heading-schemes: (
+  'outline': (
+    levels: (decimal),
+    suffix: '.',
+    outline: true,
+  ),
+  'default': (
+    levels: (decimal, lower-alpha, lower-roman),
+    suffix: '.',
+    outline: false,
+  ),
+  'parenthesis': (
+    levels: (decimal, lower-alpha, lower-roman),
+    suffix: ')',
+    outline: false,
+  ),
+  'roman-outline': (
+    levels: (upper-roman, upper-alpha, decimal, lower-alpha, lower-roman),
+    suffix: '.',
+    outline: false,
+  ),
+);
+
+@each $id, $scheme in $heading-schemes {
+  $levels: map.get($scheme, levels);
+  $suffix: map.get($scheme, suffix);
+  @include document-setting("[data-heading-numbering='#{$id}']") {
+    @for $level from 1 through 6 {
+      > h#{$level}::before {
+        @if map.get($scheme, outline) {
+          $parts: ();
+          @for $part from 1 through $level {
+            $parts: list.append($parts, counter(list.nth($heading-counters, $part)), $separator: space);
+            @if $part < $level {
+              $parts: list.append($parts, '.', $separator: space);
+            }
+          }
+          content: $parts $suffix;
+        } @else {
+          $style: list.nth($levels, ($level - 1) % list.length($levels) + 1);
+          content: counter(list.nth($heading-counters, $level), $style) $suffix;
+        }
+      }
+    }
+  }
+}
+
+// ---- index entries -------------------------------------------------------------
+// Words marked for the index are underlined while editing, so a writer can
+// see what is filed, and nowhere else: a saved page or a print has no
+// `contenteditable` on its content, and the words read as ordinary text.
+.trevixal-content[contenteditable] .trevixal-index-term {
+  text-decoration: underline dotted t.token('color-text-muted');
+  text-underline-offset: 0.2em;
 }

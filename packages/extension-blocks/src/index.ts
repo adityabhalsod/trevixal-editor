@@ -47,7 +47,45 @@ export {
   setColumnCount,
   toggleToggleOpen,
 } from './commands'
+export {
+  documentIds,
+  fieldSteps,
+  freshId,
+  installFieldUpdater,
+  type ReferenceKind,
+  type ReferenceTarget,
+  referenceTargets,
+  referenceText,
+  refreshFields,
+  updateFieldsTransform,
+} from './fields'
 export { blockKeymap, enterFromTitle, escapeContainerOnEnter } from './keymap'
+export {
+  type CaptionOptions,
+  type CaptionPosition,
+  type IndexEntryOptions,
+  insertCaption,
+  insertCaptionList,
+  insertCrossReference,
+  insertDocumentIndex,
+  insertEndnote,
+  markIndexEntry,
+} from './reference-commands'
+export {
+  CAPTION_KINDS,
+  type CaptionKind,
+  type CaptionListEntry,
+  captionKind,
+  CROSS_REFERENCE_FORMATS,
+  type CrossReferenceFormat,
+  crossReferenceFormat,
+  endnoteLabel,
+  type IndexEntry,
+  type IndexLocation,
+  MISSING_REFERENCE,
+  referenceMarks,
+  referenceNodes,
+} from './references'
 export {
   BADGE_TONES,
   type BadgeTone,

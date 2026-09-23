@@ -75,7 +75,7 @@
 
   &__chevron {
     display: inline-flex;
-    margin-left: auto;
+    margin-inline-start: auto;
     opacity: 0.65;
 
     svg {
@@ -87,6 +87,7 @@
   &__panel {
     position: absolute;
     top: calc(100% + 4px);
+    // Physical, as `alignPanel` measures: it flips from the right edge of the window.
     left: 0;
     z-index: 40;
     // Wide enough for the longest row. An absolutely positioned panel
@@ -136,7 +137,7 @@
     border-radius: t.token('radius-sm');
     font: inherit;
     font-size: 0.875rem;
-    text-align: left;
+    text-align: start;
     // One line per entry: the panel grows to fit the label rather than the
     // label wrapping inside a fixed panel.
     white-space: nowrap;
@@ -227,7 +228,7 @@
     border: 0;
     border-radius: t.token('radius-sm');
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -307,7 +308,7 @@
     border-top: 1px solid t.token('color-border');
     font: inherit;
     font-size: 0.8rem;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -494,7 +495,7 @@
     &::after {
       content: '';
       position: absolute;
-      left: 4px;
+      inset-inline-start: 4px;
       top: 1px;
       width: 4px;
       height: 8px;
@@ -739,7 +740,7 @@
   }
 
   &__counts {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-variant-numeric: tabular-nums;
   }
 }
@@ -1014,6 +1015,99 @@
   }
 }
 
+// The grip's menu: turn the block into another kind, duplicate, move, link, delete.
+.trevixal-blockmenu {
+  position: absolute;
+  z-index: 46;
+  min-width: 13rem;
+  padding: t.token('space-1');
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+  font-family: t.token('font-family');
+  font-size: 0.875rem;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__heading {
+    margin: t.token('space-1') t.token('space-2');
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      outline: none;
+      background: t.token('color-selection');
+    }
+
+    &:disabled {
+      color: t.token('color-text-muted');
+      cursor: default;
+      opacity: 0.55;
+    }
+  }
+
+  &__rule {
+    margin: t.token('space-1') 0;
+    border: 0;
+    border-top: 1px solid t.token('color-border');
+  }
+}
+
+// ------------------------------------------------------------ line numbers
+// The editor's are drawn in a layer beside the surface; a print's inside the
+// content itself. One rule serves both, and it names `.trevixal` so the print
+// and a saved page collect it with the rest of the editor's CSS.
+.trevixal-line-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-line-number {
+  position: absolute;
+  color: t.token('color-text-muted');
+  font-family: t.token('font-family');
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+// Right-to-left chrome turns the icons drawn for a direction round with it.
+[dir='rtl'] .trevixal-icon--directional {
+  transform: scaleX(-1);
+}
+
 // ------------------------------------------- floating code-language select
 // Sits over the code block holding the caret, so the control is where the
 // code is rather than in a separate bar above the document.
@@ -1192,8 +1286,8 @@
 .trevixal-menu__check {
   display: grid;
   place-items: center;
-  margin-left: auto;
-  padding-left: var(--tvx-space-2);
+  margin-inline-start: auto;
+  padding-inline-start: var(--tvx-space-2);
   visibility: hidden;
 
   svg {

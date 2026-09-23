@@ -1,4 +1,4 @@
-import type { Command, Editor, EditorSnapshot } from '@trevixal/core'
+import type { Command, Editor, EditorNode, EditorSnapshot, Path } from '@trevixal/core'
 import {
   type Control,
   NO_LIST_NUMBERING,
@@ -225,6 +225,32 @@ export interface BlockCommands {
   readonly setColumnCount?: (count: number) => Command
   readonly insertTimelineItem?: Command
   readonly toggleToggleOpen?: Command
+  // The reference apparatus: captions, cross-references, the lists built
+  // from them, the index and endnotes. Kinds and formats are plain strings.
+  readonly insertCaption?: (kind: string, label: string, text: string) => Command
+  readonly referenceTargets?: (doc: EditorNode) => readonly ReferenceTargetInfo[]
+  readonly insertCrossReference?: (
+    target: Pick<ReferenceTargetInfo, 'id' | 'path'>,
+    format: string,
+  ) => Command
+  readonly insertCaptionList?: (kind: string) => Command
+  readonly insertDocumentIndex?: Command
+  readonly markIndexEntry?: (entry: string, sub: string) => Command
+  readonly insertEndnote?: Command
+}
+
+/** Something a cross-reference can point at, as `@trevixal/extension-blocks` lists them. */
+export interface ReferenceTargetInfo {
+  /** `heading`, `figure`, `table`, `equation`, `footnote` or `endnote`. */
+  readonly kind: string
+  /** Null for a heading nothing points at yet; the reference gives it one. */
+  readonly id: string | null
+  readonly path: Path
+  readonly label: string
+  readonly number: string
+  readonly text: string
+  /** The whole of it, as a list shows it: "Figure 2: A cat", "2.1 Results". */
+  readonly full: string
 }
 
 /** What the toolbar needs to know about a format painter it does not own. */
@@ -1218,12 +1244,14 @@ function bindRovingFocus(root: HTMLElement): { retune: () => void } {
     const items = focusables()
     const current = items.indexOf(root.ownerDocument.activeElement as HTMLElement)
     if (current === -1) return
+    // A right-to-left toolbar is drawn mirrored: the next control is to the left.
+    const step = root.ownerDocument.defaultView?.getComputedStyle(root).direction === 'rtl' ? -1 : 1
     switch (event.key) {
       case 'ArrowRight':
-        focusAt(current + 1)
+        focusAt(current + step)
         break
       case 'ArrowLeft':
-        focusAt(current - 1)
+        focusAt(current - step)
         break
       case 'Home':
         focusAt(0)

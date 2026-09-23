@@ -1,5 +1,5 @@
 import { Schema, defaultMarks, defaultNodes } from '@trevixal/core'
-import { blockNodes } from '@trevixal/extension-blocks'
+import { blockNodes, referenceMarks } from '@trevixal/extension-blocks'
 import { embedNodes } from '@trevixal/extension-embed'
 import { imageNodes } from '@trevixal/extension-image'
 import { mathNodes } from '@trevixal/extension-math'
@@ -25,7 +25,8 @@ export function createFullSchema(): Schema {
       ...mathNodes(),
     },
     // Suggestion marks come from track changes, so an edit made while
-    // "Suggesting" is on lands as a reviewable insertion rather than as text.
-    marks: { ...defaultMarks(), ...trackChangesMarks() },
+    // "Suggesting" is on lands as a reviewable insertion rather than as text;
+    // the index mark files words for Insert ▸ Index.
+    marks: { ...defaultMarks(), ...trackChangesMarks(), ...referenceMarks() },
   })
 }

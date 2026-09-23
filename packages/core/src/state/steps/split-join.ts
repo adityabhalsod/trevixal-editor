@@ -26,9 +26,18 @@ function siblingShift(
 }
 
 /**
+ * A block's attributes for a copy of it: everything but its `id`, which names
+ * one block and would otherwise be carried by two, leaving every link to it
+ * pointing at whichever the browser finds first.
+ */
+export function withoutId(attrs: Attrs): Attrs {
+  return attrs.id === undefined || attrs.id === null ? attrs : { ...attrs, id: null }
+}
+
+/**
  * Split the textblock at `path` at inline offset `offset`. The second half
  * becomes the next sibling, of type `afterType` (defaults to the same type
- * and attributes).
+ * and attributes, bar its `id`).
  */
 export class SplitNodeStep extends Step {
   constructor(
@@ -51,7 +60,9 @@ export class SplitNodeStep extends Step {
     const after = sliceInline(node.content, this.offset, length)
     const schema = node.type.schema
     const secondType = this.afterType ? schema.nodeType(this.afterType) : node.type
-    const secondAttrs = this.afterType ? this.afterAttrs : (this.afterAttrs ?? node.attrs)
+    const secondAttrs = this.afterType
+      ? this.afterAttrs
+      : (this.afterAttrs ?? withoutId(node.attrs))
     const second = secondType.create(secondAttrs, after)
     const first = node.withContent(before)
     const parentPath = this.path.slice(0, -1)

@@ -2,9 +2,10 @@
  * The controls that follow the caret and the pointer around the writing
  * surface, rather than sitting still in the chrome.
  *
- * All eight take the same container and appear only when the thing they act
- * on is under the caret, a code block, a table, an image, a selection, a
- * link, a block being hovered. None of them is configurable from here: what
+ * All of them take the same container and appear only when the thing they
+ * act on is under the caret, a code block, a table, an image, a selection, a
+ * link, a block being hovered, or, for the line numbers, when the document
+ * asks for them. None of them is configurable from here: what
  * they need is the editor, the surface they float over, and, for the image
  * pair, the controller that owns the uploads.
  */
@@ -25,12 +26,14 @@ import {
   createBlockDragHandle,
   createBubbleMenu,
   createCodeLanguageSelect,
+  createLineNumbers,
   createLinkPopover,
+  createReferenceNavigation,
   createTableToolbar,
 } from '@trevixal/ui'
 
 export interface FloatingControls {
-  /** Takes all eight off the surface, in the order they were installed. */
+  /** Takes every one off the surface, in the order they were installed. */
   destroy(): void
 }
 
@@ -65,6 +68,10 @@ export function createFloatingControls(
   const bubble = createBubbleMenu(editor, { container })
   const linkPopover = createLinkPopover(editor, { container })
   const dragHandle = createBlockDragHandle(editor, { container })
+  // Numbers in the margin while the document has Line numbers on, and
+  // Ctrl+click to follow a cross-reference or a note marker to its target.
+  const lineNumbers = createLineNumbers(editor, { container })
+  const references = createReferenceNavigation(editor)
 
   return {
     destroy() {
@@ -80,6 +87,8 @@ export function createFloatingControls(
         bubble,
         linkPopover,
         dragHandle,
+        lineNumbers,
+        references,
       ]) {
         part.destroy()
       }
