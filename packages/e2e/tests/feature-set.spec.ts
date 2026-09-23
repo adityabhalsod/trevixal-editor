@@ -1024,7 +1024,8 @@ test.describe('the suggestion triggers', () => {
 
       const popup = openPopup(page)
       await expect(popup).toBeVisible()
-      await expect(popup.locator('.trevixal-popup__item').first()).toHaveText('Table')
+      // The label: each row also says what the block is, on a line under it.
+      await expect(popup.locator('.trevixal-popup__label').first()).toHaveText('Table')
       await page.keyboard.press('Enter')
 
       await expect(surface.locator('table')).toHaveCount(2)

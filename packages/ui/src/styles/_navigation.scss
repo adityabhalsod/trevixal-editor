@@ -414,15 +414,33 @@
 
 // ---------------------------------------------- fullscreen & content width
 
-// The fallback for when the Fullscreen API is unavailable or rejected: a
-// fixed overlay covering the viewport, which is what the native mode gives us.
+// The fullscreen target, covering the window. The Fullscreen API takes the
+// whole page underneath it, because the palette, the popups and the dialogs
+// live on <body>, and the browser draws nothing outside a fullscreen element.
+// Above the chrome's panels (40), below what the editor floats over the page
+// (45 and up), so those still show over it.
 .trevixal-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 42;
   overflow: auto;
   padding: t.token('space-4');
   background: t.token('color-bg');
+
+  // How to leave, when the browser has not said so itself.
+  &__hint {
+    position: fixed;
+    top: t.token('space-3');
+    left: 50%;
+    z-index: 25;
+    padding: t.token('space-1') t.token('space-3');
+    border-radius: t.token('radius-md');
+    background: t.token('color-text');
+    color: t.token('color-bg');
+    font: 0.875rem t.token('font-family');
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
 }
 
 .trevixal-viewmode__button {

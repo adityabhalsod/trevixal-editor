@@ -458,6 +458,20 @@ $on-accent: #fff;
       background: t.token('color-selection');
       color: t.token('color-accent');
     }
+
+    // An icon beside the label and a description under it, as quick insert has.
+    &--rich {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      column-gap: t.token('space-2');
+    }
+  }
+
+  &__detail {
+    grid-column: 2;
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
   }
 
   &__empty {

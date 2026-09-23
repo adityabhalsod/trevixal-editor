@@ -97,17 +97,37 @@ function detectMac(): boolean {
 }
 
 /** Canonical form of a keydown, matching core's `normalizeKeyName` output. */
-function eventKeyName(event: KeyboardEvent): string {
+function eventKeyName(event: KeyboardEvent, key = event.key): string {
   let mods = ''
   if (event.altKey) mods += 'a'
   if (event.ctrlKey) mods += 'c'
   if (event.metaKey) mods += 'm'
   if (event.shiftKey) mods += 's'
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
-  return `${[...mods].sort().join('')}-${key}`
+  const name = key.length === 1 ? key.toLowerCase() : key
+  return `${[...mods].sort().join('')}-${name}`
+}
+
+/**
+ * The key a chord names when a modifier changed the character it types:
+ * Shift turns 7 into `&` (or `/`, on a German keyboard) and ⌥ on a Mac turns
+ * S into `ß`, yet `Mod-Shift-7` and `Mod-Alt-s` name the key. Read off the
+ * physical key, and only when the character is not a letter or digit already,
+ * so a layout that puts its letters elsewhere keeps them. Never for Ctrl+Alt
+ * off a Mac: that is AltGr, which types characters a shortcut must not eat.
+ */
+function physicalKey(event: KeyboardEvent, isMac: boolean): string | null {
+  if (!(event.ctrlKey || event.altKey || event.metaKey)) return null
+  if (/^[a-z0-9]$/i.test(event.key)) return null
+  if (!isMac && event.ctrlKey && event.altKey) return null
+  const match = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code ?? '')
+  const key = match?.[1] ?? match?.[2]
+  return key ? key.toLowerCase() : null
 }
 
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'OS', 'AltGraph'])
+
+/** F1 to F24: the one kind of key that can be a shortcut on its own. */
+const FUNCTION_KEY = /^F\d{1,2}$/
 
 const KEY_SYMBOLS: Readonly<Record<string, string>> = {
   ArrowUp: '↑',
@@ -268,15 +288,17 @@ export function createShortcutManager(
 
   const handle = (event: KeyboardEvent): boolean => {
     if (event.defaultPrevented) return false
-    const name = eventKeyName(event)
-    const action = bindings.get(name)
-    if (action) {
+    const physical = physicalKey(event, isMac)
+    const names = [eventKeyName(event), ...(physical ? [eventKeyName(event, physical)] : [])]
+    for (const name of names) {
+      const action = bindings.get(name)
+      if (!action) continue
       // A native action keeps its browser behaviour until the user rebinds it.
       if (action.native && !(action.name in overrides)) return false
       action.run(editor)
       return true
     }
-    return retired.has(name)
+    return names.some((name) => retired.has(name))
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -356,7 +378,8 @@ export function createShortcutManager(
       if (isMac ? event.ctrlKey : event.metaKey) mods.push(isMac ? 'Ctrl' : 'Meta')
       if (event.altKey) mods.push('Alt')
       if (event.shiftKey) mods.push('Shift')
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+      const key =
+        physicalKey(event, isMac) ?? (event.key.length === 1 ? event.key.toLowerCase() : event.key)
       return [...mods, key].join('-')
     },
     format: (keys) => formatShortcut(keys, isMac),
@@ -371,9 +394,12 @@ export function createShortcutManager(
 /**
  * The keyboard shortcuts dialog: every action grouped by menu, its current
  * keys, a Change button that records the next chord, and Reset per row and
- * for the lot. Escape cancels a recording before it closes the dialog.
+ * for the lot. A search box narrows the list by name or by keys. Escape
+ * cancels a recording before it closes the dialog.
  */
 export function openShortcutsDialog(manager: ShortcutManager, document: Document): Promise<void> {
+  // Where focus was, to hand it back when the dialog closes.
+  const previouslyFocused = document.activeElement as HTMLElement | null
   const overlay = document.createElement('div')
   overlay.className = 'trevixal-dialog-overlay'
   const dialog = document.createElement('div')
@@ -389,6 +415,11 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
   body.className = 'trevixal-dialog__body'
   body.textContent =
     'Click Change, then press the new keys. Backspace clears a shortcut; Escape cancels.'
+  const search = document.createElement('input')
+  search.type = 'search'
+  search.className = 'trevixal-shortcuts__search'
+  search.placeholder = 'Search shortcuts'
+  search.setAttribute('aria-label', 'Search shortcuts')
   const list = document.createElement('div')
   list.className = 'trevixal-shortcuts__list'
   const status = document.createElement('p')
@@ -397,10 +428,18 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
 
   let recording: string | null = null
 
-  const render = (): void => {
+  /**
+   * Rebuild the rows. Rebuilding drops the button that had focus, so a row
+   * named by `focusName` gets it back on its Change button; otherwise a
+   * keyboard user is thrown back to the top of the page after every change.
+   */
+  const render = (focusName?: string): void => {
     list.replaceChildren()
+    const query = search.value.trim().toLowerCase()
     const groups = new Map<string, ResolvedShortcut[]>()
     for (const action of manager.actions) {
+      const text = `${action.label} ${action.group} ${action.display}`.toLowerCase()
+      if (query && !text.includes(query)) continue
       const entries = groups.get(action.group) ?? []
       entries.push(action)
       groups.set(action.group, entries)
@@ -432,7 +471,7 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
         change.textContent = recording === entry.name ? 'Cancel' : 'Change'
         change.addEventListener('click', () => {
           recording = recording === entry.name ? null : entry.name
-          render()
+          render(entry.name)
         })
         row.append(label, keys, change)
         if (entry.customized) {
@@ -442,7 +481,7 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
           reset.textContent = 'Reset'
           reset.addEventListener('click', () => {
             manager.reset(entry.name)
-            render()
+            render(entry.name)
           })
           row.appendChild(reset)
         }
@@ -450,8 +489,19 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
       }
       list.appendChild(section)
     }
+    if (groups.size === 0) {
+      const empty = document.createElement('p')
+      empty.className = 'trevixal-dialog__hint'
+      empty.textContent = 'No shortcuts match.'
+      list.appendChild(empty)
+    }
+    const row = [...list.querySelectorAll<HTMLElement>('[data-trevixal-shortcut]')].find(
+      (candidate) => candidate.dataset.trevixalShortcut === focusName,
+    )
+    row?.querySelector<HTMLElement>('.trevixal-shortcuts__change')?.focus()
   }
   render()
+  search.addEventListener('input', () => render())
 
   const actions = document.createElement('div')
   actions.className = 'trevixal-dialog__actions'
@@ -465,7 +515,7 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
   close.textContent = 'Close'
   actions.append(resetAll, close)
 
-  dialog.append(heading, body, list, status, actions)
+  dialog.append(heading, body, search, list, status, actions)
   overlay.appendChild(dialog)
   document.body.appendChild(overlay)
 
@@ -476,39 +526,47 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
       settled = true
       document.removeEventListener('keydown', onKeyDown, true)
       overlay.remove()
+      if (previouslyFocused?.isConnected) previouslyFocused.focus?.({ preventScroll: true })
       resolve()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (recording) {
         event.preventDefault()
         event.stopPropagation()
+        const name = recording
         if (event.key === 'Escape') {
           recording = null
-          render()
+          render(name)
           return
         }
         if (event.key === 'Backspace' || event.key === 'Delete') {
-          manager.rebind(recording, null)
+          manager.rebind(name, null)
           status.textContent = 'Shortcut removed.'
           recording = null
-          render()
+          render(name)
           return
         }
         const keys = manager.keysFromEvent(event)
         if (!keys) return
+        // A plain letter bound to an action would fire instead of typing, the
+        // one mistake the dialog must not let a single keystroke make.
+        if (!(event.ctrlKey || event.altKey || event.metaKey || FUNCTION_KEY.test(event.key))) {
+          status.textContent = 'Add Ctrl, Alt or ⌘: that key on its own is needed for typing.'
+          return
+        }
         const wanted = manager.format(keys)
         const taken = manager.actions.find(
           (entry) =>
-            entry.name !== recording &&
+            entry.name !== name &&
             ((entry.keys && manager.format(entry.keys) === wanted) ||
               (entry.alternateKeys && manager.format(entry.alternateKeys) === wanted)),
         )
-        manager.rebind(recording, keys)
+        manager.rebind(name, keys)
         status.textContent = taken
           ? `${manager.format(keys)} assigned; it was taken from “${taken.label}”.`
           : `${manager.format(keys)} assigned.`
         recording = null
-        render()
+        render(name)
         return
       }
       if (event.key === 'Escape') {
@@ -526,6 +584,6 @@ export function openShortcutsDialog(manager: ShortcutManager, document: Document
     overlay.addEventListener('mousedown', (event) => {
       if (event.target === overlay) finish()
     })
-    close.focus()
+    search.focus()
   })
 }

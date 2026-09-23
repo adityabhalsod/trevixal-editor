@@ -15,6 +15,10 @@ export interface SlashCommandItem {
   readonly title: string
   /** Extra terms the fuzzy filter matches against. */
   readonly keywords?: readonly string[]
+  /** A line saying what the entry makes, for a menu that shows one. */
+  readonly description?: string
+  /** An icon name, for a menu that draws one (`@trevixal/ui`'s names, say). */
+  readonly icon?: string
   readonly run: (editor: Editor) => void
 }
 

@@ -56,9 +56,9 @@ test('renders the whole chrome, not just the menus', () => {
     everythingNamed: count('[data-trevixal-item]'),
   }).toEqual({
     menuTriggers: 8,
-    toolbarGroups: 13,
-    toolbarItems: 63,
-    everythingNamed: 351,
+    toolbarGroups: 14,
+    toolbarItems: 65,
+    everythingNamed: 353,
   })
 })
 

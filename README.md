@@ -259,12 +259,13 @@ previewed live under the code that defines them · LaTeX equations, inline
 draft recovery after a crash · rolling local backups you can go back to ·
 tracked changes and suggesting mode with a review bar.
 
-**Keyboard and productivity**: command palette (`Ctrl+K` or `Ctrl+Shift+P`)
-· slash commands (`/table`, `/image`, `/code` …) · emoji shortcodes (`:smi`)
-· a keyboard shortcut manager where every advertised key is real and
-rebindable · quick insert · recently used tools · favourite tools · a toolbar
-whose groups you rearrange by dragging, and can hide · focus mode · typewriter
-scrolling · fullscreen.
+**Keyboard and productivity**: command palette (`Ctrl+K` or `Ctrl+Shift+P`),
+opening on what you ran last · slash commands (`/table`, `/image`, `/todo` …)
+· emoji shortcodes (`:smi`) · a keyboard shortcut manager where every
+advertised key is real and rebindable, with Google Docs' paragraph keys
+(headings, lists, alignment) · quick insert · recently used and pinned tools ·
+a toolbar whose groups you rearrange by dragging, and can hide · focus mode ·
+typewriter scrolling · a distraction-free fullscreen.
 
 **Files**: open and save `.html`, `.md`, `.txt`, native `.json`, `.docx`,
 `.rtf` and encrypted `.tvx` · import Word documents and Markdown · download

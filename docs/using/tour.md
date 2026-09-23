@@ -19,6 +19,7 @@ Twelve groups:
 
 | Group | Holds |
 | --- | --- |
+| Quick access | A "+" that searches everything you can insert (type, then `Enter`), and the tools you pinned or used last; right-click one, or press `Shift+F10`, to pin it |
 | Block format | Paragraph and heading styles, line height, paragraph spacing |
 | Font | Family and size |
 | Text style | Bold, italic, underline, strikethrough, inline code, superscript, subscript, small caps, letter spacing, change case |
@@ -34,7 +35,7 @@ Twelve groups:
 
 Drag a group by its grip to move it, or press `Space` on the grip and use the
 arrow keys; the order is remembered. *Help > Customize toolbar...* hides and
-shows groups.
+shows groups, and applies at once.
 
 ## Popups at the caret
 
@@ -47,7 +48,9 @@ for emoji. Both filter as you type, move with the arrow keys, pick with
 
 `Ctrl+K` (or `Ctrl+Shift+P`) opens a searchable list of every menu command,
 with its icon, menu and shortcut. The list is built from the menus as actually
-wired, so it can never drift out of step with them.
+wired, so it can never drift out of step with them, and the shortcut beside
+each is the one that fires, rebinds included. The commands you ran last come
+first until you type.
 
 ## Sidebar panels
 

@@ -86,3 +86,58 @@ test('reports changes to the host after its own readouts have caught up', () => 
   expect(seen.at(-1)).toBe('Hi')
   expect(host.querySelector('#output')?.textContent).toContain('Hi')
 })
+
+test('formats the paragraph from Google Docs keys, and the menus print them', () => {
+  mounted = mountFullEditor({
+    element: host,
+    content: {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Title' }] }],
+    } as never,
+  })
+  const surface = host.querySelector<HTMLElement>('#editor .trevixal-content')
+  const press = (init: KeyboardEventInit): void => {
+    surface?.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }),
+    )
+  }
+  press({ key: '2', code: 'Digit2', ctrlKey: true, altKey: true })
+  expect(mounted.editor.state.doc.child(0).type.name).toBe('heading')
+  expect(mounted.editor.state.doc.child(0).attrs.level).toBe(2)
+  // Shift makes the 8 key type `*`; the shortcut is still Ctrl+Shift+8.
+  press({ key: '*', code: 'Digit8', ctrlKey: true, shiftKey: true })
+  expect(mounted.editor.state.doc.child(0).type.name).toBe('bulletList')
+
+  const printed = (name: string): string | null | undefined =>
+    host.querySelector(`[data-trevixal-item="${name}"] .trevixal-menu__shortcut`)?.textContent
+  expect(printed('styleHeading2')).toBe('Ctrl+Alt+2')
+  expect(printed('listBullet')).toBe('Ctrl+Shift+8')
+  expect(printed('aligncenter')).toBe('Ctrl+Shift+E')
+  expect(printed('insertEmoji')).toBe('Ctrl+Alt+E')
+})
+
+test('applies Customize toolbar in place, and a fresh mount keeps it', () => {
+  mounted = mountFullEditor({ element: host })
+  const bulletList = host.querySelector('[data-trevixal-item="bulletList"]')
+  host.querySelector<HTMLButtonElement>('[data-trevixal-item="customizeToolbar"]')?.click()
+  const lists = document.querySelector<HTMLInputElement>(
+    '.trevixal-customize__item[data-trevixal-group="lists"] input',
+  )
+  if (!lists) throw new Error('no Lists row in the dialog')
+  lists.checked = false
+  lists.dispatchEvent(new Event('change'))
+  document
+    .querySelector<HTMLButtonElement>(
+      '.trevixal-dialog--customize .trevixal-dialog__button--primary',
+    )
+    ?.click()
+  // Gone from this very bar: nothing was reloaded to get there.
+  expect(mounted.ui.toolbar.getGroupOrder()).not.toContain('lists')
+  expect(bulletList?.isConnected).toBe(false)
+
+  mounted.destroy()
+  mounted = mountFullEditor({ element: host })
+  expect(mounted.ui.toolbar.getGroupOrder()).not.toContain('lists')
+  // Hidden, not unbuilt, so the dialog can bring it back the same way.
+  expect(mounted.ui.toolbar.groups.map((group) => group.name)).toContain('lists')
+})

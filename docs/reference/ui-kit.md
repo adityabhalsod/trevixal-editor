@@ -101,17 +101,17 @@ createToolbar(editor, container, {
 | --- | --- |
 | Chrome | `createEditorUI`, `createMenubar` + `defaultMenus`, `createToolbar` + `defaultToolbarGroups` + `defaultToolbarItems`, `createStatusBar` |
 | Controls | `createSelectControl`, `createColorControl` (`DEFAULT_SWATCHES`), `createTableGridControl`, `defaultBlockFormats`, `defaultFontFamilies`, `defaultFontSizes` (8 to 48 pt), `applyBlockFormat`, `blockFormatValue` |
-| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (154 icons) |
-| Popups and dialogs | `createSuggestionPopup`, `openDialog`, `openConfirmDialog`, `openInfoDialog`, `openCharacterPicker` (`SPECIAL_CHARACTERS`) |
+| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (173 icons) |
+| Popups and dialogs | `createSuggestionPopup` (`iconOf`, `detailOf` for richer rows), `openDialog`, `openConfirmDialog`, `openInfoDialog`, `openCharacterPicker` (`SPECIAL_CHARACTERS`) |
 | Code | `createCodeLanguageSelect` (floating picker with detection), `createTableToolbar` (floating table controls) |
-| Navigation | `createTableOfContents`, `createDocumentOutline` + `defaultOutlineBlockKinds`, `createFindReplace` + `compileSearch` + `findAll`, `createCommandPalette` + `paletteCommandsFromMenus` + `filterCommands` + `fuzzyScore`, `createHistoryPanel` |
+| Navigation | `createTableOfContents`, `createDocumentOutline` + `defaultOutlineBlockKinds`, `createFindReplace` + `compileSearch` + `findAll`, `createCommandPalette` (`recent` + `onRecent` to open on what ran last) + `paletteCommandsFromMenus(menus, shortcutLabels?)` + `filterCommands` + `fuzzyScore`, `createHistoryPanel` |
 | Shortcuts | `createShortcutManager({ actions, overrides?, onChange?, scopes?, isMac? })`, `openShortcutsDialog`, `formatShortcut`, `parseShortcut` |
 | View modes | `createFocusMode`, `createTypewriter`, `createFullscreenToggle`, `setEditorWidth` + `EDITOR_WIDTHS` (narrow 38rem, normal 48rem, wide 64rem, full) |
 | Files | `builtinExporters({ scripts? })` (html, markdown, text, json), `builtinImporters()`, `exportDocument`, `importFile`, `importerFor`, `acceptFor`, `pickFile`, `readFileText`, `downloadFile`, `suggestFileName`, `documentTitle`, `selectionDocument`, `textToDocument`, `printDocument`, `openPrintPreview`, `printableHTML`, `editorTheme` |
 | Source modes | `createSourceMode(editor, { format: 'markdown' \| 'html' })` |
 | Persistence | `createAutosave(editor, { storage, key?, delayMs?, backups?: { intervalMs?, keep? } \| false, onState? })`, `createAutosaveIndicator`, `offerDraftRecovery`, `openBackupsDialog`, `createWebStorage`, `createMemoryStorage`, `formatSavedAt` |
 | Theming | `createThemeController(document, { targets?, mode?, preset?, presets?, onChange? })`, `defaultThemePresets`, `buildCustomTheme` + `CUSTOM_THEME_TOKENS`, `readThemeSnapshot`, `createFontManager` + `googleFontURL`, `createCustomStyles` + `scopeCSS`, `createPageView` + `PAGE_SIZES`, `parseColor`, `isDarkColor`, `mixColors` |
-| Quick tools | `createQuickInsertControl`, `createRecentToolsControl`, `createToolUsageTracker`, `openCustomizeToolbarDialog`, `applyGroupOrder`, `bindGroupReorder`, `groupOrder` |
+| Quick tools | `createQuickInsertControl`, `quickInsertItemsFromMenus`, `createRecentToolsControl`, `createToolUsageTracker`, `openCustomizeToolbarDialog`, `applyGroupOrder`, `bindGroupReorder`, `groupOrder`; the toolbar's `quickAccess: { insertItems?, tracker? }` puts the first two in a Quick access group (`QUICK_ACCESS_GROUP`), and `toolbar.groups` + `toolbar.setVisibleGroups(names)` hide and show groups without a rebuild |
 | Export support | `collectDocumentCSS`, `captureRenderedBlocks`, `rasterizeDiagrams`, `renderedNodeHTML`, `documentBehaviourScript` |
 | Translation | `defaultMessages()`, the `messages` option |
 

@@ -316,18 +316,21 @@
 
 // --------------------------------------- quick insert, recents, customize
 
-.trevixal-quickinsert {
-  &__search {
-    width: 100%;
-    margin-bottom: t.token('space-2');
-    padding: t.token('space-1') t.token('space-2');
-    background: t.token('color-bg');
-    color: t.token('color-text');
-    border: 1px solid t.token('color-border');
-    border-radius: t.token('radius-sm');
-    font: inherit;
-  }
+// The search box atop the quick insert list and the shortcuts dialog.
+.trevixal-quickinsert__search,
+.trevixal-shortcuts__search {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: t.token('space-2');
+  padding: t.token('space-1') t.token('space-2');
+  background: t.token('color-bg');
+  color: t.token('color-text');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  font: inherit;
+}
 
+.trevixal-quickinsert {
   &__list {
     display: flex;
     flex-direction: column;

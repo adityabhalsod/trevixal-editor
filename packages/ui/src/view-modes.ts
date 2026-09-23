@@ -1,7 +1,9 @@
 import { type Editor, type EditorNode, inlineLength, textblocks } from '@trevixal/core'
 
-/** Class applied to the fullscreen target when the native API is unavailable. */
-const FALLBACK_CLASS = 'trevixal-fullscreen'
+/** Makes the fullscreen target cover the window, on either route there. */
+const COVER_CLASS = 'trevixal-fullscreen'
+/** How long the "press Esc" hint stays up when the browser shows none of its own. */
+const HINT_MS = 3000
 /** The decoration layer focus mode owns. */
 const FOCUS_LAYER = 'focus-mode'
 
@@ -9,7 +11,7 @@ const FOCUS_LAYER = 'focus-mode'
 
 export interface FullscreenToggleOptions {
   /**
-   * The element that goes fullscreen: usually the wrapper around the chrome
+   * The element that fills the screen: usually the wrapper around the chrome
    * and the content. Defaults to the view's parent.
    */
   readonly target?: HTMLElement
@@ -26,7 +28,7 @@ export interface FullscreenToggleOptions {
 export interface FullscreenToggle {
   readonly element: HTMLButtonElement
   readonly isFullscreen: boolean
-  /** Enter fullscreen. Resolves false when neither route worked. */
+  /** Enter fullscreen. Resolves true once the target covers the window. */
   enter(): Promise<boolean>
   exit(): Promise<void>
   toggle(): Promise<boolean>
@@ -34,13 +36,19 @@ export interface FullscreenToggle {
 }
 
 /**
- * A fullscreen toggle over the Fullscreen API, with a CSS-class fallback.
+ * A fullscreen toggle: the target covers the window, and the Fullscreen API
+ * takes the page to the whole screen underneath it.
+ *
+ * The page goes fullscreen rather than the target, because the browser draws
+ * nothing outside the fullscreen element, and the palette, the slash menu and
+ * every dialog are appended to `<body>`: with the target itself fullscreen,
+ * each of them would open where it cannot be seen.
  *
  * `requestFullscreen` rejects whenever the call is not tied to a user gesture,
  * and is missing outright in some embedded views and in test environments, so
- * the rejection is treated as a normal outcome, not an error: the target gets
- * a fixed-position class instead, and the button keeps working. That means the
- * caller never has to know which route is in play.
+ * the rejection is treated as a normal outcome, not an error: the target still
+ * covers the window, and a hint says how to leave, which the browser only says
+ * for its own fullscreen. Escape leaves on either route.
  */
 export function createFullscreenToggle(
   editor: Editor,
@@ -62,9 +70,12 @@ export function createFullscreenToggle(
   button.textContent = label
   button.addEventListener('mousedown', (event) => event.preventDefault())
 
-  /** True while either route has us fullscreen. */
-  const isOn = (): boolean =>
-    doc.fullscreenElement === target || target.classList.contains(FALLBACK_CLASS)
+  /** Whether the page's fullscreen is ours to leave, rather than the host's. */
+  let ownsPageFullscreen = false
+  let hint: HTMLElement | null = null
+  let hintTimer: ReturnType<typeof setTimeout> | null = null
+
+  const isOn = (): boolean => target.classList.contains(COVER_CLASS)
 
   const sync = (): void => {
     const on = isOn()
@@ -73,40 +84,60 @@ export function createFullscreenToggle(
     options.onChange?.(on)
   }
 
-  const useFallback = (): void => {
-    target.classList.add(FALLBACK_CLASS)
-    sync()
+  const dropHint = (): void => {
+    if (hintTimer !== null) clearTimeout(hintTimer)
+    hintTimer = null
+    hint?.remove()
+    hint = null
+  }
+
+  const showHint = (): void => {
+    dropHint()
+    hint = doc.createElement('div')
+    hint.className = 'trevixal-fullscreen__hint'
+    hint.setAttribute('role', 'status')
+    hint.textContent = 'Press Esc to exit full screen'
+    target.appendChild(hint)
+    hintTimer = setTimeout(dropHint, HINT_MS)
   }
 
   const enter = async (): Promise<boolean> => {
     if (isOn()) return true
-    const request = (target as HTMLElement & { requestFullscreen?: () => Promise<void> })
-      .requestFullscreen
-    if (typeof request !== 'function') {
-      useFallback()
+    target.classList.add(COVER_CLASS)
+    sync()
+    const page = doc.documentElement as HTMLElement & { requestFullscreen?: () => Promise<void> }
+    // Fullscreen already, the host's doing, and there is nothing to ask for.
+    if (doc.fullscreenElement) return true
+    if (typeof page.requestFullscreen !== 'function') {
+      showHint()
       return true
     }
     try {
-      await request.call(target)
-      sync()
-      return true
+      await page.requestFullscreen()
+      ownsPageFullscreen = true
     } catch {
       // Rejected: most often "not called from a user gesture", sometimes a
-      // permissions policy. Either way the fallback still gives the user the
-      // distraction-free view they asked for.
-      useFallback()
-      return true
+      // permissions policy. The cover alone is still the distraction-free
+      // view the user asked for.
+      showHint()
     }
+    return true
   }
 
   const exit = async (): Promise<void> => {
-    target.classList.remove(FALLBACK_CLASS)
-    if (doc.fullscreenElement === target && typeof doc.exitFullscreen === 'function') {
-      try {
-        await doc.exitFullscreen()
-      } catch {
-        // Already out, or the document lost the permission; the class is gone
-        // either way, so the view is correct.
+    target.classList.remove(COVER_CLASS)
+    dropHint()
+    if (ownsPageFullscreen) {
+      // Cleared first, so the change this causes is not taken for the user
+      // leaving the browser's fullscreen on their own.
+      ownsPageFullscreen = false
+      if (doc.fullscreenElement && typeof doc.exitFullscreen === 'function') {
+        try {
+          await doc.exitFullscreen()
+        } catch {
+          // Already out, or the document lost the permission; the cover is
+          // gone either way, so the view is correct.
+        }
       }
     }
     sync()
@@ -125,9 +156,22 @@ export function createFullscreenToggle(
   }
   button.addEventListener('click', onClick)
 
-  // The user can leave native fullscreen with Escape, which fires no click.
-  const onFullscreenChange = (): void => sync()
+  // Escape in the browser's fullscreen is the browser's, and never reaches the
+  // page: leaving it is heard here, and takes the cover with it.
+  const onFullscreenChange = (): void => {
+    if (!ownsPageFullscreen || doc.fullscreenElement) return
+    ownsPageFullscreen = false
+    void exit()
+  }
   doc.addEventListener('fullscreenchange', onFullscreenChange)
+
+  // Escape leaves the cover too, as it leaves the browser's fullscreen. One a
+  // popup, a menu or a dialog already answered was closing that instead.
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented || !isOn()) return
+    void exit()
+  }
+  doc.addEventListener('keydown', onKeyDown)
 
   options.container?.appendChild(button)
   sync()
@@ -143,7 +187,9 @@ export function createFullscreenToggle(
     destroy() {
       button.removeEventListener('click', onClick)
       doc.removeEventListener('fullscreenchange', onFullscreenChange)
-      target.classList.remove(FALLBACK_CLASS, 'trevixal-viewmode--fullscreen')
+      doc.removeEventListener('keydown', onKeyDown)
+      dropHint()
+      target.classList.remove(COVER_CLASS, 'trevixal-viewmode--fullscreen')
       button.remove()
     },
   }

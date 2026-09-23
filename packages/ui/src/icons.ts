@@ -378,6 +378,8 @@ const PATHS: Readonly<Record<string, string>> = {
     'M12 3.2a8.8 8.8 0 0 0 0 17.6c1.1 0 1.6-.8 1.6-1.6 0-1.3 1-2.3 2.3-2.3h1.3a3 3 0 0 0 3-3c0-5-3.7-10.7-8.2-10.7zM7.6 10.2h.01M10.4 7.2h.01M14.4 7.6h.01',
   // A glyph plus a plus sign: add a typeface.
   fontAdd: 'M3.5 17 8 6l4.5 11M5.4 13.5h5.2M15.5 14.5h6M18.5 11.5v6',
+  // Quick insert: the plain "+" every editor puts on the button that adds things.
+  quickInsert: 'M12 5v14M5 12h14',
 }
 
 export type IconName = keyof typeof PATHS | (string & {})

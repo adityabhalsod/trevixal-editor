@@ -74,11 +74,89 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       run: (e) => e.commands.toggleMark('code'),
     },
     {
+      name: 'strikethrough',
+      label: 'Strikethrough',
+      group: 'Format',
+      keys: 'Mod-Shift-x',
+      run: (e) => e.commands.toggleMark('strikethrough'),
+    },
+    {
       name: 'clearAllFormatting',
       label: 'Clear all formatting',
       group: 'Format',
       keys: 'Mod-\\',
       run: (e) => e.commands.clearAllFormatting(),
+    },
+    // Google Docs' paragraph keys rather than Word's: Word's were made for a
+    // desktop app, and in a browser they collide (Ctrl+E is inline code here,
+    // Ctrl+L the address bar). The names are the menu entries', so the menus
+    // print these beside Heading 2, Numbered list and Align center.
+    {
+      name: 'styleParagraph',
+      label: 'Normal text',
+      group: 'Paragraph',
+      keys: 'Mod-Alt-0',
+      run: (e) => e.commands.setParagraph(),
+    },
+    ...([1, 2, 3, 4, 5, 6] as const).map(
+      (level): ShortcutAction => ({
+        name: `styleHeading${level}`,
+        label: `Heading ${level}`,
+        group: 'Paragraph',
+        keys: `Mod-Alt-${level}`,
+        run: (e) => e.commands.setHeading(level),
+      }),
+    ),
+    {
+      name: 'listOrdered',
+      label: 'Numbered list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-7',
+      run: (e) => e.commands.toggleOrderedList(),
+    },
+    {
+      name: 'listBullet',
+      label: 'Bullet list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-8',
+      run: (e) => e.commands.toggleBulletList(),
+    },
+    {
+      name: 'listTask',
+      label: 'Task list',
+      group: 'Paragraph',
+      keys: 'Mod-Shift-9',
+      run: (e) => e.commands.toggleTaskList(),
+    },
+    ...(
+      [
+        ['left', 'Align left', 'l'],
+        ['center', 'Align center', 'e'],
+        ['right', 'Align right', 'r'],
+        ['justify', 'Justify', 'j'],
+      ] as const
+    ).map(
+      ([align, label, key]): ShortcutAction => ({
+        name: `align${align}`,
+        label,
+        group: 'Paragraph',
+        keys: `Mod-Shift-${key}`,
+        run: (e) => e.commands.setTextAlign(align),
+      }),
+    ),
+    {
+      name: 'indentMore',
+      label: 'Increase indent',
+      group: 'Paragraph',
+      keys: 'Mod-]',
+      run: (e) => e.commands.indent(),
+    },
+    {
+      name: 'indentLess',
+      label: 'Decrease indent',
+      group: 'Paragraph',
+      keys: 'Mod-[',
+      run: (e) => e.commands.outdent(),
     },
     {
       name: 'undo',
@@ -158,7 +236,8 @@ export function shortcutActions(context: ShortcutContext): ShortcutAction[] {
       name: 'insertEmoji',
       label: 'Emoji picker',
       group: 'Insert',
-      keys: 'Mod-Shift-e',
+      // Not Mod-Shift-e: that centres the paragraph, as it does in Google Docs.
+      keys: 'Mod-Alt-e',
       run: () => void pickEmoji(),
     },
     {

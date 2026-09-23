@@ -164,6 +164,136 @@ describe('shortcut manager labels', () => {
   })
 })
 
+describe('shortcut manager keys', () => {
+  it('reads a key Shift turned into a symbol by the key, and leaves AltGr typing', () => {
+    const editor = mountEditor()
+    const list = vi.fn()
+    const heading = vi.fn()
+    const manager = createShortcutManager(editor, {
+      isMac: false,
+      actions: [
+        { name: 'listOrdered', label: 'Numbered list', keys: 'Mod-Shift-7', run: list },
+        { name: 'styleHeading2', label: 'Heading 2', keys: 'Mod-Alt-2', run: heading },
+      ],
+    })
+    // Shift+7 types `&` on a US keyboard and `/` on a German one.
+    expect(manager.handle(key({ key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true }))).toBe(
+      true,
+    )
+    expect(manager.handle(key({ key: '/', code: 'Digit7', ctrlKey: true, shiftKey: true }))).toBe(
+      true,
+    )
+    expect(list).toHaveBeenCalledTimes(2)
+    // Ctrl+Alt is AltGr off a Mac: AltGr+2 types `²`, and must go on typing it.
+    expect(manager.handle(key({ key: '²', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
+      false,
+    )
+    expect(manager.handle(key({ key: '2', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
+      true,
+    )
+    expect(heading).toHaveBeenCalledOnce()
+    // The recorder writes down the key, not the character.
+    expect(
+      manager.keysFromEvent(key({ key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true })),
+    ).toBe('Mod-Shift-7')
+    manager.destroy()
+    editor.destroy()
+  })
+
+  it('reads ⌥ chords on a Mac by the key, not the character ⌥ types', () => {
+    const editor = mountEditor()
+    const split = vi.fn()
+    const manager = createShortcutManager(editor, {
+      isMac: true,
+      actions: [{ name: 'splitEditor', label: 'Split editor', keys: 'Mod-Alt-s', run: split }],
+    })
+    expect(manager.handle(key({ key: 'ß', code: 'KeyS', metaKey: true, altKey: true }))).toBe(true)
+    expect(split).toHaveBeenCalledOnce()
+    manager.destroy()
+    editor.destroy()
+  })
+})
+
+describe('shortcuts dialog', () => {
+  /** A manager over two marks, with its dialog open. */
+  function openShortcuts() {
+    const editor = mountEditor()
+    const manager = createShortcutManager(editor, {
+      isMac: false,
+      actions: [
+        { name: 'bold', label: 'Bold', group: 'Format', keys: 'Mod-b', run: () => undefined },
+        { name: 'italic', label: 'Italic', group: 'Format', keys: 'Mod-i', run: () => undefined },
+      ],
+    })
+    const closed = manager.openDialog(document)
+    const row = (name: string) =>
+      document.querySelector<HTMLElement>(`[data-trevixal-shortcut="${name}"]`)
+    const change = (name: string) =>
+      row(name)?.querySelector<HTMLButtonElement>('.trevixal-shortcuts__change') ?? null
+    const press = (init: KeyboardEventInit): void => {
+      document.activeElement?.dispatchEvent(key(init))
+    }
+    const search = (text: string): void => {
+      const input = document.querySelector<HTMLInputElement>('.trevixal-shortcuts__search')
+      if (!input) throw new Error('no search box')
+      input.value = text
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    const done = (): void => {
+      manager.destroy()
+      editor.destroy()
+    }
+    return { manager, closed, row, change, press, search, done }
+  }
+
+  it('refuses a key with no Ctrl, Alt or ⌘, which would stop it being typed', () => {
+    const { manager, row, change, press, done } = openShortcuts()
+    change('bold')?.click()
+    press({ key: 'q' })
+    expect(manager.keysFor('bold')).toBe('Mod-b')
+    expect(document.querySelector('.trevixal-shortcuts__status')?.textContent).toContain(
+      'Ctrl, Alt or ⌘',
+    )
+    // Still listening, so the next chord lands.
+    expect(row('bold')?.classList.contains('trevixal-shortcuts__row--recording')).toBe(true)
+    press({ key: 'q', ctrlKey: true, shiftKey: true })
+    expect(manager.keysFor('bold')).toBe('Mod-Shift-q')
+    done()
+  })
+
+  it('keeps focus on the row being changed, and gives it back on close', async () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { closed, change, press, done } = openShortcuts()
+    change('bold')?.click()
+    expect(document.activeElement).toBe(change('bold'))
+    expect(change('bold')?.textContent).toBe('Cancel')
+    press({ key: 'b', ctrlKey: true, shiftKey: true })
+    expect(document.activeElement).toBe(change('bold'))
+    expect(change('bold')?.textContent).toBe('Change')
+    press({ key: 'Escape' })
+    await closed
+    expect(document.activeElement).toBe(opener)
+    done()
+  })
+
+  it('narrows the list to the shortcuts a search matches', async () => {
+    const { closed, row, press, search, done } = openShortcuts()
+    expect(document.activeElement?.className).toBe('trevixal-shortcuts__search')
+    search('ital')
+    expect(row('italic')).not.toBeNull()
+    expect(row('bold')).toBeNull()
+    // The keys match as they are printed.
+    search('ctrl+b')
+    expect(row('bold')).not.toBeNull()
+    expect(row('italic')).toBeNull()
+    press({ key: 'Escape' })
+    await closed
+    done()
+  })
+})
+
 describe('link dialog', () => {
   it('applies target=_blank with the protective rel from the checkbox', async () => {
     const editor = mountEditor()

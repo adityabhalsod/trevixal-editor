@@ -89,9 +89,10 @@ test.describe('wave 1 features', () => {
       await page.goto(server.origin)
       await page.waitForSelector('#chrome .trevixal-toolbar')
       // The chrome's bar. The bubble over a selection is the same component,
-      // so an unscoped count picks up its single group as well.
+      // so an unscoped count picks up its single group as well. Twelve
+      // categories, and Quick access in front of them.
       const groups = page.locator('#chrome .trevixal-toolbar__group')
-      await expect(groups).toHaveCount(12)
+      await expect(groups).toHaveCount(13)
     } finally {
       await server.close()
     }

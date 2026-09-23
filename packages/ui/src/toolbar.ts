@@ -24,8 +24,14 @@ import {
   createTranslator,
 } from './i18n'
 import { type IconName, createIcon } from './icons'
+import {
+  type QuickInsertItem,
+  type ToolUsageTracker,
+  createQuickInsertControl,
+  createRecentToolsControl,
+} from './quick-tools'
 import { type TableDesignCommands, createTableDesignControl } from './table-design'
-import { applyGroupOrder, bindGroupReorder, groupOrder } from './toolbar-reorder'
+import { applyGroupOrder, bindGroupReorder, groupElements, groupOrder } from './toolbar-reorder'
 
 /**
  * A single toolbar control. Open for extension: register your own items
@@ -67,6 +73,17 @@ export interface ToolbarGroup {
   readonly label?: string
   readonly items: readonly (ToolbarItem | ToolbarControl)[]
 }
+
+/** What the Quick access group holds; each part is left out without its option. */
+export interface QuickAccessOptions {
+  /** What the "+" offers, collected each time it opens. */
+  readonly insertItems?: () => readonly QuickInsertItem[]
+  /** Records the tools used, and shows the pinned and recent ones beside the "+". */
+  readonly tracker?: ToolUsageTracker
+}
+
+/** The Quick access group's name and label, for translations and saved layouts. */
+export const QUICK_ACCESS_GROUP = { name: 'quick', label: 'Quick access' } as const
 
 export interface ToolbarOptions {
   /** Flat item list (legacy shape) or grouped rows. */
@@ -164,6 +181,12 @@ export interface ToolbarOptions {
   readonly onEmoji?: (editor: Editor) => void
   /** Shows the word-count readout. */
   readonly onWordCount?: (editor: Editor) => void
+  /**
+   * A Quick access group at the start of the bar, like Word's toolbar of the
+   * same name: a "+" that searches everything insertable, and a tray of the
+   * tools this user pinned or used last.
+   */
+  readonly quickAccess?: QuickAccessOptions
 }
 
 /**
@@ -212,6 +235,12 @@ export interface CodeFormatCommands {
   readonly minify?: Command
 }
 
+/** A group as Help ▸ Customize toolbar lists it. */
+export interface ToolbarGroupInfo {
+  readonly name: string
+  readonly label: string
+}
+
 export interface Toolbar {
   readonly element: HTMLElement
   /**
@@ -220,10 +249,18 @@ export interface Toolbar {
    * a format painter arming, for instance.
    */
   refresh(): void
-  /** The groups' current order, by name. */
+  /** The shown groups' current order, by name. */
   getGroupOrder(): readonly string[]
   /** Rearrange the groups; names are matched as for `ToolbarOptions.groupOrder`. */
   setGroupOrder(order: readonly string[]): void
+  /** Every group the bar was built with, shown or hidden, in its default order. */
+  readonly groups: readonly ToolbarGroupInfo[]
+  /**
+   * Show these groups, in this order, and hide the rest: what Help ▸
+   * Customize toolbar applies. A hidden group leaves the bar whole and comes
+   * back as it was, so nothing is rebuilt and the page need not reload.
+   */
+  setVisibleGroups(names: readonly string[]): void
   destroy(): void
 }
 
@@ -351,6 +388,32 @@ const commandItem = (
         isEnabled: () => true,
       }
     : null
+
+/**
+ * The Quick access group, or null without anything to put in it. `items` is
+ * every button the bar holds, by name, which is what the tray offers back.
+ */
+function quickAccessGroup(
+  access: QuickAccessOptions | undefined,
+  items: ReadonlyMap<string, ToolbarItem>,
+): ToolbarGroup | null {
+  const { insertItems, tracker } = access ?? {}
+  const controls: ToolbarControl[] = []
+  if (insertItems) {
+    controls.push({
+      name: 'quickInsert',
+      create: (editor, document) =>
+        createQuickInsertControl(editor, document, { items: insertItems }),
+    })
+  }
+  if (tracker) {
+    controls.push({
+      name: 'recentTools',
+      create: (editor, document) => createRecentToolsControl(editor, document, { tracker, items }),
+    })
+  }
+  return controls.length > 0 ? { ...QUICK_ACCESS_GROUP, items: controls } : null
+}
 
 /** Drops the entries a host did not wire, so no dead buttons are rendered. */
 /** The Table design dropdown, when the host supplied what it drives. */
@@ -891,9 +954,16 @@ export function createToolbar(
 ): Toolbar {
   const document = container.ownerDocument
   const translate = createTranslator(options.messages)
-  const declared =
-    options.groups ??
-    (options.items ? [{ name: 'default', items: options.items }] : defaultToolbarGroups(options))
+  /** Every button in the bar, by name: what the Quick access tray offers back. */
+  const itemsByName = new Map<string, ToolbarItem>()
+  const quick = quickAccessGroup(options.quickAccess, itemsByName)
+  const declared = [
+    ...(quick ? [quick] : []),
+    ...(options.groups ??
+      (options.items
+        ? [{ name: 'default', items: options.items }]
+        : defaultToolbarGroups(options))),
+  ]
   // An explicit `groupNames` both filters and orders; an unknown name is
   // simply absent rather than an error, so a host can name groups it may not
   // have wired yet.
@@ -912,6 +982,14 @@ export function createToolbar(
       )
     : base
   const groups = options.groupOrder ? orderGroups(merged, options.groupOrder) : merged
+  const groupInfo = merged.map((group) => ({
+    name: group.name,
+    label: translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name),
+  }))
+  // Filled before anything is built, so the tray can offer any button.
+  for (const group of groups) {
+    for (const entry of group.items) if (!isControl(entry)) itemsByName.set(entry.name, entry)
+  }
 
   const root = document.createElement('div')
   root.className = 'trevixal-toolbar'
@@ -941,7 +1019,13 @@ export function createToolbar(
         controls.push(control)
         continue
       }
-      const button = createToolbarButton(document, entry, editor, translate)
+      const button = createToolbarButton(
+        document,
+        entry,
+        editor,
+        translate,
+        options.quickAccess?.tracker,
+      )
       groupElement.appendChild(button)
       buttons.push({ item: entry, element: button })
     }
@@ -971,12 +1055,41 @@ export function createToolbar(
   refresh()
   const unsubscribe = editor.on('transaction', refresh)
 
+  /**
+   * Groups `setVisibleGroups` took off the bar. Detached rather than hidden,
+   * so the arrow keys, the grips and the reported order skip them without
+   * each having to know that hiding exists.
+   */
+  const stowed = new Map<string, HTMLElement>()
+  const setVisibleGroups = (names: readonly string[]): void => {
+    for (const group of groupElements(root)) {
+      const name = group.dataset.trevixalGroup ?? ''
+      if (names.includes(name)) continue
+      group.remove()
+      stowed.set(name, group)
+    }
+    // Back in after the last group still shown, which keeps the reorder
+    // module's drop bar last; `applyGroupOrder` then settles the order.
+    const shown = groupElements(root)
+    const anchor = shown[shown.length - 1]?.nextSibling ?? root.firstChild
+    for (const name of names) {
+      const group = stowed.get(name)
+      if (!group) continue
+      stowed.delete(name)
+      root.insertBefore(group, anchor)
+    }
+    applyGroupOrder(root, names)
+    roving.retune()
+  }
+
   container.appendChild(root)
   return {
     element: root,
     refresh,
     getGroupOrder: () => groupOrder(root),
     setGroupOrder: (order) => applyGroupOrder(root, order),
+    groups: groupInfo,
+    setVisibleGroups,
     destroy() {
       unsubscribe()
       reorder?.destroy()
@@ -991,6 +1104,7 @@ function createToolbarButton(
   item: ToolbarItem,
   editor: Editor,
   translate: Translator,
+  usage?: ToolUsageTracker,
 ): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
@@ -1011,7 +1125,10 @@ function createToolbarButton(
   button.tabIndex = -1
   // Keep the editor selection: the toolbar must never take focus on click.
   button.addEventListener('mousedown', (event) => event.preventDefault())
-  button.addEventListener('click', (event) => item.run(editor, event))
+  button.addEventListener('click', (event) => {
+    item.run(editor, event)
+    usage?.record(item.name)
+  })
   return button
 }
 
