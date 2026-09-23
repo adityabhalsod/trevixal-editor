@@ -36,6 +36,7 @@ import {
 import { mathUICommands } from '@trevixal/extension-math'
 import {} from '@trevixal/extension-security'
 import {
+  createTableTools,
   enableCellSelection,
   highlightActiveCell,
   tableKeymap,
@@ -154,6 +155,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // Double click a cell to select it, drag to take in more. The highlighter
   // above is what makes the result visible.
   disposers.push(enableCellSelection(editor))
+  // Table ▸ Draw table and Eraser: tools the pointer holds over the page.
+  const tableTools = createTableTools(editor, { container: editorHost })
+  disposers.push(() => tableTools.destroy())
   // One highlighter for every surface: a split pane installs the same one
   // rather than building a second with its own caches.
   const highlighter = createHighlighter({ autoDetect: true })
@@ -469,7 +473,11 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       onToggleFocusMode: () => focus.toggle(),
       onToggleFullscreen: () => void fullscreen.toggle(),
     },
-    tableCommands: tableUICommands({ editor }),
+    tableCommands: {
+      ...tableUICommands({ editor }),
+      toggleTableTool: (tool) => tableTools.toggle(tool),
+      activeTableTool: () => tableTools.tool,
+    },
     blockCommands: blockUICommands(),
     codeFormatCommands: codeFormatUICommands(),
     embedCommands: { ...embedUICommands(), pickAttachment: () => files.pickFiles() },

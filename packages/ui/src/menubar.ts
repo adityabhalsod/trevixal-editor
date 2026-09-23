@@ -629,6 +629,8 @@ export function defaultMenus(): readonly Menu[] {
       label: 'Table',
       items: [
         { name: 'insertTable', label: 'Insert table', icon: 'table' },
+        { name: 'drawTable', label: 'Draw table', icon: 'tableDraw' },
+        { name: 'tableEraser', label: 'Eraser', icon: 'tableEraser' },
         separator('table-sep-1'),
         { name: 'addRowBefore', icon: 'tableRowAbove', label: 'Row above' },
         { name: 'addRowAfter', icon: 'tableRowBelow', label: 'Row below' },
@@ -680,6 +682,18 @@ export function defaultMenus(): readonly Menu[] {
         { name: 'convertTableToText', icon: 'convertTextTable', label: 'Convert table to text' },
         { name: 'importCsv', icon: 'csvImport', label: 'Import CSV…' },
         { name: 'exportCsv', icon: 'csvExport', label: 'Copy as CSV' },
+        separator('table-sep-size'),
+        {
+          name: 'tableAutoFit',
+          icon: 'tableAutoFit',
+          label: 'AutoFit',
+          items: [
+            { name: 'autoFitContents', label: 'AutoFit contents', icon: 'tableAutoFit' },
+            { name: 'autoFitWindow', label: 'AutoFit window', icon: 'tableAutoFit' },
+            { name: 'fixColumnWidths', label: 'Fixed column width', icon: 'tableAutoFit' },
+          ],
+        },
+        { name: 'distributeRows', icon: 'tableDistributeRows', label: 'Distribute rows evenly' },
         { name: 'distributeColumns', icon: 'tableDistribute', label: 'Distribute columns evenly' },
         { name: 'clearTableSizing', icon: 'resizeColumns', label: 'Reset column sizes' },
         separator('table-sep-delete'),

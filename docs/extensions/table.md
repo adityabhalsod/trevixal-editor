@@ -33,9 +33,10 @@ replaces the base binding wholesale.
 | Area | Commands |
 | --- | --- |
 | Structure | `insertTable`, `addRow`, `addColumn`, `deleteRow`, `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `splitCellInto`, `toggleHeaderRow`, `goToNextCell` |
-| Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor` |
+| Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor`, `hideCellBorder` |
 | Data | `sortTable`, `convertTextToTable`, `convertTableToText`, `parseCSV`, `insertTableFromCSV`, `tableToCSV`, `csvAtSelection`, `detectDelimiter` |
-| Sizing | `createTableResizeHandles` for drag handles, plus `setColumnWidth`, `setRowHeight`, `setTableWidth`, `distributeColumnsEvenly`, `clearTableSizing` |
+| Sizing | `createTableResizeHandles` for drag handles, plus `setColumnWidth`, `setRowHeight`, `setTableWidth`, `autoFitContents`, `autoFitWindow`, `fixColumnWidths`, `distributeRowsEvenly`, `distributeColumnsEvenly`, `clearTableSizing` |
+| Drawing | `createTableTools` for Draw table and the Eraser, plus `drawColumnLine`, `drawRowLine`, `insertDrawnTable` |
 | Moving | `moveRow`, `moveColumn`, `swapCellContent` |
 
 ```ts
@@ -97,13 +98,82 @@ Word's dialog also asks for a number of rows. This one does not: splitting one
 cell into rows needs the cells beside it to span both, and the table model is
 columns only (below).
 
+## AutoFit and distributing
+
+Word's AutoFit menu, and its Distribute Rows and Columns:
+
+| Command | What it does |
+| --- | --- |
+| `autoFitContents` | Every column as wide as its text needs, the table only as wide as they add up to |
+| `autoFitWindow` | The table as wide as the page. Columns sized as a share keep it; ones in fixed units give it up |
+| `fixColumnWidths({ measure })` | The columns stay as wide as they are now, rather than following their text |
+| `distributeRowsEvenly({ measure })` | The selected rows, or every row, as tall as the tallest of them |
+| `distributeColumnsEvenly({ measure })` | The selected columns share their width equally, or every column shares the table's |
+
+```ts
+const measure = measureTableGeometry(editor)
+editor.exec(autoFitContents)
+editor.exec(fixColumnWidths({ measure }))
+editor.exec(distributeRowsEvenly({ measure }))
+```
+
+Three of them size a table by how it looks, and a table the browser lays out
+has no sizes stored until they are read off the page: that is what `measure`
+does. Rows come out as tall as the tallest because a row never shrinks below
+its text, so that is the one height they can all have. Without `measure`,
+`distributeColumnsEvenly()` shares out the whole table whatever is selected.
+`tableUICommands({ editor })` wires all of this up for you.
+
+## Drawing and erasing
+
+`createTableTools(editor, { container })` adds Word's Draw table and Eraser,
+tools the pointer holds rather than commands that run once:
+
+```ts
+const tools = createTableTools(editor, { container })
+tools.toggle('draw') // or 'erase'; the same again puts it down
+tools.tool // 'draw', 'erase' or null, for a menu's tick
+```
+
+| Held | Gesture | What happens |
+| --- | --- | --- |
+| Draw table | Drag a box where there is no table | A table of one cell, as wide and as tall as the box |
+| Draw table | Drag down through a table | The cells the line crosses split into two columns where it was drawn |
+| Draw table | Drag across a table | The row it crosses splits in two where it was drawn |
+| Draw table | Drag along an existing line | A merged cell splits back along it, and an erased line comes back |
+| Eraser | Click one side of a cell | That line (left, right, top or bottom) is no longer drawn |
+
+While a tool is held, a press on the page belongs to it: the caret stays put,
+and neither the resize handles nor the cell selection react. `Escape` puts
+the tool down. Each stroke is one command, so one undo takes it back.
+
+An erased side is the cell attribute `hiddenBorders` (`'top left'`), written
+to HTML as `data-hidden-borders`. The stylesheet draws those sides
+`border-style: hidden`, which wins over the neighbour's line in the collapsed
+border model, so a line two cells share goes whichever of them it was erased
+from. The Word and RTF exports leave it off both cells. Choosing a style under
+*Table ▸ Borders* brings every erased line back, as Word's All Borders does.
+
+A line drawn across splits the whole row rather than only the cells under it,
+because a cell cannot span rows here (below).
+
 ## Wiring the chrome
 
 `tableUICommands()` returns the set `createEditorUI` expects, which turns on
-the Table menu, the grid picker and the floating cell toolbar:
+the Table menu, the grid picker and the floating cell toolbar. Given the
+editor, it also measures the page for splitting, Fixed column width and
+distributing, and the tools join the Table menu with a tick while held:
 
 ```ts
-createEditorUI(editor, { container, tableCommands: tableUICommands() })
+const tools = createTableTools(editor, { container })
+createEditorUI(editor, {
+  container,
+  tableCommands: {
+    ...tableUICommands({ editor }),
+    toggleTableTool: (tool) => tools.toggle(tool),
+    activeTableTool: () => tools.tool,
+  },
+})
 ```
 
 ## Two decisions worth knowing

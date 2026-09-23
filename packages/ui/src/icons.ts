@@ -290,6 +290,16 @@ const PATHS: Readonly<Record<string, string>> = {
     'M7 2.5h10v6H7zM7 15.5h10v6H7M12 10.5v3M12 10.5l-2 2M12 10.5l2 2M12 13.5l-2-2M12 13.5l2-2',
   // Distribute evenly: equal columns with measure marks between them.
   tableDistribute: 'M4 5.5h16v13H4zM9.3 5.5v13M14.6 5.5v13M6.6 12h.01M12 12h.01M17.3 12h.01',
+  // The same for rows, turned on its side.
+  tableDistributeRows: 'M4 5.5h16v13H4zM4 9.8h16M4 14.2h16M12 7.65h.01M12 12h.01M12 16.35h.01',
+  // AutoFit: a table under the double arrow Word puts over it.
+  tableAutoFit:
+    'M4 10h16v9.5H4zM12 10v9.5M4 14.75h16M4 5.5h16M4 5.5 6.5 3M4 5.5 6.5 8M20 5.5 17.5 3M20 5.5 17.5 8',
+  // Draw table: a small grid with a pencil beside its corner.
+  tableDraw: 'M3 3.5h11v10H3zM8.5 3.5v10M3 8.5h11M11.5 21l.9-3.3 7.1-7.1 2.4 2.4-7.1 7.1z',
+  // Eraser: a block eraser, its sleeve marked off, resting on the line it rubs out.
+  tableEraser:
+    'M7.5 19.5 3 15a1.5 1.5 0 0 1 0-2.1l9.4-9.4a1.5 1.5 0 0 1 2.1 0L19 8a1.5 1.5 0 0 1 0 2.1l-9.4 9.4zM6.6 9.4l6.6 6.6M7.5 19.5H21',
   // ---- toolbar ---------------------------------------------------------------
   // A grip: two columns of three dots, the handle a toolbar group is dragged by.
   grip: 'M9.5 6h.01M9.5 12h.01M9.5 18h.01M14.5 6h.01M14.5 12h.01M14.5 18h.01',

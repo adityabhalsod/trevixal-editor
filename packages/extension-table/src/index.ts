@@ -2,12 +2,17 @@ export { ACTIVE_CELL_CLASS, highlightActiveCell, RANGE_CELL_CLASS } from './acti
 export { enableCellSelection } from './cell-selection'
 export {
   type CellAlign,
+  CELL_SIDES,
+  type CellSide,
+  hiddenBordersValue,
+  hiddenSides,
   safeTableLength,
   TABLE_BORDERS,
   type TableBorders,
   tableBorders,
   tableNodes,
 } from './schema'
+export { hideCellBorder } from './cell-borders'
 export {
   addColumn,
   addRow,
@@ -30,6 +35,22 @@ export {
 export { tableKeymap } from './keymap'
 export { measureCellShare } from './cell-measure'
 export { MAX_SPLIT_COLUMNS, type SplitCellsOptions, splitCellInto } from './split-cells'
+export {
+  type ColumnLine,
+  type DrawnTable,
+  drawColumnLine,
+  drawRowLine,
+  insertDrawnTable,
+  type RowLine,
+  SNAP_DISTANCE,
+} from './draw-table'
+export {
+  createTableTools,
+  type TableTool,
+  type TableTools,
+  type TableToolsOptions,
+} from './table-tools'
+export { type MeasureTable, measureTableGeometry, type TableGeometry } from './table-geometry'
 export { moveColumn, type MoveDirection, moveRow, swapCellContent } from './move'
 export {
   createTableResizeHandles,
@@ -37,8 +58,13 @@ export {
   type ResizeHandlesOptions,
 } from './resize-handles'
 export {
+  autoFitContents,
+  autoFitWindow,
   clearTableSizing,
   distributeColumnsEvenly,
+  distributeRowsEvenly,
+  fixColumnWidths,
+  type MeasuredSizingOptions,
   setColumnWidth,
   setRowHeight,
   setTableSizing,

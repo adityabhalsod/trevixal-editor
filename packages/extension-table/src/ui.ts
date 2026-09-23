@@ -24,14 +24,19 @@ import {
 } from './features'
 import { moveColumn, moveRow, swapCellContent } from './move'
 import {
+  autoFitContents,
+  autoFitWindow,
   clearTableSizing,
   distributeColumnsEvenly,
+  distributeRowsEvenly,
+  fixColumnWidths,
   setColumnWidth,
   setRowHeight,
   setTableWidth,
 } from './resize'
 import type { CellAlign, TableBorders } from './schema'
 import { splitCellInto } from './split-cells'
+import { measureTableGeometry } from './table-geometry'
 
 /**
  * The command bundle `@trevixal/ui`'s `createEditorUI` expects, so the UI
@@ -67,6 +72,15 @@ export interface TableUICommands {
   readonly setRowHeight: (height: string | null) => Command
   readonly setTableWidth: (width: string | null) => Command
   readonly distributeColumns: Command
+  /** Word's AutoFit Contents and AutoFit Window. */
+  readonly autoFitContents: Command
+  readonly autoFitWindow: Command
+  /**
+   * Word's Fixed Column Width and Distribute Rows. Both size the table by how
+   * it looks, so they are here only when `editor` is given to read it from.
+   */
+  readonly fixColumnWidths?: Command
+  readonly distributeRows?: Command
   readonly clearSizing: Command
   readonly setCellAlign: (align: CellAlign | null) => Command
   readonly setCellBackground: (color: string | null) => Command
@@ -84,15 +98,23 @@ export interface TableUICommands {
 
 export interface TableUICommandsOptions {
   /**
-   * The editor the commands run in. With it, Split reads the table from the
-   * page so a table without set widths keeps its look; leave it out for
-   * commands that never touch a view.
+   * The editor the commands run in. With it, Split and Distribute read the
+   * table from the page, so a table without set widths keeps its look, and
+   * Fixed column width and Distribute rows are offered at all; leave it out
+   * for commands that never touch a view.
    */
   readonly editor?: Editor
 }
 
 export function tableUICommands(options: TableUICommandsOptions = {}): TableUICommands {
   const measure = options.editor ? measureCellShare(options.editor) : undefined
+  const geometry = options.editor ? measureTableGeometry(options.editor) : undefined
+  const measured = geometry
+    ? {
+        fixColumnWidths: fixColumnWidths({ measure: geometry }),
+        distributeRows: distributeRowsEvenly({ measure: geometry }),
+      }
+    : {}
   return {
     insertTable: (rows, cols) => insertTable({ rows, cols }),
     addRowBefore: addRow('before'),
@@ -117,7 +139,10 @@ export function tableUICommands(options: TableUICommandsOptions = {}): TableUICo
     setColumnWidth,
     setRowHeight,
     setTableWidth,
-    distributeColumns: distributeColumnsEvenly(),
+    distributeColumns: distributeColumnsEvenly({ measure: geometry }),
+    autoFitContents,
+    autoFitWindow,
+    ...measured,
     clearSizing: clearTableSizing,
     setCellAlign,
     setCellBackground,

@@ -63,6 +63,19 @@ export interface TableCommands {
   readonly csvAtSelection?: (state: EditorState) => string | null
   readonly distributeColumns?: Command
   readonly clearSizing?: Command
+  /** Word's AutoFit: columns to their content, the table to the window, or the columns held as they are. */
+  readonly autoFitContents?: Command
+  readonly autoFitWindow?: Command
+  readonly fixColumnWidths?: Command
+  readonly distributeRows?: Command
+  /**
+   * Word's Draw Table and Eraser, which the pointer holds rather than runs:
+   * picking one from the Table menu takes it up, picking it again puts it
+   * down. `createTableTools` from the table package supplies both.
+   */
+  readonly toggleTableTool?: (tool: 'draw' | 'erase') => void
+  /** The tool held now, so its menu entry shows a tick. */
+  readonly activeTableTool?: () => 'draw' | 'erase' | null
 }
 
 /** Media and embed commands, from `@trevixal/extension-embed`. */
@@ -957,10 +970,30 @@ function createActions(
       ['convertTextToTable', commands.convertTextToTable],
       ['convertTableToText', commands.convertTableToText],
       ['distributeColumns', commands.distributeColumns],
+      ['distributeRows', commands.distributeRows],
+      ['autoFitContents', commands.autoFitContents],
+      ['autoFitWindow', commands.autoFitWindow],
+      ['fixColumnWidths', commands.fixColumnWidths],
       ['clearTableSizing', commands.clearSizing],
     ]
     for (const [name, command] of entries) {
       if (command) byName.set(name, (target) => target.exec(command))
+    }
+    const toggleTool = commands.toggleTableTool
+    if (toggleTool) {
+      const tools: readonly [string, 'draw' | 'erase'][] = [
+        ['drawTable', 'draw'],
+        ['tableEraser', 'erase'],
+      ]
+      const activeTool = commands.activeTableTool
+      for (const [name, tool] of tools) {
+        byName.set(name, (target) => {
+          toggleTool(tool)
+          // Back to the page, where the tool is used and Escape puts it down.
+          target.view?.focus()
+        })
+        if (activeTool) activeByName.set(name, () => activeTool() === tool)
+      }
     }
     // Word's Split Cells asks how many columns; without it, Split un-merges.
     const splitInto = commands.splitCellInto

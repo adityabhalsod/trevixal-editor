@@ -13,6 +13,26 @@ export function tableBorders(value: unknown): TableBorders | null {
   return TABLE_BORDERS.includes(value as TableBorders) ? (value as TableBorders) : null
 }
 
+/** A side of a table cell. */
+export type CellSide = 'top' | 'right' | 'bottom' | 'left'
+
+/** The four sides in CSS order, the order a `hiddenBorders` value lists them in. */
+export const CELL_SIDES: readonly CellSide[] = ['top', 'right', 'bottom', 'left']
+
+/** The sides a `hiddenBorders` value names, in CSS order; anything else is dropped. */
+export function hiddenSides(value: unknown): CellSide[] {
+  if (typeof value !== 'string') return []
+  const words = value.toLowerCase().split(/\s+/)
+  return CELL_SIDES.filter((side) => words.includes(side))
+}
+
+/** The `hiddenBorders` value naming these sides, or null when there are none. */
+export function hiddenBordersValue(sides: Iterable<CellSide>): string | null {
+  const named = new Set(sides)
+  const value = CELL_SIDES.filter((side) => named.has(side)).join(' ')
+  return value === '' ? null : value
+}
+
 const ALIGNS: readonly CellAlign[] = ['left', 'center', 'right']
 
 function parseAlign(value: string | null): CellAlign | null {
@@ -115,6 +135,8 @@ export function tableNodes(): Record<string, NodeSpec> {
         // A column's width lives on its cells, which is how HTML carries it.
         width: { default: null },
         background: { default: null },
+        // Sides whose line the Eraser took out, `'top left'`; null draws all four.
+        hiddenBorders: { default: null },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
@@ -124,6 +146,8 @@ export function tableNodes(): Record<string, NodeSpec> {
         if (align) addStyle(attrs, 'text-align', align)
         addStyle(attrs, 'width', safeTableLength(node.attrs.width))
         addStyle(attrs, 'background-color', safeColor(node.attrs.background))
+        const hidden = hiddenBordersValue(hiddenSides(node.attrs.hiddenBorders))
+        if (hidden) attrs['data-hidden-borders'] = hidden
         return { tag: node.attrs.header === true ? 'th' : 'td', attrs }
       },
       parseHTML: [
@@ -146,5 +170,6 @@ function cellAttrsFrom(element: HTMLElement, header: boolean): Record<string, un
   const background = safeColor(
     backgroundMatch?.[1]?.trim() ?? element.getAttribute('bgcolor') ?? null,
   )
-  return { header, colspan, align, width: styleValue(element, 'width'), background }
+  const hiddenBorders = hiddenBordersValue(hiddenSides(element.getAttribute('data-hidden-borders')))
+  return { header, colspan, align, width: styleValue(element, 'width'), background, hiddenBorders }
 }

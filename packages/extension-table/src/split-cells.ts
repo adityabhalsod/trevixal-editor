@@ -6,7 +6,16 @@ import {
   nodeAtPath,
   replaceNodeAt,
 } from '@trevixal/core'
-import { cellAtColumn, colspanOf, columnStart, cursorIn, emptyCell, scaleWidth } from './commands'
+import { sidesOfColumnPart } from './cell-borders'
+import {
+  cellAtColumn,
+  colspanOf,
+  columnStart,
+  cursorIn,
+  emptyCell,
+  scaleWidth,
+  withCells,
+} from './commands'
 import { cellsInSelection } from './features'
 
 /** Word's widest table, and so the most columns one split will make. */
@@ -107,7 +116,12 @@ function splitAt(
   const cells = Array.from({ length: count }, (_, index) => {
     // Shared as evenly as it goes, the first cells taking any remainder.
     const colspan = Math.floor(covered / count) + (index < covered % count ? 1 : 0)
-    const attrs = { ...at.cell.attrs, colspan, width: widthFor(at.cell, share, colspan, covered) }
+    const attrs = {
+      ...at.cell.attrs,
+      colspan,
+      width: widthFor(at.cell, share, colspan, covered),
+      hiddenBorders: sidesOfColumnPart(at.cell, index, count),
+    }
     return index === 0 ? at.cell.withAttrs(attrs) : emptyCell(table.type.schema, attrs)
   })
 
@@ -144,11 +158,4 @@ function widthFor(
   }
   // The share as a percentage of the table: `100%` cut to this cell's part.
   return share === null ? null : scaleWidth('100%', share * colspan, covered)
-}
-
-/** The row with the cell at `index` replaced by `cells`. */
-function withCells(row: EditorNode, index: number, cells: readonly EditorNode[]): EditorNode {
-  const children = [...row.content.children]
-  children.splice(index, 1, ...cells)
-  return row.withContent(Fragment.from(children))
 }

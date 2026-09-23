@@ -12,6 +12,7 @@ import {
 import { nearestHighlight, parseColor, toHex } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
+  type CellSide,
   NODE,
   attrString,
   blockLayout,
@@ -19,6 +20,7 @@ import {
   decodeDataURL,
   extensionForMime,
   headingLevel,
+  hiddenCellSides,
   imageDimensions,
   listKind,
   listStart,
@@ -762,21 +764,38 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
   const grid = Array.from({ length: columns }, () => `<w:gridCol w:w="${unit}"/>`).join('')
 
   const body = rows
-    .map((row) => {
+    .map((row, rowIndex) => {
       const cells = row.content.children.filter((cell) => cell.type.name === NODE.tableCell)
       const allHeader = cells.length > 0 && cells.every((cell) => cell.attrs.header === true)
       const trPr = allHeader ? '<w:trPr><w:tblHeader/></w:trPr>' : ''
-      const rendered = cells.map((cell) => writeCell(cell, context, run, unit)).join('')
+      const rendered = cells
+        .map((cell, cellIndex) => {
+          const hidden = hiddenCellSides(table, rowIndex, cellIndex)
+          return writeCell(cell, context, run, unit, hidden)
+        })
+        .join('')
       return `<w:tr>${trPr}${rendered}</w:tr>`
     })
     .join('')
   return `<w:tbl><w:tblPr>${tblPr}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>${body}</w:tbl>`
 }
 
-function writeCell(cell: EditorNode, context: Context, run: RunContext, unit: number): string {
+function writeCell(
+  cell: EditorNode,
+  context: Context,
+  run: RunContext,
+  unit: number,
+  hidden: ReadonlySet<CellSide>,
+): string {
   const span = cellSpan(cell)
   let tcPr = `<w:tcW w:w="${unit * span}" w:type="dxa"/>`
   if (span > 1) tcPr += `<w:gridSpan w:val="${span}"/>`
+  // An erased line: `nil` wins over the table's own rule for this side.
+  // The schema wants the sides in this order.
+  const erased = (['top', 'left', 'bottom', 'right'] as const).filter((side) => hidden.has(side))
+  if (erased.length > 0) {
+    tcPr += `<w:tcBorders>${erased.map((side) => `<w:${side} w:val="nil"/>`).join('')}</w:tcBorders>`
+  }
   const background = parseColor(cell.attrs.background)
   if (background) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(background)}"/>`
   const align = attrString(cell.attrs, 'align')

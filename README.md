@@ -223,13 +223,16 @@ whole tree, levels indented later included, in the editor and in Word and RTF
 exports · eight list styles (disc, circle, square, `1, 2, 3`, `a, b, c`,
 `A, B, C`, `i, ii, iii`, `I, II, III`) · restart and continue numbering.
 
-**Tables**: insert with a hover-to-size grid · add and delete rows and
+**Tables**: insert with a hover-to-size grid, or draw one with Word's Draw
+table pencil and split its cells by drawing lines · add and delete rows and
 columns · merge cells, and split them into any number of columns as Word does ·
 header row · per-cell alignment · cell
 background · border styles (all, outside, rows only, none) and border colour ·
-sort by column, ascending or descending · resize columns and rows by dragging ·
-distribute columns evenly · convert text to a table and back · import CSV ·
-copy as CSV · `Tab` and `Shift+Tab` between cells.
+an Eraser that takes out any one line of a cell · sort by column, ascending or
+descending · resize columns and rows by dragging · AutoFit to the contents or
+the window, or fixed column widths · distribute rows and columns evenly ·
+convert text to a table and back · import CSV · copy as CSV · `Tab` and
+`Shift+Tab` between cells.
 
 **Media**: drag-and-drop, paste or pick images · upload to **your** storage
 with progress and cancellation · resize by dragging · crop and rotate ·
@@ -1909,13 +1912,14 @@ Markdown · Edit as HTML · Format JSON · Format XML · Minify · Copy code blo
 Grammar / Passive voice / Repeated words / Long sentences · Spell check ·
 Word count
 
-**Table**: Insert table · Row above · Row below · Delete row · Column left ·
-Column right · Delete column · Merge cells · Split cells… · Header row · Cell
-background… · **Cell alignment ▸** Left / Center / Right / Default ·
-**Borders ▸** All / Outside only / Rows only / No borders / Border colour… ·
-**Sort by this column ▸** Ascending / Descending · Convert text to table ·
-Convert table to text · Import CSV… · Copy as CSV · Distribute columns evenly
-· Reset column sizes · Delete table
+**Table**: Insert table · Draw table · Eraser · Row above · Row below · Delete
+row · Column left · Column right · Delete column · Merge cells · Split cells… ·
+Header row · Cell background… · **Cell alignment ▸** Left / Center / Right /
+Default · **Borders ▸** All / Outside only / Rows only / No borders / Border
+colour… · **Sort by this column ▸** Ascending / Descending · Convert text to
+table · Convert table to text · Import CSV… · Copy as CSV · **AutoFit ▸**
+AutoFit contents / AutoFit window / Fixed column width · Distribute rows evenly
+· Distribute columns evenly · Reset column sizes · Delete table
 
 **View**: **Theme ▸** Light / Dark / Match the system / Sepia / Nord /
 Solarized / High contrast / Midnight / Custom theme… / Custom CSS… · Add a

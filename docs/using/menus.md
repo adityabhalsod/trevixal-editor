@@ -56,13 +56,18 @@ count
 
 ## Table
 
-Insert table · Row above · Row below · Delete row · Column left · Column right
-· Delete column · Merge cells · Split cells... · Header row · Cell background... ·
-**Cell alignment >** Left / Center / Right / Default · **Borders >** All /
-Outside only / Rows only / No borders / Border colour... · **Sort by this
-column >** Ascending / Descending · Convert text to table · Convert table to
-text · Import CSV... · Copy as CSV · Distribute columns evenly · Reset column
-sizes · Delete table
+Insert table · Draw table · Eraser · Row above · Row below · Delete row ·
+Column left · Column right · Delete column · Merge cells · Split cells... ·
+Header row · Cell background... · **Cell alignment >** Left / Center / Right /
+Default · **Borders >** All / Outside only / Rows only / No borders / Border
+colour... · **Sort by this column >** Ascending / Descending · Convert text to
+table · Convert table to text · Import CSV... · Copy as CSV · **AutoFit >**
+AutoFit contents / AutoFit window / Fixed column width · Distribute rows
+evenly · Distribute columns evenly · Reset column sizes · Delete table
+
+Draw table and Eraser are tools rather than commands: picking one hands it to
+the pointer, and the entry shows a tick until you pick it again or press
+`Escape`.
 
 ## View
 

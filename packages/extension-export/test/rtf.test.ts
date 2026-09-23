@@ -238,6 +238,19 @@ describe('serializeToRTF tables', () => {
     expect(output).toContain('\\intbl\\f0\\fs22 pear\\cell')
   })
 
+  it('leaves out a line the Eraser took, on both cells that share it', () => {
+    const rtf = serializeToRTF(
+      doc(table(undefined, row(cell('a', { hiddenBorders: 'right' }), cell('b')))),
+    )
+    // The row definition, one border list per cell, each closed by its edge.
+    const definition = rtf.slice(rtf.indexOf('\\trowd'), rtf.indexOf('\\intbl'))
+    const perCell = definition.split('\\cellx').slice(0, -1)
+    const sides = perCell.map((part) =>
+      [...part.matchAll(/\\clbrdr([tlbr])/g)].map((match) => match[1]).join(''),
+    )
+    expect(sides).toEqual(['tlb', 'tbr'])
+  })
+
   it('draws cell borders unless the table asks for none', () => {
     expect(output).toContain('\\clbrdrt\\brdrs\\brdrw10')
     const bare = serializeToRTF(doc(table({ borders: 'none' }, row(cell('x')))))

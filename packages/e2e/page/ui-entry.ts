@@ -1,6 +1,13 @@
 import { type Editor, Schema, createEditor, defaultMarks, defaultNodes } from '@trevixal/core'
 import { type ImageStorage, image, imageNodes } from '@trevixal/extension-image'
-import { tableKeymap, tableNodes, tableUICommands } from '@trevixal/extension-table'
+import {
+  createTableTools,
+  enableCellSelection,
+  highlightActiveCell,
+  tableKeymap,
+  tableNodes,
+  tableUICommands,
+} from '@trevixal/extension-table'
 import { createEditorUI } from '@trevixal/ui'
 
 declare global {
@@ -57,9 +64,18 @@ const images = image(editor, {
   },
 })
 
+// As the editor kit mounts them: double click a cell to select it, drag for more.
+highlightActiveCell(editor)
+enableCellSelection(editor)
+const tableTools = createTableTools(editor, { container: surface })
+
 createEditorUI(editor, {
   container: chrome,
-  tableCommands: tableUICommands({ editor }),
+  tableCommands: {
+    ...tableUICommands({ editor }),
+    toggleTableTool: (tool) => tableTools.toggle(tool),
+    activeTableTool: () => tableTools.tool,
+  },
   images: {
     pickFiles: () => images.pickFiles(),
     insertImage: (attrs) => images.insertImage(attrs),

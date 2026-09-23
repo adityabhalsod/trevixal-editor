@@ -35,6 +35,7 @@ function extraNodes(): Record<string, NodeSpec> {
         align: { default: null },
         width: { default: null },
         background: { default: null },
+        hiddenBorders: { default: null },
       },
     },
     image: {

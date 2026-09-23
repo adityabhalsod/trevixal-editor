@@ -567,7 +567,7 @@ test.describe('the assembled feature set', () => {
       for (const [query, expected] of [
         ['docx', 'Word document (.docx)'],
         ['midnight', 'Midnight'],
-        ['distribute', 'Distribute columns evenly'],
+        ['distribute col', 'Distribute columns evenly'],
       ] as const) {
         await page.fill('.trevixal-palette__input', query)
         await expect(rows.first().locator('.trevixal-palette__label')).toHaveText(expected)

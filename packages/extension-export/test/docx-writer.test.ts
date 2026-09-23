@@ -303,6 +303,27 @@ describe('tables', () => {
     )
   })
 
+  it('leaves out a line the Eraser took, on both cells that share it', async () => {
+    const rubbed = await readZip(
+      await serializeToDOCX(
+        doc(
+          table(
+            undefined,
+            row(cell('a', { hiddenBorders: 'right' }), cell('b')),
+            row(cell('c'), cell('d', { hiddenBorders: 'top bottom' })),
+          ),
+        ),
+      ),
+    )
+    const cells = parseXML(partText(rubbed, 'word/document.xml')).findAll('w:tc')
+    const nil = cells.map((tc) =>
+      (tc.find('w:tcBorders')?.children ?? []).filter(isXmlElement).map((side) => side.name),
+    )
+    // Word draws a shared line if either cell has it, so the neighbour of an
+    // erased side leaves out its own side of the line too.
+    expect(nil).toEqual([['w:right'], ['w:left', 'w:bottom'], [], ['w:top', 'w:bottom']])
+  })
+
   it('closes a cell whose last block is a nested table with an empty paragraph', async () => {
     const nested = await readZip(
       await serializeToDOCX(

@@ -1,5 +1,6 @@
 import { type Editor, pathOfElement } from '@trevixal/core'
 import { type TableSizing, setTableSizing } from './resize'
+import { availableWidth, columnWidthsOf, gridOf } from './table-geometry'
 
 export interface ResizeHandlesOptions {
   /**
@@ -180,45 +181,12 @@ export function createTableResizeHandles(
       element,
       style: element.getAttribute('style'),
     }))
-    const cells: CellInfo[] = []
-    let columnCount = 0
-    for (const { element: row } of rowElements) {
-      let start = 0
-      for (const cell of [...row.cells]) {
-        const span = Math.max(1, cell.colSpan)
-        cells.push({ element: cell, start, span, style: cell.getAttribute('style') })
-        start += span
-      }
-      columnCount = Math.max(columnCount, start)
-    }
-
-    // Column widths come from unmerged cells where there are any; a column
-    // only ever covered by merged cells takes an equal share of what its
-    // neighbours leave.
-    const columns: number[] = new Array<number>(columnCount).fill(0)
-    const known: boolean[] = new Array<boolean>(columnCount).fill(false)
-    for (const info of cells) {
-      if (info.span === 1 && !known[info.start]) {
-        columns[info.start] = info.element.getBoundingClientRect().width
-        known[info.start] = true
-      }
-    }
-    for (const info of cells) {
-      if (info.span === 1) continue
-      const unknown: number[] = []
-      let settled = 0
-      for (let column = info.start; column < info.start + info.span; column++) {
-        if (known[column]) settled += columns[column] ?? 0
-        else unknown.push(column)
-      }
-      if (unknown.length === 0) continue
-      const share =
-        Math.max(0, info.element.getBoundingClientRect().width - settled) / unknown.length
-      for (const column of unknown) {
-        columns[column] = share
-        known[column] = true
-      }
-    }
+    const grid = gridOf(table)
+    const cells: CellInfo[] = grid.cells.map((cell) => ({
+      ...cell,
+      style: cell.element.getAttribute('style'),
+    }))
+    const columns = columnWidthsOf(grid.cells, grid.columnCount)
 
     const box = table.getBoundingClientRect()
     const first = cells[0]?.element
@@ -599,22 +567,6 @@ function setInlineStyle(element: HTMLElement, style: string | null): void {
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), Math.max(low, high))
-}
-
-/**
- * The content-box width of the block a table sits in. The widest it may be
- * without spilling out of the editor. Infinite when there is nothing to
- * measure, so a table in an unlaid-out document is left alone.
- */
-function availableWidth(table: HTMLTableElement): number {
-  const parent = table.parentElement
-  if (!parent) return Number.POSITIVE_INFINITY
-  const style = computedStyle(parent)
-  const width =
-    parent.clientWidth -
-    Number.parseFloat(style.paddingLeft) -
-    Number.parseFloat(style.paddingRight)
-  return Number.isFinite(width) && width > 0 ? width : Number.POSITIVE_INFINITY
 }
 
 /**

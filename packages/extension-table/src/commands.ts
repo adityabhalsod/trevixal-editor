@@ -13,6 +13,7 @@ import {
   pos,
   replaceNodeAt,
 } from '@trevixal/core'
+import { sidesOfColumnPart, sidesOfMerge } from './cell-borders'
 import { type CellAlign, safeTableLength } from './schema'
 
 export interface CellContext {
@@ -91,6 +92,17 @@ export function emptyCell(schema: Schema, attrs: Attrs): EditorNode {
 
 export function cursorIn(tablePath: Path, rowIndex: number, cellIndex: number): TextSelection {
   return new TextSelection(pos([...tablePath, rowIndex, cellIndex, 0], 0))
+}
+
+/** The row with the cell at `index` replaced by `cells`. */
+export function withCells(
+  row: EditorNode,
+  index: number,
+  cells: readonly EditorNode[],
+): EditorNode {
+  const children = [...row.content.children]
+  children.splice(index, 1, ...cells)
+  return row.withContent(Fragment.from(children))
 }
 
 /**
@@ -414,7 +426,12 @@ export const mergeCells: Command = (state) => {
   )
   const content = kept.length > 0 ? Fragment.from(kept) : combined.slice(0, 1)
   const cell = firstCell
-    .withAttrs({ ...firstCell.attrs, colspan, width: sumWidths(merged) })
+    .withAttrs({
+      ...firstCell.attrs,
+      colspan,
+      width: sumWidths(merged),
+      hiddenBorders: sidesOfMerge(merged),
+    })
     .withContent(content)
   const rowPath = [...fromContext.tablePath, fromContext.rowIndex]
   const tr = state.tr
@@ -428,15 +445,16 @@ export const splitCell: Command = (state) => {
   const context = cellContextAt(state.doc, state.selection.from)
   if (!context || colspanOf(context.cell) <= 1) return null
   const schema = state.schema
-  const attrs = {
-    ...context.cell.attrs,
-    colspan: 1,
-    width: shareWidth(context.cell.attrs.width, colspanOf(context.cell)),
-  }
-  const cells: EditorNode[] = [context.cell.withAttrs(attrs)]
-  for (let i = 1; i < colspanOf(context.cell); i++) {
-    cells.push(emptyCell(schema, attrs))
-  }
+  const span = colspanOf(context.cell)
+  const cells = Array.from({ length: span }, (_, index) => {
+    const attrs = {
+      ...context.cell.attrs,
+      colspan: 1,
+      width: shareWidth(context.cell.attrs.width, span),
+      hiddenBorders: sidesOfColumnPart(context.cell, index, span),
+    }
+    return index === 0 ? context.cell.withAttrs(attrs) : emptyCell(schema, attrs)
+  })
   const rowPath = [...context.tablePath, context.rowIndex]
   const tr = state.tr
   tr.step(

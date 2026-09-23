@@ -13,12 +13,14 @@ import {
 import { type RGB, parseColor } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
+  type CellSide,
   NODE,
   attrString,
   blockLayout,
   cellSpan,
   decodeDataURL,
   headingLevel,
+  hiddenCellSides,
   imageDimensions,
   listKind,
   listStart,
@@ -487,17 +489,25 @@ function writeList(list: EditorNode, context: Context, state: ParagraphState): s
   return out
 }
 
+/** RTF's letter for each side of a cell's border, in the order it lists them. */
+const RTF_SIDES: readonly (readonly [string, CellSide])[] = [
+  ['t', 'top'],
+  ['l', 'left'],
+  ['b', 'bottom'],
+  ['r', 'right'],
+]
+
 function writeTable(table: EditorNode, context: Context, state: ParagraphState): string[] {
   const columns = tableColumns(table)
   const unit = Math.floor(TABLE_WIDTH / columns)
   const borders = attrString(table.attrs, 'borders') !== 'none'
   const rows: string[] = []
-  for (const row of table.content.children) {
+  for (const [rowIndex, row] of table.content.children.entries()) {
     if (row.type.name !== NODE.tableRow) continue
     let definition = '\\trowd\\trgaph108\\trleft-108'
     let right = 0
     const cells: string[] = []
-    for (const cell of row.content.children) {
+    for (const [cellIndex, cell] of row.content.children.entries()) {
       if (cell.type.name !== NODE.tableCell) continue
       right += unit * cellSpan(cell)
       const background = parseColor(cell.attrs.background)
@@ -505,8 +515,10 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
         // A rule left uncoloured is drawn in the reader's automatic black,
         // which on a dark page is a table with no visible grid at all.
         const edge = rule(context)
-        definition += ['t', 'l', 'b', 'r']
-          .map((side) => `\\clbrdr${side}\\brdrs\\brdrw10${edge}`)
+        // A line the Eraser took out is simply not written.
+        const hidden = hiddenCellSides(table, rowIndex, cellIndex)
+        definition += RTF_SIDES.filter(([, side]) => !hidden.has(side))
+          .map(([code]) => `\\clbrdr${code}\\brdrs\\brdrw10${edge}`)
           .join('')
       }
       if (background) definition += `\\clcbpat${colorIndex(context, background)}`

@@ -10,6 +10,7 @@ import {
   extensionForMime,
   hasMark,
   headingLevel,
+  hiddenCellSides,
   imageDimensions,
   listKind,
   listStart,
@@ -35,6 +36,31 @@ import {
   taskList,
   text,
 } from './helpers'
+
+describe('hiddenCellSides', () => {
+  const sides = (grid: ReturnType<typeof table>, rowIndex: number, cellIndex: number) =>
+    [...hiddenCellSides(grid, rowIndex, cellIndex)].sort()
+
+  it('hides a side under a merged cell whose bottom was erased', () => {
+    const grid = table(
+      undefined,
+      row(cell('wide', { colspan: 2, hiddenBorders: 'bottom' })),
+      row(cell('a'), cell('b')),
+    )
+    expect(sides(grid, 1, 0)).toEqual(['top'])
+    expect(sides(grid, 1, 1)).toEqual(['top'])
+  })
+
+  it('keeps a side drawn where only some of the cells across it were erased', () => {
+    const grid = table(
+      undefined,
+      row(cell('a', { hiddenBorders: 'bottom' }), cell('b')),
+      row(cell('wide', { colspan: 2 })),
+    )
+    expect(sides(grid, 1, 0)).toEqual([])
+    expect(sides(grid, 0, 0)).toEqual(['bottom'])
+  })
+})
 
 describe('attribute readers', () => {
   const node = p('x', { align: 'center', indent: 2 })

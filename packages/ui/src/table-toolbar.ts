@@ -32,6 +32,10 @@ export interface TableToolbarCommands {
   readonly swapCellDown?: Command
   readonly distributeColumns?: Command
   readonly clearSizing?: Command
+  readonly autoFitContents?: Command
+  readonly autoFitWindow?: Command
+  readonly fixColumnWidths?: Command
+  readonly distributeRows?: Command
 }
 
 interface Entry {
@@ -68,11 +72,15 @@ const ENTRIES: readonly Entry[] = [
   { name: 'swapCellUp', label: 'Swap cell up', icon: 'tableSwapCellVertical' },
   { name: 'swapCellDown', label: 'Swap cell down', icon: 'tableSwapCellVertical' },
   {
-    name: 'distributeColumns',
-    label: 'Distribute columns evenly',
-    icon: 'tableDistribute',
+    name: 'autoFitContents',
+    label: 'AutoFit contents',
+    icon: 'tableAutoFit',
     separatorBefore: true,
   },
+  { name: 'autoFitWindow', label: 'AutoFit window', icon: 'tableAutoFit' },
+  { name: 'fixColumnWidths', label: 'Fixed column width', icon: 'tableAutoFit' },
+  { name: 'distributeRows', label: 'Distribute rows evenly', icon: 'tableDistributeRows' },
+  { name: 'distributeColumns', label: 'Distribute columns evenly', icon: 'tableDistribute' },
   { name: 'clearSizing', label: 'Reset sizes', icon: 'resizeColumns' },
   { name: 'deleteTable', label: 'Delete table', icon: 'tableDelete', separatorBefore: true },
 ]
