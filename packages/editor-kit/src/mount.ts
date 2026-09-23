@@ -35,7 +35,12 @@ import {
 } from '@trevixal/extension-image'
 import { mathUICommands } from '@trevixal/extension-math'
 import {} from '@trevixal/extension-security'
-import { highlightActiveCell, tableKeymap, tableUICommands } from '@trevixal/extension-table'
+import {
+  enableCellSelection,
+  highlightActiveCell,
+  tableKeymap,
+  tableUICommands,
+} from '@trevixal/extension-table'
 import { TrackChanges, createTrackChangesBar } from '@trevixal/extension-track-changes'
 import {
   analyzeText,
@@ -146,6 +151,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // ------------------------------------------------------- document extensions
 
   disposers.push(highlightActiveCell(editor))
+  // Double click a cell to select it, drag to take in more. The highlighter
+  // above is what makes the result visible.
+  disposers.push(enableCellSelection(editor))
   // One highlighter for every surface: a split pane installs the same one
   // rather than building a second with its own caches.
   const highlighter = createHighlighter({ autoDetect: true })

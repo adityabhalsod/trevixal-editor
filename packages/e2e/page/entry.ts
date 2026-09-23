@@ -10,7 +10,9 @@ import {
   pos,
 } from '@trevixal/core'
 import {
+  enableCellSelection,
   goToNextCell,
+  highlightActiveCell,
   insertTable,
   mergeCells,
   splitCell,
@@ -39,6 +41,11 @@ if (!element) throw new Error('missing #editor mount point')
 
 const editor = createEditor({ schema, element, autofocus: true, keymap: tableKeymap() })
 window.editor = editor
+
+// The mouse gesture and the highlight that makes its result visible, as
+// `mountEditor` installs them: the specs drive them with a real pointer.
+highlightActiveCell(editor)
+enableCellSelection(editor)
 
 const commands: Record<string, Command> = {
   mergeCells,

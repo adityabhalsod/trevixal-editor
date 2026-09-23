@@ -63,6 +63,13 @@
       box-shadow: inset 0 0 0 2px t.token('color-accent');
     }
 
+    // Cells in a multi-cell selection. A fill rather than a ring: a ring
+    // around each cell of a range reads as several selections, not one.
+    td.trevixal-cell--range,
+    th.trevixal-cell--range {
+      background: t.token('color-selection');
+    }
+
     // Border styles chosen from the Table menu. The cells keep their border
     // box (so column widths never change), only the colour goes transparent.
     &[data-borders='none'] {

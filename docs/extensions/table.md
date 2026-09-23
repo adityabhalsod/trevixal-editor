@@ -46,6 +46,33 @@ editor.exec(insertTableFromCSV('a,b\n1,2'))
 createTableResizeHandles(editor)
 ```
 
+## Selecting cells
+
+`enableCellSelection(editor)` installs the mouse gesture; the editor kit
+mounts it for you. It returns a disposer.
+
+| Gesture | What it selects |
+| --- | --- |
+| Click | A text cursor in the cell. A cell is prose, and editing it is the common case. |
+| Double click | The whole cell |
+| Double click, then drag | Every cell in the rectangle between the two |
+| Click anywhere else | Drops it, because the selection moves with the click |
+
+```ts
+const dispose = enableCellSelection(editor)
+highlightActiveCell(editor) // what makes the result visible
+```
+
+The result is an ordinary `TextSelection` spanning from the first cell's
+first textblock to the last cell's last one, not a new selection class. That
+is what `mergeCells`, `splitCell` and `setCellBackground` already read, so
+the gesture drives them without a command knowing it exists, and a cell
+selection survives undo, redo and position mapping like any other.
+
+`cellsInSelection(state)` is the shared answer to *which cells are
+selected*: the highlight marks exactly what the commands act on, so the two
+cannot disagree.
+
 ## Wiring the chrome
 
 `tableUICommands()` returns the set `createEditorUI` expects, which turns on

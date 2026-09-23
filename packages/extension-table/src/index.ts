@@ -1,4 +1,5 @@
-export { ACTIVE_CELL_CLASS, highlightActiveCell } from './active-cell'
+export { ACTIVE_CELL_CLASS, highlightActiveCell, RANGE_CELL_CLASS } from './active-cell'
+export { enableCellSelection } from './cell-selection'
 export {
   type CellAlign,
   safeTableLength,
@@ -49,6 +50,8 @@ export {
   compareCellText,
   convertTableToText,
   convertTextToTable,
+  type CellRef,
+  cellsInSelection,
   csvAtSelection,
   detectDelimiter,
   detectTextSeparator,

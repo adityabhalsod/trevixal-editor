@@ -17,7 +17,7 @@ import { type TableBorders, tableBorders } from './schema'
 
 // ---------------------------------------------------------------- cell styling
 
-interface CellRef {
+export interface CellRef {
   readonly path: Path
   readonly cell: EditorNode
 }
@@ -28,7 +28,7 @@ interface CellRef {
  * columns between the two. A caret yields just its own cell; a selection that
  * leaves the table yields nothing.
  */
-function cellsInSelection(state: EditorState): readonly CellRef[] {
+export function cellsInSelection(state: EditorState): readonly CellRef[] {
   const from = cellContextAt(state.doc, state.selection.from)
   const to = cellContextAt(state.doc, state.selection.to)
   if (!from) return []
