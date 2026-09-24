@@ -280,10 +280,13 @@ test.describe('the formatting tools of the built demo', () => {
 
       await pane.locator('[aria-label="Modify Normal…"]').click()
       await submitDialog(page, { fontSize: '20' })
-      // Every body paragraph follows: 20 pt is 26.67 px.
+      // Every body paragraph follows: 20 pt is 26.67 px. A caption is not one:
+      // any paragraph holding a caption number is drawn smaller, as Caption.
       const sizes = await page.evaluate(() =>
         [
-          ...document.querySelectorAll('#editor .trevixal-content > p:not([data-paragraph-style])'),
+          ...document.querySelectorAll(
+            '#editor .trevixal-content > p:not([data-paragraph-style]):not(:has(> .trevixal-caption-number))',
+          ),
         ].map(
           (element) => Math.round(Number.parseFloat(getComputedStyle(element).fontSize) * 10) / 10,
         ),

@@ -118,7 +118,9 @@ test.describe('the document-structure features of the built demo', () => {
       await caretAtEnd(page, 2)
       await runMenuItem(page, 'insert', 'insertCaption')
       await submitDialog(page, { kind: 'figure', text: 'A cat' })
-      await expect(surface.locator('.trevixal-caption-number')).toHaveText(['1'])
+      // Figures only: the tour captions a table of its own further down.
+      const figures = surface.locator('.trevixal-caption-number[data-caption="figure"]')
+      await expect(figures).toHaveText(['1'])
 
       await caretAtEnd(page, 0)
       await runMenuItem(page, 'insert', 'insertCrossReference')
@@ -129,7 +131,8 @@ test.describe('the document-structure features of the built demo', () => {
         target: (await option.getAttribute('value')) ?? '',
         format: 'label',
       })
-      const reference = surface.locator('.trevixal-xref')
+      // The one just made, at the end of the heading, before the tour's own.
+      const reference = surface.locator('.trevixal-xref').first()
       await expect(reference).toHaveText('Figure 1')
 
       // A figure before it makes it Figure 2, and the reference follows.
@@ -162,9 +165,10 @@ test.describe('the document-structure features of the built demo', () => {
       await caretAtEnd(page, 3)
       await runMenuItem(page, 'insert', 'insertCaption')
       await submitDialog(page, { kind: 'figure', text: 'The view' })
-      await expect(surface.locator('.trevixal-caption-list .trevixal-ref-link')).toHaveText([
-        'Figure 1: The view',
-      ])
+      // The table of figures, not the tour's own list of tables.
+      await expect(
+        surface.locator('.trevixal-caption-list[data-caption-list="figure"] .trevixal-ref-link'),
+      ).toHaveText(['Figure 1: The view'])
 
       // Mark a word, and the index files it.
       await surface.locator('> p').first().dblclick()
@@ -174,11 +178,15 @@ test.describe('the document-structure features of the built demo', () => {
       await page.keyboard.press('ArrowRight')
       await caretAtEnd(page, 0)
       await runMenuItem(page, 'insert', 'insertDocumentIndex')
-      await expect(surface.locator('.trevixal-index li')).toHaveCount(1)
+      // The new index, first in the document: the word just marked, and the
+      // four the tour marks for its own index further down.
+      await expect(surface.locator('.trevixal-index').first().locator('li')).toHaveCount(5)
 
       await caretAtEnd(page, 0)
       await runMenuItem(page, 'insert', 'insertEndnote')
-      await expect(surface.locator('.trevixal-endnote-ref')).toHaveText('i')
+      // A note takes the lowest number no other note has, as a footnote does,
+      // so the new one, first in the document, is ii: the tour's own is i.
+      await expect(surface.locator('.trevixal-endnote-ref')).toHaveText(['ii', 'i'])
       await expect(surface.locator('> .trevixal-endnotes')).toHaveCount(1)
     } finally {
       await server.close()

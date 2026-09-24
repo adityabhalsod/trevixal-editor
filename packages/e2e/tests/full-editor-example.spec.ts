@@ -56,7 +56,7 @@ test('the full-editor example opens on a seeded document', async ({ page }) => {
     await expect(surface.locator('ul li')).not.toHaveCount(0)
     await expect(surface.locator('ol li')).not.toHaveCount(0)
     await expect(surface.locator('blockquote')).toBeVisible()
-    await expect(surface.locator('table')).toBeVisible()
+    await expect(surface.locator('table').first()).toBeVisible()
     // TypeScript, SQL, one unlabelled block for auto-detection, and the
     // Mermaid source the diagram extension previews.
     await expect(surface.locator('pre')).toHaveCount(4)
@@ -74,7 +74,8 @@ test('the seeded table renders as a usable grid', async ({ page }) => {
   const server = await serveDist(distDir)
   try {
     await page.goto(server.origin)
-    const table = page.locator('#editor .trevixal-content table')
+    // The first of the tour's tables, the one with nothing special about it.
+    const table = page.locator('#editor .trevixal-content table').first()
 
     // Regression: no CSS shipped for document tables, so this rendered ~14px
     // wide with 2px cells, correct markup, unusable UI.

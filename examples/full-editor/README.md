@@ -56,6 +56,23 @@ Mermaid diagrams. Callouts, tabs, accordions, columns and timelines. Task
 lists, footnotes and citations. Code blocks with syntax highlighting and a
 language selector.
 
+The tour it opens with shows the tools for longer documents in its own text,
+and names the menus for the ones a document cannot show:
+
+- **Long documents**: numbered captions, a cross-reference that follows what
+  it names, a list of tables, an index built from marked words, endnotes and
+  a right-to-left paragraph. Heading numbering and line numbers are under
+  *Format*, and every block has a menu on its grip.
+- **Formatting**: a paragraph style and a character style from the Styles
+  pane, a drop cap, a bordered and shaded paragraph, and tab stops with dot
+  leaders. Smart quotes, dashes and AutoCorrect work as you type. Text
+  columns, hyphenation, and widow and orphan control are under *Format*.
+- **Lists and tables**: tasks with assignees, due dates and a done count, a
+  folded list item, a list to sort, and a multilevel list of the document's
+  own. A captioned table with its header row frozen, wide cell padding, a
+  cell aligned to the middle and a table inside a cell. Its header row heads
+  every printed page it runs onto.
+
 ## Around the document
 
 - **Workspace**: several documents in tabs, kept in `localStorage`

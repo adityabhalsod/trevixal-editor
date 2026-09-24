@@ -392,8 +392,9 @@ const TOP_BLOCK = `(() => {
   return at + '|' + (blocks[at]?.textContent ?? '').replace(/\\s+/g, ' ').trim().slice(0, 24)
 })()`
 
-// Twice: once plain, and once with a document setting on, which puts the
-// preview's blocks inside the one element carrying the settings.
+// Twice: as the demo opens, and with its headings numbered too. Either way
+// the preview's blocks are inside the one element carrying the document's
+// settings, since the demo's own paragraph style and list scheme are settings.
 for (const numbered of [false, true]) {
   const title = `the preview follows the editor down the page, and the editor follows it back${numbered ? ', with numbered headings' : ''}`
   test(title, async ({ page }) => {
@@ -420,10 +421,7 @@ for (const numbered of [false, true]) {
         frame
           .locator('body')
           .evaluate(
-            TOP_BLOCK.replace(
-              'SURFACE',
-              numbered ? '.trevixal-content > [data-trevixal-document]' : '.trevixal-content',
-            ),
+            TOP_BLOCK.replace('SURFACE', '.trevixal-content > [data-trevixal-document]'),
           ) as Promise<string>
       const blockOf = (top: string): number => Number.parseInt(top.split('|')[0] ?? '-1', 10)
 

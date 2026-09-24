@@ -39,6 +39,17 @@ pnpm --filter @trevixal/example-<name> dev
 | [`vanilla-cdn`](vanilla-cdn) | none, a `<script>` tag | The kit from a global, with no npm and no bundler |
 | [`ssr`](ssr) | `DOMContentLoaded` | Node renders the words to HTML; the browser builds the editor over them |
 
+## The document they open
+
+All eleven open the same tour, the kit's
+[`initialContent`](../packages/editor-kit/src/content.ts), so a feature added
+to it shows in every app at once. Each finished feature a document can hold
+is in its text, from captions, an index and right-to-left text to named
+styles, drop caps, task assignees and a table inside a table. The ones that
+belong to the whole document, or that work as you type, it names with their
+menus. The [full editor's README](full-editor/README.md#the-document) lists
+them.
+
 ## Shared between them
 
 [`shared/`](shared) holds the page styles the examples had a copy of each.

@@ -1,4 +1,4 @@
-import type { DocJSON } from '@trevixal/core'
+import { type DocJSON, customListScheme, storedListSchemesAttr } from '@trevixal/core'
 
 const paragraph = (text: string): unknown => ({
   type: 'paragraph',
@@ -15,11 +15,70 @@ const row = (cells: unknown[]): unknown => ({ type: 'tableRow', content: cells }
 
 const listItem = (text: string): unknown => ({ type: 'listItem', content: [paragraph(text)] })
 
-const task = (text: string, checked: boolean): unknown => ({
+const task = (
+  text: string,
+  attrs: { checked: boolean; assignee?: string; due?: string },
+): unknown => ({
   type: 'taskItem',
-  attrs: { checked },
+  attrs,
   content: [paragraph(text)],
 })
+
+const text = (value: string, marks?: unknown[]): unknown =>
+  marks ? { type: 'text', text: value, marks } : { type: 'text', text: value }
+
+/** Words marked for the index, filed under `entry`. */
+const indexed = (value: string, id: string): unknown =>
+  text(value, [{ type: 'indexTerm', attrs: { id, entry: value, sub: null } }])
+
+const heading = (level: number, value: string): unknown => ({
+  type: 'heading',
+  attrs: { level },
+  content: [text(value)],
+})
+
+/**
+ * A multilevel list of the tour's own, as Format ▸ Lists ▸ Define new
+ * multilevel list makes one: `Step 1:`, then `1.a)`, and the gallery offers
+ * it for the document's other lists.
+ */
+const STEPS = customListScheme('custom-1', 'Steps', [
+  { style: 'decimal', text: 'Step %1:', start: 1, indent: 3.5 },
+  { style: 'lower-alpha', text: '%1.%2)', start: 1, indent: 2 },
+])
+
+/**
+ * A paragraph style of the tour's own, as the Styles pane's New style makes
+ * one. No colour of its own: one that reads on the light theme fails on the
+ * dark one.
+ */
+const PULL_QUOTE = {
+  id: 'pull-quote',
+  name: 'Pull quote',
+  kind: 'paragraph',
+  props: {
+    fontSize: 13,
+    italic: true,
+    align: 'center',
+    spaceBefore: 6,
+    spaceAfter: 12,
+  },
+}
+
+/**
+ * The fields' results as the field updater works them out, written in, so a
+ * page rendered without the kit (a server, as `examples/ssr` does) shows
+ * them too; the updater finds them current and leaves them be.
+ */
+const CAPTION_LIST_ENTRIES = JSON.stringify([{ id: 'tab-launch', text: 'Table 1: Launch budget' }])
+const INDEX_ENTRIES = JSON.stringify(
+  [
+    ['Captions', 'xe-captions'],
+    ['cross-reference', 'xe-xref'],
+    ['endnote', 'xe-endnote'],
+    ['index', 'xe-index'],
+  ].map(([term, id]) => ({ term, locations: [{ id, label: '1' }], subentries: [] })),
+)
 
 const callout = (variant: string, text: string): unknown => ({
   type: 'callout',
@@ -34,6 +93,11 @@ const callout = (variant: string, text: string): unknown => ({
  */
 export const initialContent = {
   type: 'doc',
+  // Document settings: the style and the multilevel list the tour defines.
+  attrs: {
+    styles: JSON.stringify([PULL_QUOTE]),
+    listSchemes: storedListSchemesAttr([STEPS]),
+  },
   content: [
     { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Trevixal' }] },
     {
@@ -146,9 +210,15 @@ export const initialContent = {
     {
       type: 'taskList',
       content: [
-        task('Ship the advanced blocks', true),
-        task('Wire every menu entry to a real command', true),
-        task('Export to PDF, DOCX and RTF', false),
+        // An assignee and a due date each, shown after the task; the list
+        // counts what is done under it.
+        task('Ship the advanced blocks', { checked: true, assignee: 'Priya' }),
+        task('Wire every menu entry to a real command', {
+          checked: true,
+          assignee: 'Sam',
+          due: '2026-09-12',
+        }),
+        task('Export to PDF, DOCX and RTF', { checked: false, assignee: 'Lee', due: '2027-06-30' }),
       ],
     },
     {
@@ -355,6 +425,202 @@ export const initialContent = {
       ],
     },
 
+    heading(2, 'Long documents'),
+    {
+      type: 'paragraph',
+      content: [
+        indexed('Captions', 'xe-captions'),
+        text(' on tables, figures and equations number themselves (Insert ▸ Caption). A '),
+        indexed('cross-reference', 'xe-xref'),
+        text(' follows what it names when the numbers change: the budget further down is '),
+        {
+          type: 'crossReference',
+          attrs: { target: 'tab-launch', format: 'label', text: 'Table 1' },
+        },
+        text(
+          '. The list of tables below keeps up with it, and heading and line numbers are under Format.',
+        ),
+      ],
+    },
+    { type: 'captionList', attrs: { kind: 'table', entries: CAPTION_LIST_ENTRIES } },
+    {
+      type: 'paragraph',
+      content: [
+        text('Mark a word for the '),
+        indexed('index', 'xe-index'),
+        text(' (Insert ▸ Mark index entry), and Insert ▸ Index files it with a link back. An '),
+        indexed('endnote', 'xe-endnote'),
+        text(' collects at the very end, after the footnotes.'),
+        { type: 'endnoteRef', attrs: { id: '1' } },
+      ],
+    },
+    { type: 'documentIndex', attrs: { entries: INDEX_ENTRIES } },
+    paragraph('A paragraph can run right to left beside the others, from Format ▸ Text direction:'),
+    {
+      type: 'paragraph',
+      attrs: { dir: 'rtl' },
+      content: [text('هذه الفقرة تُكتب من اليمين إلى اليسار، وتبقى الفقرات حولها كما هي.')],
+    },
+    paragraph(
+      'Every block has a menu on the grip beside it. Duplicate a block, delete it, move it, turn it into another kind, or copy a link to it.',
+    ),
+
+    heading(2, 'Formatting tools'),
+    {
+      type: 'paragraph',
+      attrs: { paragraphStyle: 'pull-quote' },
+      content: [
+        text(
+          'A paragraph in a style of its own, Pull quote. Change the style once in Format ▸ Styles pane, and every paragraph in it follows.',
+        ),
+      ],
+    },
+    {
+      type: 'paragraph',
+      content: [
+        text('Text can take a character style too, such as '),
+        text('Subtle emphasis', [{ type: 'charStyle', attrs: { id: 'subtleEmphasis' } }]),
+        text(', from the same pane.'),
+      ],
+    },
+    {
+      type: 'paragraph',
+      attrs: { dropCap: 'drop', dropCapLines: 3 },
+      content: [
+        text(
+          'Drop caps set the first letter of a paragraph large, over the lines beside it, as a magazine does. Format ▸ Drop cap drops one into any paragraph, or hangs it in the margin instead. Its options set how many lines it spans. In a Word file it is a frame of its own, as Word makes one.',
+        ),
+      ],
+    },
+    {
+      type: 'paragraph',
+      attrs: {
+        borderSides: 'top right bottom left',
+        borderStyle: 'solid',
+        borderWidth: 1,
+        borderColor: '#2f6fed',
+        shading: '#eef4ff',
+      },
+      // Dark text of its own, as Word's automatic colour is on a light fill,
+      // so the notice still reads when the theme's text turns light.
+      content: [
+        text('A boxed and shaded notice, from Format ▸ Borders and shading.', [
+          { type: 'textColor', attrs: { color: '#1f2a44' } },
+        ]),
+      ],
+    },
+    paragraph(
+      'Tab stops line figures up on their decimal point, with dots leading to them (Format ▸ Tabs):',
+    ),
+    ...[
+      ['Hall hire', '1,200.00'],
+      ['Catering', '2,640.00'],
+      ['Stage lighting', '780.00'],
+    ].map(([item, cost]) => ({
+      type: 'paragraph',
+      attrs: { tabStops: '360 decimal dot' },
+      content: [text(`${item}\t${cost}`)],
+    })),
+    paragraph(
+      'As you type, straight quotes curl, two hyphens make a dash, and 1/2 becomes ½. A word on the AutoCorrect list puts itself right (Tools ▸ AutoCorrect options). Text columns, hyphenation, and widow and orphan control belong to the whole document, under Format.',
+    ),
+
+    heading(2, 'Lists and tables'),
+    paragraph(
+      'Each task above has an assignee or a due date, from Format ▸ Lists ▸ Task due date and assignee. The list counts the tasks you have ticked off. Click the arrow beside an item to fold what is under it, and sort a list from Format ▸ Lists ▸ Sort A to Z:',
+    ),
+    {
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          attrs: { folded: true },
+          content: [
+            paragraph('Venue: The Riverside Hall'),
+            {
+              type: 'bulletList',
+              content: [
+                listItem('Main hall, 120 seats'),
+                listItem('Garden room for the reception'),
+              ],
+            },
+          ],
+        },
+        listItem('Printing: Inkwell Print'),
+        listItem('Catering: Bramble & Co'),
+        listItem('Audio: Soundhouse'),
+      ],
+    },
+    paragraph(
+      'A multilevel list of the document’s own, from Format ▸ Lists ▸ Define new multilevel list. It joins the gallery, for the other lists:',
+    ),
+    {
+      type: 'orderedList',
+      attrs: { numbering: 'custom-1' },
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            paragraph('Plan'),
+            { type: 'orderedList', content: [listItem('Scope'), listItem('Budget')] },
+          ],
+        },
+        listItem('Build'),
+        listItem('Launch'),
+      ],
+    },
+    {
+      // Table ▸ Insert caption: a table is captioned above it, as in Word.
+      type: 'paragraph',
+      content: [
+        text('Table '),
+        { type: 'captionNumber', attrs: { kind: 'table', id: 'tab-launch', number: 1 } },
+        text(': Launch budget'),
+      ],
+    },
+    {
+      type: 'table',
+      // The header row held in view as the table scrolls by, and wide cell
+      // padding. Two columns, so that with the table inside it, it still fits
+      // a 320px phone: a table has no scrollbar of its own, and one wider
+      // than the screen scrolls the whole page sideways.
+      attrs: { freezeHeader: true, cellPadding: '16px' },
+      content: [
+        row([cell('Item', true), cell('Cost (£)', true)]),
+        row([cell('Hall hire, two days'), cell('1,200.00')]),
+        row([cell('Catering, 120 guests'), cell('2,640.00')]),
+        row([
+          {
+            // A table inside a cell, with a look of its own.
+            type: 'tableCell',
+            attrs: { header: false },
+            content: [
+              paragraph('Stage lighting, delivered the day before:'),
+              {
+                type: 'table',
+                content: [
+                  row([cell('Set-up', true), cell('Get-out', true)]),
+                  row([cell('08:00'), cell('22:00')]),
+                ],
+              },
+            ],
+          },
+          // Sat in the middle of its row, beside the crew table.
+          {
+            type: 'tableCell',
+            attrs: { header: false, verticalAlign: 'middle' },
+            content: [paragraph('780.00')],
+          },
+        ]),
+        row([cell('Banners and programmes'), cell('483.00')]),
+        row([cell('Photographer'), cell('600.00')]),
+        row([cell('Insurance'), cell('140.00')]),
+      ],
+    },
+    paragraph(
+      'Its header row stays at the top of the window while the table scrolls by (Table ▸ Freeze header row). Table ▸ Freeze first column keeps the first column in view as a wide table scrolls sideways. In a print, the header row heads every page the table runs onto. Table ▸ Cell padding and Table ▸ Cell alignment set the room in its cells and where their content sits.',
+    ),
+
     {
       type: 'paragraph',
       content: [
@@ -382,6 +648,16 @@ export const initialContent = {
           type: 'footnoteItem',
           attrs: { id: 'fn1' },
           content: [paragraph('Footnotes collect at the end of the document.')],
+        },
+      ],
+    },
+    {
+      type: 'endnoteList',
+      content: [
+        {
+          type: 'endnoteItem',
+          attrs: { id: '1' },
+          content: [paragraph('Endnotes collect after the footnotes, at the very end.')],
         },
       ],
     },

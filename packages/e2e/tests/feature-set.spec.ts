@@ -1016,8 +1016,8 @@ test.describe('the suggestion triggers', () => {
     try {
       await page.goto(server.origin)
       const surface = page.locator('#editor .trevixal-content')
-      // One seeded table; the menu has to add the second.
-      await expect(surface.locator('table')).toHaveCount(1)
+      // Three seeded tables, one of them inside another; the menu has to add a fourth.
+      await expect(surface.locator('table')).toHaveCount(3)
 
       await emptyBlock(page)
       await page.keyboard.type('/tab')
@@ -1028,7 +1028,7 @@ test.describe('the suggestion triggers', () => {
       await expect(popup.locator('.trevixal-popup__label').first()).toHaveText('Table')
       await page.keyboard.press('Enter')
 
-      await expect(surface.locator('table')).toHaveCount(2)
+      await expect(surface.locator('table')).toHaveCount(4)
       await expect(popup).toHaveCount(0)
       // The trigger text is consumed, not left behind as a literal "/tab".
       await expect(surface).not.toContainText('/tab')
