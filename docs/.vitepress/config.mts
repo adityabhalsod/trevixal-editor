@@ -63,6 +63,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/using/' },
           { text: 'A tour of the editor', link: '/using/tour' },
+          { text: 'Screenshot gallery', link: '/using/screenshots' },
           { text: 'Files', link: '/using/files' },
           { text: 'Long documents', link: '/using/structure' },
           { text: 'Formatting tools', link: '/using/formatting' },

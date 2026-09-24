@@ -8,6 +8,7 @@ them, whether that is the [demo on this site](../full-editor),
 `@trevixal/ui`, which shares every menu and shortcut described here.
 
 - **[A tour of the editor](./tour)**: the menubar, toolbar, popups, palette, panels, review bar and status bar
+- **[Screenshot gallery](./screenshots)**: the editor at work, feature by feature
 - **[Files](./files)**: saving, opening, importing, downloading, printing, and what an export carries
 - **[Long documents](./structure)**: heading numbers, captions, cross-references, an index, notes, line numbers and right-to-left text
 - **[Formatting tools](./formatting)**: named styles, AutoFormat and AutoCorrect, drop caps, text columns, hyphenation, borders and shading, tab stops

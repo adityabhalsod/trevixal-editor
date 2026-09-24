@@ -4,7 +4,8 @@ The tools a report, a thesis or a contract needs once it outgrows a page or
 two: numbered headings, numbered captions, references that keep up with the
 numbers, lists of figures, an index, notes, line numbers and right-to-left
 text. Each works the way Word's does, and in a `.docx` each is Word's own
-wherever Word has one: the notes are the exception, and go as text.
+wherever Word has one: the notes are the exception, and go as text. The
+[screenshot gallery](./screenshots#long-documents) shows each of them.
 
 ## Heading numbers
 

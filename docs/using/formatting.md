@@ -4,7 +4,8 @@ Word's formatting beyond bold and italic: named styles and a Styles pane,
 AutoFormat and AutoCorrect as you type, drop caps, text columns, hyphenation,
 widow and orphan control, paragraph borders and shading, and tab stops with
 leaders. Each works the way Word's does. Each prints as it shows on screen,
-and in a `.docx` each is Word's own.
+and in a `.docx` each is Word's own. The
+[screenshot gallery](./screenshots#formatting-tools) shows each of them.
 
 ## Named styles and the Styles pane
 

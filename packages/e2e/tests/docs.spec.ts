@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
@@ -127,6 +127,57 @@ test.describe('documentation site', () => {
         expect(response?.status(), path).toBe(200)
         await expect(page.locator('h1').first(), path).toContainText(heading)
       }
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('the screenshot gallery shows every screenshot, and each one full size', async ({
+    page,
+  }) => {
+    const files = readdirSync(join(site, 'screenshots')).filter((file) => file.endsWith('.png'))
+    const server = await serveDist(site)
+    try {
+      await page.goto(`${server.origin}/using/screenshots.html`)
+      // Every screenshot the folder serves is in the gallery, and each loads.
+      const thumbs = page.locator('.screenshot-gallery__thumb')
+      await expect(thumbs).toHaveCount(files.length)
+      const shown = await page
+        .locator('.screenshot-gallery__thumb img')
+        .evaluateAll((images) => images.map((image) => image.getAttribute('src') ?? ''))
+      expect(shown.map((src) => src.replace('/screenshots/', '')).sort()).toEqual([...files].sort())
+      for (const src of shown) {
+        expect((await page.request.get(`${server.origin}${src}`)).status(), src).toBe(200)
+      }
+
+      // A thumbnail opens its screenshot in the viewer, and the arrow keys go
+      // round the group, the first to the last.
+      const viewer = page.locator('.screenshot-viewer').first()
+      const count = viewer.locator('.screenshot-viewer__count')
+      await thumbs.first().click()
+      await expect(viewer).toHaveAttribute('open', '')
+      await expect(count).toHaveText('1 of 23')
+      const image = viewer.locator('.screenshot-viewer__image')
+      await expect(image).toHaveAttribute('src', '/screenshots/01-report-overview.png')
+      await expect
+        .poll(() => image.evaluate((img) => (img as HTMLImageElement).naturalWidth))
+        .toBe(1440)
+      await page.keyboard.press('ArrowRight')
+      await expect(count).toHaveText('2 of 23')
+      await page.keyboard.press('ArrowLeft')
+      await page.keyboard.press('ArrowLeft')
+      await expect(count).toHaveText('23 of 23')
+
+      // Escape closes it, and the focus goes back to the thumbnail it came from.
+      await page.keyboard.press('Escape')
+      await expect(viewer).not.toHaveAttribute('open', '')
+      await expect(thumbs.first()).toBeFocused()
+
+      // So does a click on the dimmed page around it.
+      await thumbs.nth(1).click()
+      await expect(viewer).toHaveAttribute('open', '')
+      await page.mouse.click(4, 4)
+      await expect(viewer).not.toHaveAttribute('open', '')
     } finally {
       await server.close()
     }

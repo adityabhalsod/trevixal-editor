@@ -149,3 +149,139 @@ body.trevixal {
   font-size: 0.75rem;
   line-height: 1.5;
 }
+
+/* The screenshot gallery: thumbnails in a grid, one at a time full size in a
+   viewer. It sits in the page's markdown, so `.vp-doc` list, paragraph and
+   link rules reach it; the selectors that must beat them carry `.vp-doc` too. */
+.vp-doc .screenshot-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.vp-doc .screenshot-gallery__grid li {
+  margin: 0;
+}
+
+.screenshot-gallery__thumb {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  cursor: zoom-in;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.screenshot-gallery__thumb:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--vp-shadow-2);
+}
+
+.screenshot-gallery__thumb:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
+/* Every tile the same shape, cropped from the top left, where the menus are. */
+.screenshot-gallery__thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1440 / 1000;
+  object-fit: cover;
+  object-position: left top;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.screenshot-gallery__caption {
+  padding: 0.5rem 0.75rem 0.6rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--vp-c-text-1);
+}
+
+.screenshot-gallery__number {
+  margin-right: 0.3rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--vp-c-text-3);
+}
+
+/* The viewer: the page dimmed behind one screenshot, as large as fits. */
+.screenshot-viewer {
+  width: min(96vw, 1440px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  box-shadow: var(--vp-shadow-5);
+}
+
+.screenshot-viewer::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.screenshot-viewer__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 8rem);
+  object-fit: contain;
+  background: var(--vp-c-bg-soft);
+}
+
+.screenshot-viewer__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.9rem;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.vp-doc .screenshot-viewer__caption {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.screenshot-viewer__count {
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--vp-c-text-2);
+}
+
+.screenshot-viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.vp-doc .screenshot-viewer__actions :is(button, a) {
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.vp-doc .screenshot-viewer__actions :is(button, a):hover {
+  border-color: var(--vp-c-brand-1);
+}
