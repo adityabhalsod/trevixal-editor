@@ -31,8 +31,16 @@ async function clearDocument(page: Page): Promise<void> {
   // has always carried. Checking here turns that into a failure that says what
   // went wrong. It only ever showed up under WebKit, which boots slowly enough
   // to widen the gap.
+  //
+  // The click goes to the start of the first paragraph, not the middle of the
+  // surface. The middle of a document this long is wherever its layout puts
+  // it, on Firefox a gap beside a link card, and the keys that followed raced
+  // the caret that click was still placing.
   await expect(surface.locator('h1')).toHaveText('Trevixal')
-  await surface.click()
+  await surface
+    .locator('> p')
+    .first()
+    .click({ position: { x: 4, y: 6 } })
   await expect(surface).toBeFocused()
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Backspace')

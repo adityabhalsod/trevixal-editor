@@ -139,7 +139,19 @@ test('the command palette leaves the page where it found it', async ({ page }) =
   const server = await serveDist(distDir)
   try {
     await page.goto(server.origin)
-    await page.locator('#editor .trevixal-content').click()
+    // The start of the first paragraph, not the middle of the surface: the
+    // middle of a document this long is wherever its layout puts it, on
+    // Firefox a gap beside a link card, and the keys sent next raced the focus
+    // that click was still handing over.
+    await page
+      .locator('#editor .trevixal-content > p')
+      .first()
+      .click({ position: { x: 4, y: 6 } })
+    await expect
+      .poll(() =>
+        page.evaluate(() => !!document.activeElement?.closest('#editor .trevixal-content')),
+      )
+      .toBe(true)
     const scrollTo = async (y: number) => {
       await page.evaluate((target) => window.scrollTo(0, target), y)
       // Rounded, because a scroll position is not an integer. Firefox lands on

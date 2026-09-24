@@ -7,7 +7,17 @@ const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../../examples
 
 /** Empty the seeded document and turn the one remaining block into a code block. */
 async function freshCodeBlock(page: Page): Promise<void> {
-  await page.locator('#editor .trevixal-content').click()
+  // The start of the first paragraph, not the middle of the surface: the
+  // middle of a document this long is wherever its layout puts it, on Firefox
+  // a gap beside a link card, and a Ctrl+A sent before the focus arrived
+  // selected nothing, so the seeded document survived.
+  await page
+    .locator('#editor .trevixal-content > p')
+    .first()
+    .click({ position: { x: 4, y: 6 } })
+  await expect
+    .poll(() => page.evaluate(() => !!document.activeElement?.closest('#editor .trevixal-content')))
+    .toBe(true)
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Backspace')
   await page.click('[data-trevixal-item="blockFormat"] .trevixal-dropdown__trigger')
