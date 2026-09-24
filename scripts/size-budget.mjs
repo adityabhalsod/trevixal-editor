@@ -24,7 +24,10 @@ const TARGETS = [
     budgetKb: 45,
     note: "the brief's ceiling",
   },
-  { name: '@trevixal/ui', entry: 'packages/ui/dist/index.js', budgetKb: 80 },
+  // Raised from 80 kB with the formatting features (named styles and the
+  // Styles pane, borders and shading, drop caps, tab stops, text columns):
+  // the measured 84.9 kB plus about 10%.
+  { name: '@trevixal/ui', entry: 'packages/ui/dist/index.js', budgetKb: 94 },
   // Raised from 14 kB with heading numbering, captions, the index, line
   // numbers and the block menu: the measured 14.3 kB plus about 10%.
   { name: '@trevixal/ui styles.css', entry: 'packages/ui/dist/styles.css', budgetKb: 16 },
@@ -57,7 +60,10 @@ const TARGETS = [
   {
     name: '<trevixal-editor> (CDN)',
     entry: 'packages/web-component/dist/trevixal-editor.iife.js',
-    budgetKb: 32,
+    // Raised from 32 kB: it inlines the core, which the formatting features
+    // (named styles, paragraph formatting, AutoFormat) grew. The measured
+    // 33.7 kB plus about 10%.
+    budgetKb: 37,
     note: 'already minified',
   },
 ]

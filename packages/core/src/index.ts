@@ -140,12 +140,33 @@ export {
   unwrapList,
 } from './commands/lists'
 export {
+  setColumnRule,
+  setColumns,
   setDocumentAttrs,
   setDocumentDirection,
   setHeadingNumbering,
+  setHyphenation,
   setLineNumbers,
   setTextDirection,
+  setWidowControl,
 } from './commands/document'
+export {
+  characterStyleAt,
+  deleteStyle,
+  newStyleId,
+  paragraphStyleOf,
+  setParagraphStyle,
+  setStyle,
+  type StyleDefinition,
+  toggleCharacterStyle,
+} from './commands/named-styles'
+export {
+  insertTabAtStop,
+  setDropCap,
+  setParagraphBorder,
+  setParagraphShading,
+  setTabStops,
+} from './commands/paragraph-format'
 export {
   type InsertEmailLinkOptions,
   insertEmailLink,
@@ -166,6 +187,14 @@ export {
   type InputRule,
   type InputRuleContext,
 } from './input-rules/input-rules'
+export {
+  applyTypedTextRules,
+  AUTOCORRECT_WORDS,
+  type AutocorrectOptions,
+  autocorrectRule,
+  smartTypographyRules,
+  type TypographyOptions,
+} from './input-rules/typography'
 
 // search & counts
 export {
@@ -255,14 +284,55 @@ export {
   headingNumbers,
 } from './schema/heading-numbering'
 export {
+  columnCount,
   DOCUMENT_ATTRIBUTE,
   documentAttrs,
   documentSettingsAttrs,
   documentSettingsElement,
+  MAX_COLUMNS,
   parseDocumentSettings,
   type TextDirection,
   textDirection,
 } from './schema/document-settings'
+export {
+  BUILT_IN_STYLES,
+  documentStyle,
+  documentStyles,
+  headingLevelOfStyle,
+  type NamedStyle,
+  namedStylesCSS,
+  parseStoredStyles,
+  safeStyleId,
+  sanitizeStyleProps,
+  storedStylesAttr,
+  styleDeclarations,
+  type StyleAlign,
+  type StyleKind,
+  type StyleProps,
+} from './schema/named-styles'
+export {
+  BORDER_SIDES,
+  BORDER_STYLES,
+  type BorderSide,
+  type BorderStyle,
+  DROP_CAP_LINES,
+  type DropCap,
+  type DropCapKind,
+  dropCapOf,
+  MAX_BORDER_WIDTH,
+  type ParagraphBorder,
+  paragraphBorderOf,
+  paragraphShadingOf,
+  DEFAULT_TAB_INTERVAL,
+  formatTabStops,
+  parseTabStops,
+  TAB_ALIGNMENTS,
+  TAB_LEADERS,
+  type TabAlignment,
+  type TabLeader,
+  type TabStop,
+  tabStopsOf,
+} from './schema/paragraph-format'
 
 // view
 export { EditorView, type EditorViewOptions, type NodeViewFactory } from './view/editor-view'

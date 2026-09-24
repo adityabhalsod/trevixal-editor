@@ -222,7 +222,15 @@ subscript · inline code · text highlight · text and background colour · font
 family and size · letter spacing · line height · paragraph spacing (before and
 after, separately) · indentation · alignment (left, centre, right, justify) ·
 small caps · case conversion (`UPPERCASE`, `lowercase`, `Title Case`) · clear
-text formatting, clear all formatting · format painter.
+text formatting, clear all formatting · format painter · named paragraph and
+character styles with a Styles pane (Normal, Title, Subtitle, the headings,
+Emphasis, Strong, your own; change one and everything in it follows) ·
+paragraph borders and shading · drop caps · tab stops with left, centre,
+right and decimal alignment and dot, hyphen or underscore leaders · text
+columns (one to three, with a line between) · hyphenation · widow and orphan
+control. In a `.docx` these are Word's own: real styles in `styles.xml`,
+`w:pBdr`, `w:shd`, `w:framePr`, `w:tabs`, `w:cols`, `w:autoHyphenation` and
+`w:widowControl`.
 
 **Lists and tasks**: bulleted, numbered and task (checkbox) lists · nesting,
 numbered by level as Word does (`1.` then `a.` then `i.`) · a multilevel list
@@ -299,7 +307,10 @@ view (A4, US Letter, US Legal, A5) or continuous · custom toolbar layout.
 exceptions)* · grammar hints · readability (Flesch reading ease and
 Flesch-Kincaid grade) · passive voice · repeated words · long sentences ·
 character, word, sentence and paragraph counts · reading and speaking time ·
-keyword density · a word-count goal with live progress.
+keyword density · a word-count goal with live progress · AutoFormat as you
+type, as Word's (curly quotes and apostrophes, dashes, the ellipsis, ½ ¼ ¾,
+arrows, © ® ™), each change one undo away · AutoCorrect with a list you can
+edit.
 
 **The two exceptions**
 
@@ -919,7 +930,7 @@ The host contracts, as declared in [`editor-ui.ts`](packages/ui/src/editor-ui.ts
 | `diagramCommands` | `DiagramCommands` | `insertDiagram(code?)` |
 | `codeFormatCommands` | from `codeFormatUICommands()` | Format JSON, Format XML, Minify |
 | `fileActions` | `FileActions` | `newDocument`, `openDocument`, `saveDocument`, `downloadAs(format)`, `importDocument`, `exportSelection`, `printPreview`, `exportPDF`, `backups`, `protectDocument`, `documentRestrictions` |
-| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
+| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), AutoFormat (`toggleSmartTypography`, `toggleAutocorrect`, `autocorrectOptions`), `toggleStylesPane`, `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
 | `menus`, `toolbar`, `showMenubar`, `showStatusBar`, `shortcutLabels` | | Replace the menu tree, pass `ToolbarOptions`, hide pieces, print the shortcut manager's labels |
 
 Every piece is also available on its own (`createMenubar`, `createToolbar`,
@@ -1348,6 +1359,7 @@ the code-block set (`typeInPreformatted`, `insertNewlineInPreformatted`,
 ### Input rules, search, counts, history, suggestions, format painter
 
 - `defaultInputRules({ autolink?, inlineCode?, emDash? })`, `applyInputRules`, `InputRule`
+- `smartTypographyRules({ enabled? })` and `autocorrectRule({ words?, enabled?, curlyQuotes? })` with `AUTOCORRECT_WORDS`: Word's AutoFormat and AutoCorrect as you type, added to `inputRules` beside the defaults. They are `after` rules: the character goes in first and the change follows as an undo step of its own (`applyTypedTextRules`)
 - `findMatches(doc, query, { caseSensitive? })`, `replaceMatch`, `replaceAll`, regular-expression search is layered on top by the UI kit's `compileSearch` and `createFindReplace`
 - `wordCount`, `characterCount`, `sentenceCount`, `paragraphCount`
 - `History`, `HistoryEntry`, `HistoryOptions`
@@ -1408,7 +1420,7 @@ Everything below is exported from `@trevixal/ui` ([`index.ts`](packages/ui/src/i
 | --- | --- |
 | Chrome | `createEditorUI`, `createMenubar` + `defaultMenus`, `createToolbar` + `defaultToolbarGroups` + `defaultToolbarItems`, `createStatusBar` |
 | Controls | `createSelectControl`, `createColorControl` (`DEFAULT_SWATCHES`), `createTableGridControl`, `defaultBlockFormats`, `defaultFontFamilies` (Open Sans, System UI, Arial, Georgia, Times New Roman, Courier New, Verdana, Tahoma), `defaultFontSizes` (8-48 pt), `applyBlockFormat`, `blockFormatValue` |
-| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (154 icons) |
+| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (191 icons) |
 | Popups and dialogs | `createSuggestionPopup`, `openDialog`, `openConfirmDialog`, `openInfoDialog`, `openCharacterPicker` (`SPECIAL_CHARACTERS`) |
 | Code | `createCodeLanguageSelect` (floating picker with detection), `createTableToolbar` (floating table controls) |
 | Navigation | `createTableOfContents`, `createDocumentOutline` + `defaultOutlineBlockKinds`, `createFindReplace` + `compileSearch` + `findAll`, `createCommandPalette` + `paletteCommandsFromMenus` + `filterCommands` + `fuzzyScore`, `createHistoryPanel` |
@@ -1899,7 +1911,7 @@ Paste `Ctrl+V` · Paste without formatting · **Change case ▸** UPPERCASE /
 lowercase / Title Case · Find and replace… `Ctrl+F` · Select all `Ctrl+A`
 
 **Insert**: Image… · Link… `Ctrl+K` · Remove link · Horizontal rule · Line
-break `Shift+Enter` · Special character… · Emoji… · Video… · Audio… · Embed a
+break `Shift+Enter` · Special character… · Tab character · Emoji… · Video… · Audio… · Embed a
 link… · Link preview card… · File attachment… · Equation… · Display equation…
 · Diagram · **Callout ▸** Info / Success / Warning / Danger / Note · Toggle
 block · **Columns ▸** 2 / 3 / 4 columns · Card · Timeline · **Tabs ▸** 2 / 3
@@ -1910,12 +1922,14 @@ Index · Page break
 
 **Format**: Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` ·
 Strikethrough · **Formats ▸** Superscript / Subscript / Code / Small caps /
-Highlight · **Paragraph styles ▸** Paragraph / Heading 1-6 / Quote / Code
-block · **Heading numbering ▸** None / 1. 1.1. 1.1.1. / 1. a. i. / 1) a) i) /
+Highlight · Styles pane · **Paragraph styles ▸** Paragraph / Title / Subtitle
+/ Heading 1-6 / Quote / Code block · **Heading numbering ▸** None / 1. 1.1. 1.1.1. / 1. a. i. / 1) a) i) /
 I. A. 1. · **Align ▸** Left / Center / Right / Justify · **Indentation ▸**
 Increase / Decrease · **Text direction ▸** Left to right / Right to left /
-Whole document right to left · Line numbers · **Line height ▸** Default /
-Single / 1.15 / 1.5 / Double
+Whole document right to left · Line numbers · Hyphenation · Widow and orphan
+control · **Text columns ▸** One / Two / Three / Line between · Borders and
+shading… · **Drop cap ▸** None / Dropped / In margin / Drop cap options… ·
+Tabs… · **Line height ▸** Default / Single / 1.15 / 1.5 / Double
 · **Paragraph spacing ▸** before and after none / small / medium / large,
 then space before none / medium / large, then space after none / medium /
 large · **Letter spacing ▸** Normal / Tight / Wide / Wider · **Lists ▸**
@@ -1927,6 +1941,7 @@ contents · Document outline · Source code… · Markdown source… · Edit as
 Markdown · Edit as HTML · Format JSON · Format XML · Minify · Copy code block
 · Document statistics… · Writing goal… · **Check writing ▸** All checks /
 Grammar / Passive voice / Repeated words / Long sentences · Spell check ·
+Smart quotes and symbols · AutoCorrect as you type · AutoCorrect options… ·
 Word count
 
 **Table**: Insert table · Draw table · Eraser · Border painter · Row above ·
@@ -2026,6 +2041,22 @@ math package's rule.
 Each rule can be turned off (`defaultInputRules({ autolink: false, emDash:
 false, inlineCode: false })`), and a rule's effect is a normal edit, so
 `Mod+Z` undoes it.
+
+The full editor also formats as you type, as Word's AutoFormat does, with
+`smartTypographyRules()` and `autocorrectRule()` from core. *Tools ▸ Smart
+quotes and symbols* and *Tools ▸ AutoCorrect as you type* switch them off.
+Each change is an undo step of its own, so `Mod+Z` straight after gives back
+exactly what was typed.
+
+| Type | Get |
+| --- | --- |
+| `"quoted"`, `it's` | “quoted”, it’s |
+| `word - word` | word – word |
+| `...` | … |
+| `1/2`, `1/4`, `3/4` | ½, ¼, ¾ |
+| `->`, `<-`, `=>` | →, ←, ⇒ |
+| `(c)`, `(r)`, `(tm)` | ©, ®, ™ |
+| `teh ` and the other words on the AutoCorrect list | `the `, in the case typed |
 
 ## Slash command and emoji reference
 

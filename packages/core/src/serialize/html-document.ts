@@ -1,4 +1,5 @@
 import type { EditorNode } from '../model/node'
+import { namedStylesCSS } from '../schema/named-styles'
 import { type HTMLSerializeOptions, serializeToHTML } from './html'
 
 export interface HTMLDocumentOptions {
@@ -229,6 +230,11 @@ export function serializeToHTMLDocument(
   }
 
   if (options.theme) head.push(`<style>\n${themeCSS(options.theme)}\n</style>`)
+
+  // The document's named styles, drawn from its own definitions, and after
+  // every other sheet, so a Normal it changed outranks the stylesheet's.
+  const named = namedStylesCSS(doc, '.trevixal .trevixal-content')
+  if (named) head.push(`<style>\n${named.replace(/<\/style>/gi, '<\\/style>')}\n</style>`)
 
   const themed = themeAttributes(options.theme)
   const body: string[] = [

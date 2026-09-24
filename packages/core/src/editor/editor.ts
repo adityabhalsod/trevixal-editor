@@ -28,10 +28,14 @@ import {
   wrapIn,
 } from '../commands/commands'
 import {
+  setColumnRule,
+  setColumns,
   setDocumentDirection,
   setHeadingNumbering,
+  setHyphenation,
   setLineNumbers,
   setTextDirection,
+  setWidowControl,
 } from '../commands/document'
 import {
   continueNumbering,
@@ -47,6 +51,19 @@ import {
   toggleTaskList,
   unwrapList,
 } from '../commands/lists'
+import {
+  type StyleDefinition,
+  deleteStyle,
+  setParagraphStyle,
+  setStyle,
+  toggleCharacterStyle,
+} from '../commands/named-styles'
+import {
+  setDropCap,
+  setParagraphBorder,
+  setParagraphShading,
+  setTabStops,
+} from '../commands/paragraph-format'
 import { ADD_TO_HISTORY, History, type HistoryEntry, type HistoryOptions } from '../history/history'
 import type { InputRule } from '../input-rules/input-rules'
 import { type Attrs, attrsEq } from '../model/attrs'
@@ -60,6 +77,7 @@ import { pos } from '../model/position'
 import type { Schema } from '../model/schema'
 import { type Path, nodeAtPath } from '../model/tree'
 import type { TextDirection } from '../schema/document-settings'
+import type { DropCapKind, ParagraphBorder, TabStop } from '../schema/paragraph-format'
 import { serializeToHTML, serializeToText } from '../serialize/html'
 import { EditorState } from '../state/editor-state'
 import { type Selection, TextSelection, selectionNear } from '../state/selection'
@@ -710,6 +728,66 @@ export class EditorCommands {
   /** The selected blocks' direction; null follows the document's. */
   setTextDirection(dir: TextDirection | null): boolean {
     return this.editor.exec(setTextDirection(dir))
+  }
+
+  /** Break words across lines at their syllables, or stop. */
+  setHyphenation(on: boolean): boolean {
+    return this.editor.exec(setHyphenation(on))
+  }
+
+  /** Keep paragraphs' first and last lines off a page of their own, in print and Word. */
+  setWidowControl(on: boolean): boolean {
+    return this.editor.exec(setWidowControl(on))
+  }
+
+  /** Set the document in newspaper columns, 1 to 3. */
+  setColumns(count: number): boolean {
+    return this.editor.exec(setColumns(count))
+  }
+
+  /** A line between the columns, or none. */
+  setColumnRule(on: boolean): boolean {
+    return this.editor.exec(setColumnRule(on))
+  }
+
+  /** Rule the selected paragraphs with a border; null takes it off. */
+  setParagraphBorder(border: ParagraphBorder | null): boolean {
+    return this.editor.exec(setParagraphBorder(border))
+  }
+
+  /** Fill the selected paragraphs with a colour; null takes it off. */
+  setParagraphShading(color: string | null): boolean {
+    return this.editor.exec(setParagraphShading(color))
+  }
+
+  /** Give the selected paragraphs a drop cap; null takes it off. */
+  setDropCap(kind: DropCapKind | null, lines?: number): boolean {
+    return this.editor.exec(setDropCap(kind, lines))
+  }
+
+  /** Set the selected paragraphs' custom tab stops; null clears them. */
+  setTabStops(stops: readonly TabStop[] | null): boolean {
+    return this.editor.exec(setTabStops(stops))
+  }
+
+  /** Give the selected paragraphs a named paragraph style, by id. */
+  setParagraphStyle(id: string): boolean {
+    return this.editor.exec(setParagraphStyle(id))
+  }
+
+  /** Put the selected text in a named character style, or take it out. */
+  toggleCharacterStyle(id: string): boolean {
+    return this.editor.exec(toggleCharacterStyle(id))
+  }
+
+  /** Define a named style, or change one; everything in it follows. */
+  setStyle(definition: StyleDefinition): boolean {
+    return this.editor.exec(setStyle(definition))
+  }
+
+  /** Delete one of the document's own styles; what was in it goes back to plain. */
+  deleteStyle(id: string): boolean {
+    return this.editor.exec(deleteStyle(id))
   }
 
   restartNumbering(): boolean {

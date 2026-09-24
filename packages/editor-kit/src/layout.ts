@@ -39,6 +39,8 @@ export interface FullEditorLayout {
   readonly outline: HTMLElement
   readonly history: HTMLElement
   readonly workspace: HTMLElement
+  /** Word's Styles pane: every named style, applied and changed there. */
+  readonly styles: HTMLElement
   readonly editor: HTMLElement
   readonly split: HTMLElement
   readonly mirror: HTMLElement
@@ -115,6 +117,7 @@ const PANEL_TITLES: readonly (readonly [string, string])[] = [
   ['outline', 'Outline'],
   ['history', 'History'],
   ['workspace', 'Documents'],
+  ['styles', 'Styles'],
 ]
 
 /** Build the whole skeleton inside `host` and hand back every part of it. */
@@ -201,7 +204,8 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
     host.append(label, output)
   }
 
-  const [toc, outlinePanel, historyPanel, workspacePanel] = panels as [
+  const [toc, outlinePanel, historyPanel, workspacePanel, stylesPanel] = panels as [
+    HTMLElement,
     HTMLElement,
     HTMLElement,
     HTMLElement,
@@ -219,6 +223,7 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
     outline: outlinePanel,
     history: historyPanel,
     workspace: workspacePanel,
+    styles: stylesPanel,
     editor,
     split,
     mirror,

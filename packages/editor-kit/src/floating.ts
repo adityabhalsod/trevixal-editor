@@ -29,6 +29,7 @@ import {
   createLineNumbers,
   createLinkPopover,
   createReferenceNavigation,
+  createTabLayout,
   createTableToolbar,
 } from '@trevixal/ui'
 
@@ -72,6 +73,8 @@ export function createFloatingControls(
   // Ctrl+click to follow a cross-reference or a note marker to its target.
   const lineNumbers = createLineNumbers(editor, { container })
   const references = createReferenceNavigation(editor)
+  // Tabs taken to their paragraph's stops, with their leaders.
+  const tabs = createTabLayout(editor)
 
   return {
     destroy() {
@@ -89,6 +92,7 @@ export function createFloatingControls(
         dragHandle,
         lineNumbers,
         references,
+        tabs,
       ]) {
         part.destroy()
       }

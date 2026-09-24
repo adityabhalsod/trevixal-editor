@@ -1,0 +1,45 @@
+import { type Editor, namedStylesCSS } from '@trevixal/core'
+
+/**
+ * The editor's named styles, drawn: the document's own definitions (a Normal
+ * it changed, styles it made) as a stylesheet scoped to this editing surface
+ * alone, so two editors on a page can each have their own Normal. Redrawn
+ * only when the definitions change; every paragraph in a style follows at
+ * once, since each is drawn by the one rule.
+ */
+
+let scopes = 0
+
+export interface NamedStyleSheet {
+  destroy(): void
+}
+
+export function createNamedStyleSheet(editor: Editor): NamedStyleSheet {
+  const view = editor.view
+  if (!view) return { destroy() {} }
+  const document = view.dom.ownerDocument
+  const scope = String(++scopes)
+  view.dom.setAttribute('data-trevixal-style-scope', scope)
+  const sheet = document.createElement('style')
+  sheet.setAttribute('data-trevixal-named-styles', scope)
+  document.head.appendChild(sheet)
+
+  // Outranks the stylesheet's own look for the built-in styles, whichever loads last.
+  const selector = `.trevixal-content[data-trevixal-style-scope="${scope}"]`
+  let drawn: unknown
+  const draw = (): void => {
+    const styles = editor.state.doc.attrs.styles
+    if (styles === drawn) return
+    drawn = styles
+    sheet.textContent = namedStylesCSS(editor.state.doc, selector)
+  }
+  draw()
+  const stop = editor.on('update', draw)
+  return {
+    destroy() {
+      stop()
+      sheet.remove()
+      view.dom.removeAttribute('data-trevixal-style-scope')
+    },
+  }
+}

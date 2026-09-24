@@ -27,7 +27,7 @@ Case · Find and replace... `Ctrl+F` · Select all `Ctrl+A`
 ## Insert
 
 Image... · Link... `Ctrl+Shift+K` · Remove link · Horizontal rule · Line break
-`Shift+Enter` · Special character... · Emoji... `Ctrl+Shift+Space` · Video... · Audio... · Embed
+`Shift+Enter` · Special character... · Tab character · Emoji... `Ctrl+Shift+Space` · Video... · Audio... · Embed
 a link... · Link preview card... · File attachment... · Equation... · Display
 equation... · Diagram · **Callout >** Info / Success / Warning / Danger / Note
 · Toggle block · **Columns >** 2 / 3 / 4 columns · Card · Timeline · **Tabs >**
@@ -40,13 +40,16 @@ Mark index entry... · Index · Page break
 
 Bold `Ctrl+B` · Italic `Ctrl+I` · Underline `Ctrl+U` · Strikethrough
 `Ctrl+Shift+X` · **Formats >** Superscript / Subscript / Code `Ctrl+E` / Small
-caps / Highlight · **Paragraph styles >** Paragraph `Ctrl+Shift+0`,
-`Ctrl+Alt+0` / Heading 1 to 6 `Ctrl+Shift+1` to `6`, `Ctrl+Alt+1` to `6` /
+caps / Highlight · Styles pane · **Paragraph styles >** Paragraph `Ctrl+Shift+0`,
+`Ctrl+Alt+0` / Title / Subtitle / Heading 1 to 6 `Ctrl+Shift+1` to `6`, `Ctrl+Alt+1` to `6` /
 Quote / Code block · **Heading numbering >** None / 1. 1.1. 1.1.1. / 1. a.
 i. / 1) a) i) / I. A. 1. · **Align >** Left / Center / Right / Justify
 `Ctrl+Shift+L` / `E` / `R` / `J` · **Indentation >** Increase `Ctrl+]` /
 Decrease `Ctrl+[` · **Text direction >** Left to right / Right to left /
-Whole document right to left · Line numbers · **Line height >** Default /
+Whole document right to left · Line numbers · Hyphenation · Widow and orphan
+control · **Text columns >** One / Two / Three / Line between · Borders and
+shading... · **Drop cap >** None / Dropped / In margin / Drop cap options... ·
+Tabs... · **Line height >** Default /
 Single / 1.15 / 1.5 / Double ·
 **Paragraph spacing >** before and after none / small / medium / large, then
 space before none / medium / large, then space after none / medium / large ·
@@ -61,7 +64,8 @@ Find and replace... `Ctrl+F` · Command palette... `Ctrl+K` · Table of
 contents · Document outline · Source code... · Markdown source... · Edit as
 Markdown · Edit as HTML · Format JSON · Format XML · Minify · Copy code block ·
 Document statistics... · Writing goal... · **Check writing >** All checks /
-Grammar / Passive voice / Repeated words / Long sentences · Spell check · Word
+Grammar / Passive voice / Repeated words / Long sentences · Spell check · Smart
+quotes and symbols · AutoCorrect as you type · AutoCorrect options... · Word
 count
 
 ## Table

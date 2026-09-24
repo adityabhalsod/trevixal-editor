@@ -1,7 +1,17 @@
 import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
+import { safeColor, safeFontFamily } from './css-values'
 import { type TextDirection, documentAttrs, textDirection } from './document-settings'
 import { storedNumberingsFor } from './list-numbering'
+import { safeStyleId } from './named-styles'
+import {
+  paragraphFormatAttrs,
+  paragraphFormatCSS,
+  paragraphFormatHTML,
+  parseParagraphFormat,
+} from './paragraph-format'
+
+export { safeColor, safeFontFamily }
 
 const SAFE_PROTOCOLS = /^(?:https?|mailto|tel|ftp):/i
 
@@ -52,42 +62,6 @@ export function safeCSSValue(value: unknown, maxLength = 120): string | null {
   return trimmed
 }
 
-/**
- * A font stack. Quoted family names are allowed, unlike other CSS values,
- * but only as balanced quotes around plain words, never as a way to close
- * the declaration and start another.
- */
-export function safeFontFamily(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (trimmed.length === 0 || trimmed.length > 200) return null
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(trimmed)) return null
-  if (/[<>();{}]|url\(|expression|javascript:|@import/i.test(trimmed)) return null
-  const families = trimmed.split(',').map((family) => family.trim())
-  if (families.length === 0 || families.length > 12) return null
-  return families.every((family) => FONT_FAMILY.test(family)) ? families.join(', ') : null
-}
-
-const FONT_FAMILY = /^("[\w \-]+"|'[\w \-]+'|[\w-]+)$/
-
-/**
- * Named, hex, rgb() and hsl() colors only. Validated against an explicit
- * grammar rather than the general CSS sanitizer, which forbids the
- * parentheses these functional notations need.
- */
-export function safeColor(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (trimmed.length === 0 || trimmed.length > 64) return null
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(trimmed)) return null
-  return COLOR.test(trimmed) ? trimmed : null
-}
-
-const COLOR =
-  /^(#[0-9a-f]{3,8}|[a-z]+|rgba?\( *\d{1,3}%? *(,| ) *\d{1,3}%? *(,| ) *\d{1,3}%? *((,|\/) *[\d.]+%? *)?\)|hsla?\( *[\d.]+(deg|rad|turn)? *(,| ) *[\d.]+%? *(,| ) *[\d.]+%? *((,|\/) *[\d.]+%? *)?\))$/i
-
 /** A CSS length with an explicit unit, or a bare number treated as px. */
 export function safeLength(value: unknown): string | null {
   const css = safeCSSValue(value, 32)
@@ -96,7 +70,7 @@ export function safeLength(value: unknown): string | null {
   return /^\d+(\.\d+)?(px|pt|em|rem|%|vw|vh|ch)$/i.test(css) ? css : null
 }
 
-/** Alignment, indent, vertical-rhythm and direction attrs shared by textblocks. */
+/** Alignment, indent, vertical-rhythm, direction and paragraph-format attrs shared by textblocks. */
 export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
   return {
     align: { default: null },
@@ -106,6 +80,8 @@ export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
     spaceAfter: { default: null },
     // `rtl` or `ltr` against the document's own direction; null follows it.
     dir: { default: null },
+    // Borders and shading, and a drop cap: see paragraph-format.ts.
+    ...paragraphFormatAttrs(),
   }
 }
 
@@ -140,7 +116,7 @@ export function safeElementId(value: unknown): string | null {
   return value
 }
 
-/** Render align/indent/line-height/spacing/direction as sanitized attributes. */
+/** Render align/indent/line-height/spacing/direction/borders/drop cap as sanitized attributes. */
 export function blockLayoutHTML(node: EditorNode): Record<string, string> {
   const declarations: string[] = []
   const align = typeof node.attrs.align === 'string' ? node.attrs.align : null
@@ -156,7 +132,8 @@ export function blockLayoutHTML(node: EditorNode): Record<string, string> {
   if (before) declarations.push(`margin-top: ${before}`)
   const after = safeLength(node.attrs.spaceAfter)
   if (after) declarations.push(`margin-bottom: ${after}`)
-  const attrs: Record<string, string> = {}
+  declarations.push(...paragraphFormatCSS(node.attrs))
+  const attrs: Record<string, string> = { ...paragraphFormatHTML(node.attrs) }
   if (declarations.length > 0) attrs.style = declarations.join('; ')
   const dir = textDirection(node.attrs.dir)
   if (dir) attrs.dir = dir
@@ -191,7 +168,7 @@ export function parseBlockLayout(element: HTMLElement): Record<string, unknown> 
   if (before) attrs.spaceBefore = before
   const after = safeLength(element.style.marginBottom)
   if (after) attrs.spaceAfter = after
-  return attrs
+  return { ...attrs, ...parseParagraphFormat(element) }
 }
 
 /**
@@ -324,10 +301,14 @@ export function defaultNodes(): Record<string, NodeSpec> {
       group: 'block',
       // `id` is what a link to this block points at, as a heading's is. Null
       // until something (the block menu's "Copy link") asks for one.
-      attrs: { id: { default: null }, ...blockLayoutAttrs() },
+      // `paragraphStyle` is the named style it takes (see named-styles.ts),
+      // null for Normal.
+      attrs: { id: { default: null }, paragraphStyle: { default: null }, ...blockLayoutAttrs() },
       toHTML: (node) => {
         const attrs = blockLayoutHTML(node)
         const id = safeElementId(node.attrs.id)
+        const style = safeStyleId(node.attrs.paragraphStyle)
+        if (style && style !== 'normal') attrs['data-paragraph-style'] = style
         return { tag: 'p', attrs: id ? { ...attrs, id } : attrs }
       },
       parseHTML: [
@@ -335,6 +316,7 @@ export function defaultNodes(): Record<string, NodeSpec> {
           tag: 'p',
           getAttrs: (element) => ({
             id: safeElementId(element.getAttribute('id')),
+            paragraphStyle: safeStyleId(element.getAttribute('data-paragraph-style')),
             ...parseBlockLayout(element),
           }),
         },
@@ -632,6 +614,23 @@ export function defaultMarks(): Record<string, MarkSpec> {
           getAttrs: (element) => {
             const color = safeColor(element.style.backgroundColor)
             return color ? { color } : false
+          },
+        },
+      ],
+    },
+    // Text in a named character style (see named-styles.ts).
+    charStyle: {
+      attrs: { id: {} },
+      toHTML: (mark) => ({
+        tag: 'span',
+        attrs: { 'data-char-style': safeStyleId(mark.attrs.id) ?? 'emphasis' },
+      }),
+      parseHTML: [
+        {
+          tag: 'span[data-char-style]',
+          getAttrs: (element) => {
+            const id = safeStyleId(element.getAttribute('data-char-style'))
+            return id ? { id } : false
           },
         },
       ],

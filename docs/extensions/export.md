@@ -73,6 +73,29 @@ numbers are filled in. RTF carries the heading numbers as text, caption
 numbers as `SEQ` fields, the lists as their entries, `\linemod1` and
 `\rtlpar`.
 
+## Formatting tools
+
+Named styles and paragraph formatting go to Word as its own:
+
+| In the editor | In the `.docx` |
+| --- | --- |
+| Named styles | Word styles in `styles.xml`: Normal, Title, Subtitle, the headings, Emphasis, Strong and Subtle Emphasis under Word's own ids with whatever the document changed in them, and the writer's own as custom styles based on Normal; paragraphs point at theirs with `w:pStyle`, runs with `w:rStyle` |
+| Borders and shading | `w:pBdr`, each side as wide as drawn, and `w:shd` |
+| A drop cap | The first letter in a paragraph of its own, framed with `w:framePr w:dropCap` over the lines it drops |
+| Tab stops | `w:tabs`, each stop at its position with its alignment and leader |
+| Text columns | `w:cols` on the section, half an inch apart, with `w:sep` for the line between |
+| Hyphenation | `w:autoHyphenation` in the settings |
+| Widow and orphan control | `w:widowControl` in the document defaults, left out when it is off |
+
+RTF has no style sheet to point at, so each paragraph and run carries its
+style's look: the built-in styles' own look, with the document's changes laid
+over it. Borders are `\brdr` words, a fill `\cbpat`, a drop cap a
+`\dropcapli` frame, tab stops `\tx` with `\tqr`, `\tqc`, `\tqdec` and
+leaders such as `\tldot`, columns `\cols`, hyphenation `\hyphauto1` and
+widow control `\widowctrl`. A fill that shows nothing, such as a transparent
+one a browser writes on a copied block, is left out of both rather than
+painted black.
+
 ## Also exported
 
 The pieces are public, because they were written here and are useful on their

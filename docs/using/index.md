@@ -9,6 +9,8 @@ them, whether that is the [demo on this site](../full-editor),
 
 - **[A tour of the editor](./tour)**: the menubar, toolbar, popups, palette, panels, review bar and status bar
 - **[Files](./files)**: saving, opening, importing, downloading, printing, and what an export carries
+- **[Long documents](./structure)**: heading numbers, captions, cross-references, an index, notes, line numbers and right-to-left text
+- **[Formatting tools](./formatting)**: named styles, AutoFormat and AutoCorrect, drop caps, text columns, hyphenation, borders and shading, tab stops
 - **[Appearance](./appearance)**: themes, presets, custom CSS, fonts, page view, widths, focus and typewriter modes
 - **[Protecting a document](./protection)**: passwords, expiry, restrictions and read-only mode
 - **[Reviewing with tracked changes](./review)**: suggesting mode, accept and reject

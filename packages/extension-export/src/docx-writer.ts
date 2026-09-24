@@ -1,14 +1,25 @@
 import {
+  type BorderStyle,
   DEFAULT_LIST_NUMBERING,
   type EditorNode,
   Fragment,
   type ListNumberingScheme,
   type Mark,
+  type NamedStyle,
   type TextNode,
+  columnCount,
+  documentStyles,
+  dropCapOf,
   headingNumberingOf,
+  inlineLength,
   levelMarker,
   listNumberingOf,
   listStylesFor,
+  paragraphBorderOf,
+  paragraphShadingOf,
+  safeStyleId,
+  sliceInline,
+  tabStopsOf,
   textDirection,
 } from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
@@ -53,6 +64,7 @@ import {
   sequenceName,
   simpleField,
 } from './word-fields'
+import { namedStylesXML, wordStyleId } from './word-styles'
 import { escapeXML } from './xml'
 import { createZip } from './zip'
 
@@ -102,9 +114,6 @@ const MAX_IMAGE_PX = 624
 const DEFAULT_IMAGE_PX = 400
 const CODE_FONT = 'Consolas'
 
-/** Heading sizes in half-points, h1 first. */
-const HEADING_SIZES = [32, 28, 26, 24, 22, 22]
-
 interface Context {
   readonly basePt: number
   readonly rendered: RenderedDocument
@@ -121,6 +130,10 @@ interface Context {
   drawingId: number
   /** The document's direction; a paragraph without one of its own takes it. */
   readonly direction: 'ltr' | 'rtl'
+  /** Word's Automatic hyphenation, a document setting. */
+  readonly hyphenation: boolean
+  /** The document's named styles, the ones a paragraph or a run can point at. */
+  readonly styles: readonly NamedStyle[]
   /** The caption and heading ids a cross-reference can name. */
   readonly references: ReferenceIds
   /** The scheme the document numbers its headings with, if it does. */
@@ -186,6 +199,8 @@ export async function serializeToDOCX(
     rule: palette.border ?? 'auto',
     drawingId: 0,
     direction: textDirection(doc.attrs.direction) === 'rtl' ? 'rtl' : 'ltr',
+    hyphenation: doc.attrs.hyphenation === true,
+    styles: documentStyles(doc),
     references: referenceIds(doc),
     headingScheme: headingNumberingOf(doc),
     headingNum: null,
@@ -203,7 +218,10 @@ export async function serializeToDOCX(
     { name: 'word/document.xml', data: documentPart(body, palette, sectionXML(doc, context)) },
     {
       name: 'word/styles.xml',
-      data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette),
+      data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette, {
+        widowControl: doc.attrs.widowControl !== false,
+        styles: context.styles,
+      }),
     },
     { name: 'word/numbering.xml', data: numberingPart(context) },
     { name: 'word/settings.xml', data: settingsPart(context) },
@@ -340,8 +358,12 @@ function appProperties(): string {
 function sectionXML(doc: EditorNode, context: Context): string {
   const lines =
     doc.attrs.lineNumbers === true ? '<w:lnNumType w:countBy="1" w:restart="continuous"/>' : ''
+  // Newspaper columns, half an inch apart, with Word's line between them when asked.
+  const count = columnCount(doc.attrs.columns)
+  const rule = doc.attrs.columnRule === true ? ' w:sep="1"' : ''
+  const cols = count > 1 ? `<w:cols w:num="${count}" w:space="720"${rule}/>` : ''
   const bidi = context.direction === 'rtl' ? '<w:bidi/>' : ''
-  return `<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>${lines}${bidi}</w:sectPr>`
+  return `<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>${lines}${cols}${bidi}</w:sectPr>`
 }
 
 function documentPart(body: string, palette: DocumentPalette, section: string): string {
@@ -370,7 +392,8 @@ function documentPart(body: string, palette: DocumentPalette, section: string): 
  */
 function settingsPart(context: Context): string {
   const update = context.updateFields ? '<w:updateFields w:val="true"/>' : ''
-  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/>${update}</w:settings>`
+  const hyphenate = context.hyphenation ? '<w:autoHyphenation/>' : ''
+  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/>${hyphenate}${update}</w:settings>`
 }
 
 /**
@@ -378,10 +401,6 @@ function settingsPart(context: Context): string {
  * `w:pStyle` refers to from the body, so Word needs every one defined even
  * when a given document happens not to use it.
  */
-const STYLE_NORMAL =
-  '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-const STYLE_TITLE =
-  '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="240"/><w:contextualSpacing/></w:pPr><w:rPr><w:spacing w:val="-10"/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>'
 function styleQuote(palette: DocumentPalette): string {
   const rule = palette.border ?? 'BFBFBF'
   const ink = palette.muted ?? '404040'
@@ -425,17 +444,14 @@ function styleTableGrid(palette: DocumentPalette): string {
   return `<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:basedOn w:val="TableNormal"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${edges}</w:tblBorders></w:tblPr></w:style>`
 }
 
-function stylesPart(font: string, basePt: number, palette: DocumentPalette): string {
+function stylesPart(
+  font: string,
+  basePt: number,
+  palette: DocumentPalette,
+  options: { readonly widowControl: boolean; readonly styles: readonly NamedStyle[] },
+): string {
   const size = Math.round(basePt * 2)
   const family = escapeXML(font)
-  const heading = (level: number): string => {
-    const hp = HEADING_SIZES[level - 1] ?? 22
-    return (
-      `<w:style w:type="paragraph" w:styleId="Heading${level}"><w:name w:val="heading ${level}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>` +
-      `<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${level === 1 ? 240 : 160}" w:after="80"/><w:outlineLvl w:val="${level - 1}"/></w:pPr>` +
-      `<w:rPr><w:b/><w:bCs/>${level >= 5 ? '<w:i/><w:iCs/>' : ''}<w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/></w:rPr></w:style>`
-    )
-  }
   // Body ink, set once rather than per run: `w:color` on the default run
   // properties is what every style without a colour of its own inherits.
   const ink = palette.text ? `<w:color w:val="${palette.text}"/>` : ''
@@ -444,16 +460,18 @@ function stylesPart(font: string, basePt: number, palette: DocumentPalette): str
     `<w:rFonts w:ascii="${family}" w:hAnsi="${family}" w:eastAsia="${family}" w:cs="${family}"/>`,
     `${ink}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:lang w:val="en-US"/>`,
     '</w:rPr></w:rPrDefault>',
-    '<w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>',
+    // Widow control is Word's default, but only as the Normal template sets it:
+    // left out here, a paragraph's last line could sit alone on a page.
+    `<w:pPrDefault><w:pPr>${options.widowControl ? '<w:widowControl/>' : ''}<w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>`,
     '</w:docDefaults>',
   ].join('')
   return [
     XML_HEADER,
     `<w:styles xmlns:w="${NS.w}">`,
     docDefaults,
-    STYLE_NORMAL,
-    STYLE_TITLE,
-    [1, 2, 3, 4, 5, 6].map(heading).join(''),
+    // Normal, Title, Subtitle, the headings and the character styles, with
+    // whatever the document changed in them, then the writer's own styles.
+    namedStylesXML(options.styles),
     styleQuote(palette),
     styleCode(palette),
     STYLE_LIST_PARAGRAPH,
@@ -736,7 +754,8 @@ function writeBlock(
     case NODE.paragraph: {
       // A caption paragraph (one holding a caption number) takes Word's Caption style.
       const caption = node.content.children.some((child) => child.type.name === 'captionNumber')
-      return [paragraph(node, context, run, caption ? { ...props, style: 'Caption' } : props)]
+      const style = caption ? 'Caption' : (props.style ?? namedParagraphStyle(node, context))
+      return [paragraph(node, context, run, style ? { ...props, style } : props)]
     }
     case NODE.heading:
       return [paragraph(node, context, run, { ...props, style: `Heading${headingLevel(node)}` })]
@@ -796,6 +815,13 @@ function writeBlock(
   }
 }
 
+/** The Word style a paragraph's named style is, when the document has that style. */
+function namedParagraphStyle(node: EditorNode, context: Context): string | undefined {
+  const id = safeStyleId(node.attrs.paragraphStyle)
+  if (!id || id === 'normal') return undefined
+  return context.styles.some((style) => style.id === id) ? wordStyleId(id) : undefined
+}
+
 function paragraph(
   node: EditorNode,
   context: Context,
@@ -803,10 +829,51 @@ function paragraph(
   props: ParagraphProps,
   prefix = '',
 ): string {
+  const dropped = dropCapFrame(node, context)
+  if (dropped) return `${dropped.frame}${paragraph(dropped.rest, context, run, props, prefix)}`
   const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
   const properties = pPr(rtl ? { ...props, bidi: true } : props, node, context)
   const body = paragraphBody(node, context, rtl ? { ...run, rtl: true } : run)
   return `<w:p>${properties}${prefix}${body}</w:p>`
+}
+
+/** How tall one line of body text is, as Word lays it out, in points per point of type. */
+const LINE_SPACING = 1.2
+
+/**
+ * A drop cap as Word writes one: the first letter alone in a paragraph of
+ * its own, framed to drop beside the next `lines` lines of the paragraph, or
+ * to hang in the margin, and sized to span them. The rest of the paragraph
+ * follows it. Null when the paragraph has none or does not start with text.
+ */
+function dropCapFrame(
+  node: EditorNode,
+  context: Context,
+): { frame: string; rest: EditorNode } | null {
+  const dropCap = dropCapOf(node.attrs)
+  const first = node.content.maybeChild(0)
+  if (!dropCap || !first?.isText) return null
+  const text = first.textContent
+  const code = text.charCodeAt(0)
+  const length = code >= 0xd800 && code <= 0xdbff && text.length > 1 ? 2 : 1
+  const letter = text.slice(0, length)
+  if (letter.trim() === '') return null
+  const line = Math.round(context.basePt * LINE_SPACING * 20)
+  // The letter's height, in half-points, is the lines' less the gap under the last.
+  const size = Math.round(dropCap.lines * context.basePt * LINE_SPACING * 0.85 * 2)
+  const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
+  const frame = [
+    '<w:p><w:pPr><w:keepNext/>',
+    `<w:framePr w:dropCap="${dropCap.kind}" w:lines="${dropCap.lines}" w:wrap="around" w:vAnchor="text" w:hAnchor="text"/>`,
+    rtl ? '<w:bidi/>' : '',
+    `<w:spacing w:after="0" w:line="${line * dropCap.lines}" w:lineRule="exact"/></w:pPr>`,
+    textRun(letter, `<w:position w:val="0"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/>`),
+    '</w:p>',
+  ].join('')
+  const rest = node
+    .withAttrs({ ...node.attrs, dropCap: null, dropCapLines: null })
+    .withContent(sliceInline(node.content, length, inlineLength(node.content)))
+  return { frame, rest }
 }
 
 /**
@@ -906,6 +973,51 @@ function indexParagraphs(node: EditorNode, context: Context): string[] {
   })
 }
 
+/** Word's names for the border styles the editor draws. */
+const WORD_BORDER: Readonly<Record<BorderStyle, string>> = {
+  solid: 'single',
+  dashed: 'dashed',
+  dotted: 'dotted',
+  double: 'double',
+}
+
+/**
+ * A paragraph's border as `w:pBdr`: its sides in the schema's order, each as
+ * wide as drawn (eighths of a point: a px is six) and as far from the text as
+ * Word's defaults set it.
+ */
+function paragraphBorderXML(node: EditorNode): string {
+  const border = paragraphBorderOf(node.attrs)
+  if (!border) return ''
+  const rgb = parseColor(border.color)
+  const color = rgb ? toHex(rgb) : 'auto'
+  const size = Math.min(96, Math.max(2, Math.round(border.width * 6)))
+  const edges = (['top', 'left', 'bottom', 'right'] as const)
+    .filter((side) => border.sides.includes(side))
+    .map((side) => {
+      const space = side === 'top' || side === 'bottom' ? 1 : 4
+      return `<w:${side} w:val="${WORD_BORDER[border.style]}" w:sz="${size}" w:space="${space}" w:color="${color}"/>`
+    })
+  return `<w:pBdr>${edges.join('')}</w:pBdr>`
+}
+
+/** A paragraph's custom tab stops as `w:tabs`, each at its position in twips from the margin. */
+function tabsXML(node: EditorNode): string {
+  const stops = tabStopsOf(node.attrs)
+  if (stops.length === 0) return ''
+  const tabs = stops.map((stop) => {
+    const leader = stop.leader === 'none' ? '' : ` w:leader="${stop.leader}"`
+    return `<w:tab w:val="${stop.align}"${leader} w:pos="${Math.round(stop.position * 20)}"/>`
+  })
+  return `<w:tabs>${tabs.join('')}</w:tabs>`
+}
+
+/** A paragraph's fill as `w:shd`. */
+function shadingXML(node: EditorNode): string {
+  const rgb = parseColor(paragraphShadingOf(node.attrs))
+  return rgb ? `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(rgb)}"/>` : ''
+}
+
 const MIRRORED_ALIGN: Readonly<Record<string, string>> = { left: 'right', right: 'left' }
 
 /** Paragraph properties in the order the schema requires. */
@@ -918,7 +1030,11 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   }
   if (props.border) {
     out += '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr>'
+  } else if (node) {
+    out += paragraphBorderXML(node)
   }
+  if (node) out += shadingXML(node)
+  if (node) out += tabsXML(node)
   if (props.bidi) out += '<w:bidi/>'
   if (layout && (layout.spaceBefore !== null || layout.spaceAfter !== null || layout.lineHeight)) {
     let spacing = '<w:spacing'
@@ -1448,7 +1564,17 @@ function runProperties(
   }
 
   let out = ''
+  // One run style: a link's own, or else the named character style it is in.
+  const named = inLink
+    ? null
+    : safeStyleId(marks.find((mark) => mark.type.name === 'charStyle')?.attrs.id)
   if (inLink) out += '<w:rStyle w:val="Hyperlink"/>'
+  else if (
+    named &&
+    context.styles.some((style) => style.id === named && style.kind === 'character')
+  ) {
+    out += `<w:rStyle w:val="${escapeXML(wordStyleId(named))}"/>`
+  }
   if (font) {
     const family = escapeXML(font)
     out += `<w:rFonts w:ascii="${family}" w:hAnsi="${family}" w:cs="${family}"/>`

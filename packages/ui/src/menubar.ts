@@ -3,6 +3,8 @@ import {
   type EditorSnapshot,
   HEADING_NUMBERING_SCHEMES,
   type TextDirection,
+  columnCount,
+  dropCapOf,
   listMarker,
 } from '@trevixal/core'
 import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
@@ -229,6 +231,13 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           run: (editor) => editor.commands.insertHardBreak(),
         },
         { name: 'insertSpecialChar', label: 'Special character…', icon: 'specialChar' },
+        {
+          // Tab types one only in a paragraph with tab stops; this puts one anywhere.
+          name: 'insertTab',
+          label: 'Tab character',
+          icon: 'tabStops',
+          run: (editor) => editor.commands.insertText('\t'),
+        },
         { name: 'insertEmoji', label: 'Emoji…', icon: 'badge' },
         separator('insert-sep-media'),
         { name: 'insertVideo', label: 'Video…', icon: 'image' },
@@ -387,6 +396,8 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           ],
         },
         separator('format-sep-styles'),
+        // Word's Styles pane: every style, applied, changed and made there.
+        { name: 'stylesPane', label: 'Styles pane', icon: 'styles' },
         {
           name: 'paragraphStyles',
           label: 'Paragraph styles',
@@ -397,8 +408,21 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
               label: 'Paragraph',
               icon: 'langPlain',
               run: (editor) => editor.commands.setParagraph(),
-              isActive: (snapshot) => snapshot.blockType === 'paragraph',
+              isActive: (snapshot) =>
+                snapshot.blockType === 'paragraph' && !snapshot.blockAttrs?.paragraphStyle,
             },
+            ...(
+              [
+                ['title', 'Title'],
+                ['subtitle', 'Subtitle'],
+              ] as const
+            ).map(([id, label]) => ({
+              name: `style${label}`,
+              label,
+              icon: 'styles' as IconName,
+              run: (editor: Editor) => editor.commands.setParagraphStyle(id),
+              isActive: (snapshot: EditorSnapshot) => snapshot.blockAttrs?.paragraphStyle === id,
+            })),
             ...([1, 2, 3, 4, 5, 6] as const).map((level) => ({
               name: `styleHeading${level}`,
               label: `Heading ${level}`,
@@ -519,6 +543,88 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
             editor.commands.setLineNumbers(editor.state.doc.attrs.lineNumbers !== true),
           isActive: (snapshot) => snapshot.documentAttrs.lineNumbers === true,
         },
+        {
+          name: 'hyphenation',
+          label: 'Hyphenation',
+          icon: 'hyphenation',
+          run: (editor) =>
+            editor.commands.setHyphenation(editor.state.doc.attrs.hyphenation !== true),
+          isActive: (snapshot) => snapshot.documentAttrs.hyphenation === true,
+        },
+        {
+          // Only a page cuts a paragraph, so this acts in print, a PDF and Word.
+          name: 'widowControl',
+          label: 'Widow and orphan control',
+          icon: 'widowControl',
+          run: (editor) =>
+            editor.commands.setWidowControl(editor.state.doc.attrs.widowControl === false),
+          isActive: (snapshot) => snapshot.documentAttrs.widowControl !== false,
+        },
+        {
+          // Newspaper columns for the whole document, as Word's Columns gallery;
+          // the layout columns are Insert ▸ Columns, blocks side by side.
+          name: 'textColumns',
+          label: 'Text columns',
+          icon: 'columns',
+          items: [
+            ...(
+              [
+                [1, 'One'],
+                [2, 'Two'],
+                [3, 'Three'],
+              ] as const
+            ).map(([count, label]) => ({
+              name: `textColumns-${count}`,
+              label,
+              icon: 'columns' as IconName,
+              run: (editor: Editor) => editor.commands.setColumns(count),
+              isActive: (snapshot: EditorSnapshot) =>
+                columnCount(snapshot.documentAttrs.columns) === count,
+            })),
+            separator('text-columns-sep-rule'),
+            {
+              name: 'textColumnsRule',
+              label: 'Line between',
+              icon: 'columns',
+              run: (editor) =>
+                editor.commands.setColumnRule(editor.state.doc.attrs.columnRule !== true),
+              isActive: (snapshot) => snapshot.documentAttrs.columnRule === true,
+              isEnabled: (snapshot) => columnCount(snapshot.documentAttrs.columns) > 1,
+            },
+          ],
+        },
+        separator('format-sep-paragraph'),
+        // The dialog is the host's: Borders and shading needs the UI's dialogs.
+        { name: 'bordersAndShading', label: 'Borders and shading…', icon: 'borders' },
+        {
+          name: 'dropCap',
+          label: 'Drop cap',
+          icon: 'dropCap',
+          items: [
+            ...(
+              [
+                ['none', 'None'],
+                ['drop', 'Dropped'],
+                ['margin', 'In margin'],
+              ] as const
+            ).map(([kind, label]) => ({
+              name: `dropCap-${kind}`,
+              label,
+              icon: 'dropCap' as IconName,
+              run: (editor: Editor) =>
+                editor.commands.setDropCap(
+                  kind === 'none' ? null : kind,
+                  // The lines it already drops over, when it has one.
+                  dropCapOf(editor.getSnapshot().blockAttrs ?? {})?.lines,
+                ),
+              isActive: (snapshot: EditorSnapshot) =>
+                (dropCapOf(snapshot.blockAttrs ?? {})?.kind ?? 'none') === kind,
+            })),
+            { name: 'dropCapOptions', label: 'Drop cap options…', icon: 'dropCap' },
+          ],
+        },
+        // Word's Tabs dialog: custom stops, each with its alignment and leader.
+        { name: 'tabStops', label: 'Tabs…', icon: 'tabStops' },
         separator('format-sep-spacing'),
         {
           name: 'lineHeightMenu',
@@ -738,6 +844,10 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           ],
         },
         { name: 'spellcheck', label: 'Spell check', icon: 'check' },
+        separator('tools-sep-autoformat'),
+        { name: 'smartTypography', label: 'Smart quotes and symbols', icon: 'quote' },
+        { name: 'autocorrect', label: 'AutoCorrect as you type', icon: 'check' },
+        { name: 'autocorrectOptions', label: 'AutoCorrect options…', icon: 'autocorrect' },
         separator('tools-sep-count'),
         { name: 'wordCount', icon: 'wordCount', label: 'Word count' },
       ],

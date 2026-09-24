@@ -6,6 +6,7 @@ import {
   type Path,
   Schema,
   TextSelection,
+  createEditor,
   defaultMarks,
   defaultNodes,
   pos,
@@ -27,6 +28,7 @@ import {
   splitCell,
   toggleHeaderRow,
 } from '../src/commands'
+import { tableKeymap } from '../src/keymap'
 import { tableNodes } from '../src/schema'
 
 const schema = new Schema({
@@ -266,6 +268,22 @@ describe('navigation', () => {
     state = run(state, goToNextCell(-1))
     expect(state.selection.from.path).toEqual([0, 0, 0, 0])
     expect(goToNextCell(-1)(state)).toBeNull()
+  })
+
+  it('Tab still types a tab in a paragraph with tab stops, and still walks cells in a table', () => {
+    // The table keymap replaces the base Tab wholesale, so it has to carry the
+    // tab-stop link itself.
+    const stopped = schema.node('paragraph', { tabStops: '432 right dot' }, [
+      schema.text('Results'),
+    ])
+    const editor = createEditor({ schema, doc: docOf(stopped, twoByTwo().child(0)) })
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 7))))
+    expect(tableKeymap().Tab?.(editor)).toBe(true)
+    expect(editor.state.doc.child(0).textContent).toBe('Results\t')
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([1, 0, 0, 0], 0))))
+    expect(tableKeymap().Tab?.(editor)).toBe(true)
+    expect(editor.state.selection.from.path).toEqual([1, 0, 1, 0])
+    editor.destroy()
   })
 
   it('returns null outside tables', () => {

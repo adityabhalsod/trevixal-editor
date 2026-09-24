@@ -82,6 +82,9 @@ export {
   measureLines,
   numberLinesIn,
 } from './line-numbers'
+export { createTabLayout, layoutTabsIn, type TabLayout } from './tab-layout'
+export { createNamedStyleSheet, type NamedStyleSheet } from './named-style-sheet'
+export { createStylesPane, type StylesPane, type StylesPaneOptions } from './styles-pane'
 export {
   createReferenceNavigation,
   type ReferenceNavigation,

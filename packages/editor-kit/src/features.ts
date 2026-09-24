@@ -51,6 +51,12 @@ export interface Preferences {
   paletteRecent?: readonly string[]
   customCSS?: string
   goal?: number
+  /** Curly quotes, dashes and symbols as you type; on unless turned off. */
+  smartTypography?: boolean
+  /** Misspellings put right as you type; on unless turned off. */
+  autocorrect?: boolean
+  /** The AutoCorrect list once edited, in place of the built-in one. */
+  autocorrectWords?: Readonly<Record<string, string>>
 }
 
 const DEFAULTS: Preferences = { theme: 'system', preset: null }

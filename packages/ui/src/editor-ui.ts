@@ -21,6 +21,8 @@ import { printDocument } from './documents'
 import { type FindReplace, createFindReplace } from './find-replace'
 import type { Messages } from './i18n'
 import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
+import { createNamedStyleSheet } from './named-style-sheet'
+import { paragraphFormatEntries } from './paragraph-dialogs'
 import { referenceEntries } from './reference-dialogs'
 import type { ShortcutLabels } from './shortcuts'
 import { parseMarkdownSource } from './source-mode'
@@ -235,6 +237,9 @@ export type ViewToggle =
   | 'readOnly'
   | 'trackChanges'
   | 'writingAssistant'
+  | 'smartTypography'
+  | 'autocorrect'
+  | 'stylesPane'
 
 /** Every toggle {@link ViewActions.isViewToggleOn} can be asked about. */
 export const VIEW_TOGGLES: readonly ViewToggle[] = [
@@ -251,6 +256,9 @@ export const VIEW_TOGGLES: readonly ViewToggle[] = [
   'readOnly',
   'trackChanges',
   'writingAssistant',
+  'smartTypography',
+  'autocorrect',
+  'stylesPane',
 ]
 
 export interface ViewActions {
@@ -288,6 +296,14 @@ export interface ViewActions {
   /** Whether a check is on, so its menu entry shows a check mark. */
   readonly isWritingCheckEnabled?: (kind: WritingCheckKind) => boolean
   readonly toggleSpellcheck?: () => void
+  /** Curly quotes, dashes and symbols as you type (Word's AutoFormat), on or off. */
+  readonly toggleSmartTypography?: () => void
+  /** Misspellings put right as you type (Word's AutoCorrect), on or off. */
+  readonly toggleAutocorrect?: () => void
+  /** Edit the AutoCorrect list. */
+  readonly autocorrectOptions?: () => void
+  /** Show or hide the Styles pane, which the host lays out. */
+  readonly toggleStylesPane?: () => void
   /** Whether spell checking is on, so its menu entry reports the state it toggles. */
   readonly isSpellcheckEnabled?: () => boolean
   readonly customizeToolbar?: () => void
@@ -398,6 +414,9 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
   }
   syncDirection()
   const stopSyncingDirection = editor.on('update', syncDirection)
+  // The document's named styles, drawn on this surface: a Normal it changed,
+  // styles of its own.
+  const namedStyles = createNamedStyleSheet(editor)
 
   options.container.appendChild(root)
   return {
@@ -418,6 +437,7 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     },
     destroy() {
       stopSyncingDirection()
+      namedStyles.destroy()
       findReplace?.destroy()
       statusBar?.destroy()
       toolbar.destroy()
@@ -545,6 +565,8 @@ function createActions(
       if (character) target.commands.insertText(character)
     })
   })
+  // Format ▸ Borders and shading…, Format ▸ Drop cap ▸ Drop cap options…
+  for (const [name, run] of paragraphFormatEntries(document)) byName.set(name, run)
   byName.set('sourceCode', (target) => {
     void openDialog({
       document,
@@ -802,6 +824,10 @@ function createActions(
       ['writingGoal', view.setWritingGoal],
       ['writingAssistant', view.toggleWritingAssistant],
       ['spellcheck', view.toggleSpellcheck],
+      ['smartTypography', view.toggleSmartTypography],
+      ['autocorrect', view.toggleAutocorrect],
+      ['autocorrectOptions', view.autocorrectOptions],
+      ['stylesPane', view.toggleStylesPane],
       ['customizeToolbar', view.customizeToolbar],
       ['keyboardShortcuts', view.showKeyboardShortcuts],
       ['about', view.showAbout],

@@ -13,7 +13,7 @@ These come from the engine's base keymap and work in any editor built on
 | --- | --- |
 | `Mod+B` / `Mod+I` / `Mod+U` / `Mod+E` | Bold / italic / underline / inline code |
 | `Mod+Z`, `Mod+Shift+Z`, `Mod+Y` | Undo, redo, redo |
-| `Tab` / `Shift+Tab` | In a code block: indent / outdent two spaces. In a list: nest / un-nest. Otherwise the browser moves focus |
+| `Tab` / `Shift+Tab` | In a code block: indent / outdent two spaces. In a list: nest / un-nest. In a paragraph with [tab stops](./formatting#tab-stops) of its own, `Tab` types a tab. Otherwise the browser moves focus |
 | `Mod+Enter` | Leave a code block from anywhere inside it |
 | `Mod+Shift+V` | Paste without formatting |
 | `Enter`, `Backspace`, `Delete` | Handled through `beforeinput`: split, join, delete. A second `Enter` on an empty line leaves a code block; inside code, `Enter` keeps indentation and opens a bracket pair onto its own lines |

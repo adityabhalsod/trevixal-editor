@@ -355,6 +355,114 @@ $heading-schemes: (
   }
 }
 
+// ---- hyphenation, widows and orphans --------------------------------------------
+// Document settings. Hyphenation breaks words at their syllables in the
+// language the page declares. Widows and orphans only mean anything where the
+// text is cut into pages: a print, a PDF. Browsers keep two lines together by
+// default, as Word's widow control does, so only turning it off is written out.
+@include document-setting('[data-hyphenation]') {
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+
+@include document-setting("[data-widow-control='off']") {
+  widows: 1;
+  orphans: 1;
+}
+
+// ---- text columns -----------------------------------------------------------------
+// Newspaper columns, a document setting: the text runs down one column and on
+// into the next, with Word's gap between them, and its line when asked for.
+@for $count from 2 through 3 {
+  @include document-setting("[data-columns='#{$count}']") {
+    column-count: $count;
+    column-gap: 2.5em;
+  }
+}
+
+@include document-setting('[data-column-rule]') {
+  column-rule: 1px solid t.token('color-border');
+}
+
+// ---- named styles ------------------------------------------------------------------
+// The built-in styles' own look. What a document changes in them, and styles
+// of its own, come in a stylesheet drawn from its definitions (named-styles.ts),
+// scoped to the surface or the saved page so it outranks these.
+// As Word's own: large, light and drawn close, not bold.
+.trevixal-content p[data-paragraph-style='title'] {
+  margin: 0 0 0.4em;
+  font-size: 2.25em;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.trevixal-content p[data-paragraph-style='subtitle'] {
+  margin: 0 0 0.8em;
+  color: t.token('color-text-muted');
+  font-size: 1.3em;
+}
+
+.trevixal-content [data-char-style='emphasis'] {
+  font-style: italic;
+}
+
+.trevixal-content [data-char-style='strong'] {
+  font-weight: 700;
+}
+
+.trevixal-content [data-char-style='subtleEmphasis'] {
+  color: t.token('color-text-muted');
+  font-style: italic;
+}
+
+// ---- tabs ------------------------------------------------------------------------
+// A tab character in a box of its own, sized by the layout to reach its stop
+// (see tab-layout.ts), with a leader across the gap when the stop has one.
+// Leaders are backgrounds, which a print drops unless told to keep them.
+.trevixal-content .trevixal-tab {
+  display: inline-block;
+  white-space: pre;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+
+  &[data-leader='dot'] {
+    background: radial-gradient(circle, currentColor 0.06em, transparent 0.08em) left bottom 0.28em / 0.4em 0.4em repeat-x;
+  }
+
+  &[data-leader='hyphen'] {
+    background: repeating-linear-gradient(to right, currentColor 0 0.35em, transparent 0.35em 0.6em) left bottom 0.45em / 100% 1px no-repeat;
+  }
+
+  &[data-leader='underscore'] {
+    background: linear-gradient(currentColor, currentColor) left bottom 0.2em / 100% 1px no-repeat;
+  }
+}
+
+// ---- drop caps --------------------------------------------------------------------
+// The paragraph's first letter, as tall as the lines it drops over and floated
+// at their start: dropped into the text, or hung out in the margin beside it.
+// Sized in the paragraph's own line height, so the letter spans whole lines.
+.trevixal-content [data-drop-cap]::first-letter {
+  float: inline-start;
+  margin-block-start: 0.06em;
+  margin-inline-end: 0.08em;
+  font-size: calc(3 * #{t.token('line-height')} * 1em);
+  line-height: 1;
+}
+
+@for $lines from 2 through 5 {
+  .trevixal-content [data-drop-cap-lines='#{$lines}']::first-letter {
+    font-size: calc(#{$lines} * #{t.token('line-height')} * 1em);
+  }
+}
+
+// In the margin: the letter's own width out past the start of the text.
+.trevixal-content [data-drop-cap='margin']::first-letter {
+  margin-inline-start: -0.78em;
+  margin-inline-end: 0.12em;
+}
+
 // ---- index entries -------------------------------------------------------------
 // Words marked for the index are underlined while editing, so a writer can
 // see what is filed, and nowhere else: a saved page or a print has no

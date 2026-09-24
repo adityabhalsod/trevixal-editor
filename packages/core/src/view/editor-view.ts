@@ -20,7 +20,9 @@ import {
 import { linkifyText } from '../commands/links'
 import { setTaskChecked, splitListItem } from '../commands/lists'
 import type { Editor } from '../editor/editor'
+import { NEW_HISTORY_GROUP } from '../history/history'
 import { type InputRule, applyInputRules, defaultInputRules } from '../input-rules/input-rules'
+import { applyTypedTextRules } from '../input-rules/typography'
 import { blocksInRange } from '../model/blocks'
 import { Fragment } from '../model/fragment'
 import {
@@ -612,7 +614,15 @@ export class EditorView {
           break
         }
         // In a code block, brackets and quotes pair up the way a code editor's do.
+        const before = this.editor.state.doc
         consume(chainCommands(typeInPreformatted(text), insertText(text)))
+        // Then AutoFormat on what went in (a length limit may refuse it): quotes
+        // curled, a word corrected. A step of its own, so an undo straight
+        // after gives back exactly what was typed.
+        if (text.length === 1 && this.editor.state.doc !== before) {
+          const typedTr = applyTypedTextRules(this.editor.state, this.inputRules)
+          if (typedTr) this.editor.dispatch(typedTr.setMeta(NEW_HISTORY_GROUP, true))
+        }
         break
       }
       case 'insertParagraph':

@@ -1,3 +1,5 @@
+import { layoutTabsIn } from './tab-layout'
+
 /**
  * The behaviour a saved page needs to match the editor it was saved from.
  *
@@ -198,5 +200,15 @@ export function documentBehaviourScript(): string {
   // it. A second copy is a copy that drifts, and the two would drift in the
   // worst possible way: the preview and the saved file disagreeing about what
   // the same tab strip does.
-  return `(${applyDocumentBehaviour.toString()})(document)`
+  // The tabs, taken to their stops once the page is laid out, and again when
+  // its fonts arrive and every line changes length, or the window resizes and
+  // the lines wrap anew. First, and closed with a semicolon: source that
+  // starts with a bracket otherwise continues the last.
+  const tabs = `(function (layout) {
+    var run = function () { var root = document.querySelector('.trevixal-content'); if (root) layout(root, true) }
+    if (document.readyState === 'complete') run(); else window.addEventListener('load', run)
+    if (document.fonts) document.fonts.ready.then(run)
+    window.addEventListener('resize', run)
+  })(${layoutTabsIn.toString()});`
+  return `${tabs}\n(${applyDocumentBehaviour.toString()})(document)`
 }

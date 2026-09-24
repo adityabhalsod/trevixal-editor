@@ -135,4 +135,23 @@ describe('documentBehaviourScript', () => {
     }
     expect(source.endsWith('(document)')).toBe(true)
   })
+
+  it('puts a saved page’s tabs in boxes of their own, for the layout to size', () => {
+    document.body.innerHTML =
+      '<div class="trevixal-content"><p data-tab-stops="432 right dot">Results\t12</p><pre>a\tb</pre></div>'
+    new Function(documentBehaviourScript())()
+    // Laid out once the page has loaded, as a saved page is.
+    window.dispatchEvent(new Event('load'))
+    const tabs = document.querySelectorAll<HTMLElement>('.trevixal-tab')
+    expect(tabs).toHaveLength(1)
+    expect(tabs[0]?.textContent).toBe('\t')
+    // Code keeps its own tabs.
+    expect(document.querySelector('pre')?.textContent).toBe('a\tb')
+    // Laid out again when the window resizes, and its lines may wrap anew.
+    const width = tabs[0]?.style.getPropertyValue('tab-size')
+    expect(width).toMatch(/px$/)
+    tabs[0]?.style.setProperty('tab-size', '1px')
+    window.dispatchEvent(new Event('resize'))
+    expect(tabs[0]?.style.getPropertyValue('tab-size')).toBe(width)
+  })
 })

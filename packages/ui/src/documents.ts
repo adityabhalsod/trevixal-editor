@@ -24,6 +24,7 @@ import {
 } from './export-render'
 import { documentBehaviourScript } from './export-script'
 import { numberLinesIn } from './line-numbers'
+import { layoutTabsIn } from './tab-layout'
 import { type ThemeSnapshot, readThemeSnapshot } from './theming'
 
 /**
@@ -401,19 +402,23 @@ export interface PrintOptions {
 }
 
 /**
- * The printed text's width when its lines are numbered: A4 less 20 mm margins,
- * which fits Letter too. A print is laid out afresh at whatever width the
- * page gives it, so line numbers measured at any other width would count
- * lines the paper does not have. Fixing both is what makes them agree.
+ * The printed text's width when the print is measured before it prints (its
+ * lines numbered, its tabs set at their stops): A4 less 20 mm margins, which
+ * fits Letter too. A print is laid out afresh at whatever width the page
+ * gives it, so lines or tabs measured at any other width would not be the
+ * paper's. Fixing both is what makes them agree.
  */
-const LINE_NUMBERED_WIDTH = '170mm'
+const PRINTED_WIDTH = '170mm'
 
 /** Room beside the text for the numbers, inside the printed area: a page's margin clips what is drawn in it. */
 const LINE_NUMBER_GUTTER = '12mm'
 
-const LINE_NUMBERED_PAGE = [
+const MEASURED_PAGE = [
   '@page { margin: 20mm; }',
-  `.trevixal .trevixal-content { box-sizing: border-box !important; width: ${LINE_NUMBERED_WIDTH} !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }`,
+  `.trevixal .trevixal-content { box-sizing: border-box !important; width: ${PRINTED_WIDTH} !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }`,
+].join('\n')
+
+const LINE_NUMBERED_PAGE = [
   // The settings' element carries the direction, so the gutter is on the side the text starts from.
   `.trevixal .trevixal-content > [data-trevixal-document] { padding-inline-start: ${LINE_NUMBER_GUTTER} !important; }`,
   // Each number hangs off the first character of its line (see `numberLinesIn`), out in the gutter.
@@ -428,10 +433,20 @@ function numbersLines(editor: Editor): boolean {
   return editor.state.doc.attrs.lineNumbers === true
 }
 
-/** Number the lines of a loaded print frame, at the width its print will have. */
-function numberFrameLines(frame: HTMLIFrameElement): void {
+/** Whether a print is measured before it prints, so it has to be at the printed width: lines to number, or tabs to set. */
+function measuresPrint(editor: Editor): boolean {
+  return numbersLines(editor) || editor.state.doc.textContent.includes('\t')
+}
+
+/**
+ * Lay out a loaded print frame as its print will be: its tabs at their stops,
+ * then, when the document numbers them, its lines, at the printed width.
+ */
+function layoutFrame(frame: HTMLIFrameElement, lineNumbers: boolean): void {
   const content = frame.contentDocument?.querySelector<HTMLElement>('.trevixal-content')
-  if (content) numberLinesIn(content)
+  if (!content) return
+  layoutTabsIn(content, true)
+  if (lineNumbers) numberLinesIn(content)
 }
 
 /** The standalone HTML a print job or preview renders. */
@@ -440,9 +455,13 @@ export function printableHTML(editor: Editor, options: PrintOptions = {}): strin
   // a bitmap: printing happens inside a click and cannot be asynchronous.
   const rendered = captureRenderedBlocks(editor)
   const styles = options.styles?.()
+  const page = [
+    measuresPrint(editor) ? MEASURED_PAGE : '',
+    numbersLines(editor) ? LINE_NUMBERED_PAGE : '',
+  ].filter(Boolean)
   return serializeToHTMLDocument(editor.state.doc, {
     title: options.title ?? documentTitle(editor.state.doc),
-    inlineCSS: numbersLines(editor) ? `${styles ?? ''}\n${LINE_NUMBERED_PAGE}` : styles,
+    inlineCSS: page.length > 0 ? [styles ?? '', ...page].join('\n') : styles,
     ...(rendered.size > 0 ? { renderNode: renderedNodeHTML(rendered) } : {}),
     // A print preview showing white while the editor behind it is dark reads
     // as the preview being broken, and "Export as PDF" is this same page.
@@ -469,10 +488,10 @@ export function printDocument(
   frame.style.border = '0'
   frame.style.opacity = '0'
   const lineNumbers = numbersLines(editor)
-  if (lineNumbers) {
-    // Laid out at the printed width, off to one side, so the lines measured
-    // here are the lines the paper gets.
-    frame.style.width = LINE_NUMBERED_WIDTH
+  if (measuresPrint(editor)) {
+    // Laid out at the printed width, off to one side, so the lines and tabs
+    // measured here are the ones the paper gets.
+    frame.style.width = PRINTED_WIDTH
     frame.style.height = '100px'
     frame.style.left = '-10000px'
     frame.style.pointerEvents = 'none'
@@ -480,7 +499,7 @@ export function printDocument(
   frame.srcdoc = printableHTML(editor, options)
   frame.addEventListener('load', () => {
     try {
-      if (lineNumbers) numberFrameLines(frame)
+      layoutFrame(frame, lineNumbers)
       frame.contentWindow?.focus()
       frame.contentWindow?.print()
     } catch {
@@ -516,7 +535,8 @@ export function openPrintPreview(
   frame.title = 'Print preview'
   frame.setAttribute('sandbox', 'allow-same-origin allow-modals')
   frame.srcdoc = printableHTML(editor, options)
-  if (numbersLines(editor)) frame.addEventListener('load', () => numberFrameLines(frame))
+  const lineNumbers = numbersLines(editor)
+  frame.addEventListener('load', () => layoutFrame(frame, lineNumbers))
 
   const actions = document.createElement('div')
   actions.className = 'trevixal-dialog__actions'

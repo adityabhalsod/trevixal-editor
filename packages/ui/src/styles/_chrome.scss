@@ -646,6 +646,12 @@
     display: flex;
     flex-direction: column;
     gap: t.token('space-1');
+
+    // A field shown only for some choices (`visibleWhen`) is hidden with the
+    // attribute, which the display above would otherwise override.
+    &[hidden] {
+      display: none;
+    }
   }
 
   &__label {

@@ -395,6 +395,14 @@ const PATHS: Readonly<Record<string, string>> = {
   textDirectionRtl: 'M10 4v10M14 4v10M15 4h-5a3 3 0 0 0 0 6h4M20 19H5m3-3-3 3 3 3',
   // A column of line numbers beside the lines they count.
   lineNumbers: 'M9 6h12M9 12h12M9 18h12M4 4.5v3M3.5 11h1.5v2M3.5 17h1.5l-1 2h1',
+  borders: 'M4 4h16v16H4zM8 9h8M8 12h8M8 15h5',
+  dropCap: 'M4 4h6v7H4zM13 5h7M13 9h7M4 14h16M4 18h16',
+  hyphenation: 'M4 7h9M4 12h5M11 12h3M4 17h12M16 7h4',
+  widowControl: 'M4 5h16M4 9h16M4 13h10M6 17h12M4 21h16',
+  autocorrect: 'M4 17l4-10 4 10M5.5 13h5M14 14l3 3 5-6',
+  tabStops: 'M3 12h12M11 8l4 4-4 4M19 6v12M3 19h2M8 19h2M13 19h2',
+  styles: 'M3 18l4.5-12 4.5 12M4.7 14h5.6M15 7h6M15 11h6M15 15h6M15 19h4',
+  edit: 'M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17zM14 7.5l3 3',
   // The block menu's entries.
   turnInto: 'M4 8h13l-3-3m3 3-3 3M20 16H7l3-3m-3 3 3 3',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',

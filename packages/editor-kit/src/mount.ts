@@ -9,13 +9,17 @@
  * builds the page this hangs the parts on.
  */
 import {
+  AUTOCORRECT_WORDS,
   FormatPainter,
+  autocorrectRule,
   createEditor,
+  defaultInputRules,
   describeFormat,
   mergeKeymaps,
   paragraphCount,
   sentenceCount,
   serializeToHTMLDocument,
+  smartTypographyRules,
 } from '@trevixal/core'
 import {
   blockBindings,
@@ -64,6 +68,7 @@ import {
   createFocusMode,
   createFullscreenToggle,
   createShortcutManager,
+  createStylesPane,
   createTableOfContents,
   createTypewriter,
   editorTheme,
@@ -75,6 +80,7 @@ import {
   quickInsertItemsFromMenus,
   setEditorWidth,
 } from '@trevixal/ui'
+import { autocorrectLines, parseAutocorrectLines } from './autocorrect'
 import { initialContent } from './content'
 import {
   askCustomCSS,
@@ -146,6 +152,17 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     // Both bind Enter. Spreading them would keep only the last one, and the
     // other extension would quietly stop answering the key.
     keymap: mergeKeymaps(tableKeymap(), blockKeymap()),
+    // Word's AutoFormat and AutoCorrect as you type, on until Tools turns them
+    // off; each reads the preference on every keystroke, so the switch acts at once.
+    inputRules: [
+      ...defaultInputRules(),
+      ...smartTypographyRules({ enabled: () => preferences.smartTypography !== false }),
+      autocorrectRule({
+        enabled: () => preferences.autocorrect !== false,
+        words: () => preferences.autocorrectWords ?? AUTOCORRECT_WORDS,
+        curlyQuotes: () => preferences.smartTypography !== false,
+      }),
+    ],
     placeholder: options.placeholder ?? 'Write something…',
     onChange: () => {
       renderOutput()
@@ -294,6 +311,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   const contents = createTableOfContents(editor, { container: tocPanel })
   const outline = createDocumentOutline(editor, { container: outlinePanel })
+  // Format ▸ Styles pane: every named style, applied, changed and made there.
+  const stylesPane = createStylesPane(editor, { container: layout.styles })
   const reviewBar = createTrackChangesBar(editor, track, { container: layout.review, author })
 
   // A sub-namespace of its own, not the bare namespace: protecting the
@@ -459,6 +478,32 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     refreshStatus()
   }
 
+  /**
+   * Tools ▸ AutoCorrect options…: the whole list, one entry a line. An edited
+   * list replaces the built-in one; an empty box brings the built-in one back.
+   */
+  async function askAutocorrect(): Promise<void> {
+    const values = await openDialog({
+      document,
+      title: 'AutoCorrect',
+      submitLabel: 'Save',
+      body: 'Each word on the left is replaced by the one on the right as you type.',
+      fields: [
+        {
+          name: 'words',
+          label: 'Replace as you type',
+          type: 'textarea',
+          value: autocorrectLines(preferences.autocorrectWords ?? AUTOCORRECT_WORDS),
+          hint: 'One a line, as typo -> correction. Empty the box for the built-in list.',
+        },
+      ],
+    })
+    editor.view?.focus()
+    if (!values) return
+    const words = (values.words ?? '').trim()
+    remember({ autocorrectWords: words ? parseAutocorrectLines(words) : undefined })
+  }
+
   /** The goal readout beside the autosave status. */
   function refreshStatus(): void {
     const goalHost = layout.goal
@@ -577,6 +622,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       togglePageMode: () => chrome.page.toggle(),
       toggleTableOfContents: () => togglePanel(tocPanel),
       toggleOutline: () => togglePanel(outlinePanel),
+      toggleStylesPane: () => togglePanel(layout.styles),
       toggleHistoryPanel: () => {
         toggleHistory()
         togglePanel(historyPanel)
@@ -609,6 +655,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       },
       toggleWritingCheck: (kind) => writing.setEnabled(kind, !writing.isEnabled(kind)),
       isWritingCheckEnabled: (kind) => writing.isEnabled(kind),
+      toggleSmartTypography: () =>
+        remember({ smartTypography: preferences.smartTypography === false }),
+      toggleAutocorrect: () => remember({ autocorrect: preferences.autocorrect === false }),
+      autocorrectOptions: () => void askAutocorrect(),
       toggleSpellcheck: () => {
         spellcheckOn = !spellcheckOn
         setSpellcheck(editor, spellcheckOn)
@@ -648,6 +698,12 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
             return track.isEnabled
           case 'writingAssistant':
             return writingOn
+          case 'stylesPane':
+            return !layout.styles.hidden
+          case 'smartTypography':
+            return preferences.smartTypography !== false
+          case 'autocorrect':
+            return preferences.autocorrect !== false
           default:
             return false
         }
@@ -764,6 +820,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
         writing,
         contents,
         outline,
+        stylesPane,
         reviewBar,
         floating,
         suggestions.slashPopup,

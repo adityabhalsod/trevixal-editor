@@ -274,7 +274,7 @@ describe('the reference apparatus in RTF', () => {
         schema.node('captionList', { kind: 'figure', entries }),
       ),
     )
-    expect(rtf).toContain('\\rtldoc\\sectd\\linemod1\\linex360\\linecont')
+    expect(rtf).toContain('\\rtldoc\\widowctrl\\sectd\\linemod1\\linex360\\linecont')
     expect(rtf).toContain('\\rtlpar')
     expect(rtf).toContain('1. Intro')
     expect(rtf).toContain('{\\field{\\*\\fldinst SEQ Figure \\\\* ARABIC}{\\fldrslt 1}}')

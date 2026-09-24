@@ -15,6 +15,7 @@ import { createSplitView } from '@trevixal/extension-workspace'
 import {
   captureRenderedBlocks,
   collectDocumentCSS,
+  createNamedStyleSheet,
   documentBehaviourScript,
   editorTheme,
   renderedNodeHTML,
@@ -68,11 +69,14 @@ export function createSplitPanes(context: SplitPanesContext): SplitPanes {
     const offBindings = blockBindings(pane)
     const diagrams = diagram(pane, { render })
     const offFields = installFieldUpdater(pane)
+    // Its own scope for the document's named styles, as the editor's surface has.
+    const namedStyles = createNamedStyleSheet(pane)
     return () => {
       offHighlight()
       offBindings()
       diagrams.destroy()
       offFields()
+      namedStyles.destroy()
     }
   }
 

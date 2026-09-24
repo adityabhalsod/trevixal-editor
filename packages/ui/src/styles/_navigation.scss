@@ -60,6 +60,126 @@
   }
 }
 
+// -------------------------------------------------------------- styles pane
+// Every style, each name drawn in its own look; the ones at the caret pressed.
+
+.trevixal-styles {
+  font-family: t.token('font-family');
+  font-size: 0.875rem;
+  color: t.token('color-text');
+
+  &__heading {
+    margin: t.token('space-2') 0 t.token('space-1');
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__apply {
+    flex: 1;
+    min-width: 0;
+    padding: 3px t.token('space-2');
+    overflow: hidden;
+    color: inherit;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-surface');
+    }
+
+    &[aria-pressed='true'] {
+      background: t.token('color-selection');
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  // The built-in look a name cannot show at list size, hinted at.
+  &__row[data-style-id^='heading'] > &__apply,
+  &__row[data-style-id='strong'] > &__apply {
+    font-weight: 600;
+  }
+
+  &__row[data-style-id='subtitle'] > &__apply,
+  &__row[data-style-id$='mphasis'] > &__apply {
+    font-style: italic;
+  }
+
+  &__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: t.token('color-text-muted');
+    background: transparent;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    cursor: pointer;
+
+    svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    &:hover {
+      color: t.token('color-text');
+      background: t.token('color-surface');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__new {
+    margin-block-start: t.token('space-3');
+    padding: 4px t.token('space-3');
+    color: inherit;
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
 // ------------------------------------------------------------ outline panel
 
 .trevixal-outline {

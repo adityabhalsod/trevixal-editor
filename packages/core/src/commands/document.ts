@@ -1,6 +1,6 @@
 import { type Attrs, attrsEq } from '../model/attrs'
 import { blocksInRange } from '../model/blocks'
-import { type TextDirection, textDirection } from '../schema/document-settings'
+import { type TextDirection, columnCount, textDirection } from '../schema/document-settings'
 import { headingNumberingScheme } from '../schema/heading-numbering'
 import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import type { Command } from './commands'
@@ -38,6 +38,26 @@ export function setDocumentDirection(direction: TextDirection): Command {
 /** Show or hide line numbers in the margin. */
 export function setLineNumbers(on: boolean): Command {
   return setDocumentAttrs({ lineNumbers: on })
+}
+
+/** Break words across lines at their syllables, or stop. */
+export function setHyphenation(on: boolean): Command {
+  return setDocumentAttrs({ hyphenation: on })
+}
+
+/** Keep a paragraph's first and last lines off a page of their own, or let them fall. */
+export function setWidowControl(on: boolean): Command {
+  return setDocumentAttrs({ widowControl: on })
+}
+
+/** Set the document in `count` newspaper columns (1 to 3); 1 is the ordinary page. */
+export function setColumns(count: number): Command {
+  return setDocumentAttrs({ columns: columnCount(count) })
+}
+
+/** Draw a line between the columns, or take it away. */
+export function setColumnRule(on: boolean): Command {
+  return setDocumentAttrs({ columnRule: on })
 }
 
 /**
