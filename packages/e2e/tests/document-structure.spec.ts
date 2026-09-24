@@ -40,6 +40,44 @@ async function caretAtEnd(page: Page, index: number): Promise<void> {
   await page.keyboard.press('End')
 }
 
+/**
+ * The lines of text in the drop-cap paragraph under `root`, and how many of
+ * them have a line number level with them. Run in the page, where the numbers
+ * are a layer beside the text, and in the print, where each hangs inside its
+ * line. The letter is left out, since it spans lines, and so are the digits
+ * of the print's own numbers.
+ */
+function dropCapLines(root: Element): { lines: number; numbered: number } {
+  const document = root.ownerDocument
+  const paragraph = root.querySelector('p[data-drop-cap]')
+  if (!paragraph) return { lines: 0, numbered: 0 }
+  const centres: number[] = []
+  const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT)
+  let letter = true
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement?.closest('.trevixal-line-number')) continue
+    const range = document.createRange()
+    range.setStart(node, letter ? 1 : 0)
+    range.setEnd(node, (node as Text).length)
+    letter = false
+    // Not a zero-width box: an empty range, past a letter the print has split
+    // into a node of its own, still reports one, as tall as the letter.
+    for (const rect of range.getClientRects()) {
+      if (rect.height > 0 && rect.width > 0) centres.push(rect.top + rect.height / 2)
+    }
+  }
+  const lines: number[] = []
+  for (const centre of centres.sort((a, b) => a - b)) {
+    if (lines.length === 0 || centre - (lines[lines.length - 1] ?? 0) > 4) lines.push(centre)
+  }
+  const numbers = [...document.querySelectorAll('.trevixal-line-number')].map((number) => {
+    const box = number.getBoundingClientRect()
+    return box.top + box.height / 2
+  })
+  const numbered = lines.filter((line) => numbers.some((number) => Math.abs(number - line) < 4))
+  return { lines: lines.length, numbered: numbered.length }
+}
+
 test.describe('heading numbers', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(uiPage)
@@ -253,6 +291,119 @@ test.describe('the document-structure features of the built demo', () => {
         expect(number.inGutter).toBe(true)
         expect(number.level).toBeLessThan(4)
       }
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('a drop cap’s lines take a number each, on screen and in the print', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.addInitScript(() => {
+        window.print = () => undefined
+      })
+      await page.goto(server.origin)
+      await runMenuItem(page, 'format', 'lineNumbers')
+      await expect(
+        page.locator('.trevixal-line-numbers .trevixal-line-number').first(),
+      ).toBeVisible()
+
+      // The letter is three lines tall, and each line beside it is a line.
+      // Asked until it holds: the diagram further up draws late, from a CDN,
+      // and the numbers follow the text down a frame after it moves.
+      const surface = page.locator('#editor .trevixal-content')
+      await expect(surface.locator('.trevixal-diagram svg')).toHaveCount(1)
+      await expect
+        .poll(async () => {
+          const onScreen = await surface.evaluate(dropCapLines)
+          return onScreen.lines - onScreen.numbered
+        })
+        .toBe(0)
+      expect((await surface.evaluate(dropCapLines)).lines).toBeGreaterThanOrEqual(3)
+
+      await runMenuItem(page, 'file', 'print')
+      const frame = page.frameLocator('.trevixal-print-frame')
+      await expect(frame.locator('.trevixal-line-number').first()).toHaveText('1')
+      const printed = await frame.locator('.trevixal-content').evaluate(dropCapLines)
+      expect(printed.lines).toBeGreaterThanOrEqual(3)
+      expect(printed.numbered).toBe(printed.lines)
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('the numbers stand right-aligned in a gutter of their own, clear of the page edge and the block grip', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await runMenuItem(page, 'format', 'lineNumbers')
+      await page.locator('#editor .trevixal-content > h1').hover()
+      await expect(page.locator('.trevixal-blockgrip')).toBeVisible()
+      const layout = await page.evaluate(() => {
+        const surface = document.querySelector('#editor .trevixal-content') as HTMLElement
+        const inside = surface.getBoundingClientRect().left + surface.clientLeft
+        const grip = (
+          document.querySelector('.trevixal-blockgrip') as HTMLElement
+        ).getBoundingClientRect()
+        const numbers = [
+          ...document.querySelectorAll('.trevixal-line-numbers .trevixal-line-number'),
+        ].map((number) => number.getBoundingClientRect())
+        const rights = numbers.map((number) => number.right)
+        return {
+          count: numbers.length,
+          fromEdge: Math.min(...numbers.map((number) => number.left)) - inside,
+          spread: Math.max(...rights) - Math.min(...rights),
+          beforeGrip: grip.left - Math.max(...rights),
+        }
+      })
+      expect(layout.count).toBeGreaterThan(5)
+      // Inside the page, where they used to sit on its border.
+      expect(layout.fromEdge).toBeGreaterThanOrEqual(0)
+      // Right-aligned, as a code editor's are, all ending at one edge...
+      expect(layout.spread).toBeLessThan(1)
+      // ...which the grip beside a block does not reach.
+      expect(layout.beforeGrip).toBeGreaterThanOrEqual(0)
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('the number of the line holding the caret is lit, and follows it', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await runMenuItem(page, 'format', 'lineNumbers')
+      const lit = page.locator('.trevixal-line-numbers .trevixal-line-number--active')
+
+      // The start of the first paragraph: the document's second line, after the title.
+      await page
+        .locator('#editor .trevixal-content > p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await expect(lit).toHaveCount(1)
+      await expect(lit).toHaveText('2')
+      // Lit in a colour of its own, the rest all in a quieter one.
+      const colours = await page.evaluate(
+        () =>
+          new Set(
+            [...document.querySelectorAll('.trevixal-line-numbers .trevixal-line-number')].map(
+              (number) => getComputedStyle(number).color,
+            ),
+          ).size,
+      )
+      expect(colours).toBe(2)
+
+      // Down a line, once the surface has focus: a click resolves before a
+      // loaded browser has handed it over, and the key would go to the page.
+      await expect
+        .poll(() =>
+          page.evaluate(() => !!document.activeElement?.closest('#editor .trevixal-content')),
+        )
+        .toBe(true)
+      await page.keyboard.press('ArrowDown')
+      await expect(lit).toHaveText('3')
     } finally {
       await server.close()
     }

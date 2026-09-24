@@ -1084,12 +1084,14 @@
 // ------------------------------------------------------- block drag handle
 // A grip beside the block under the pointer. Space picks the block up, the
 // arrow keys move it, Enter drops it, Escape puts it back.
+$blockgrip-width: 1.2rem;
+
 .trevixal-blockgrip {
   position: absolute;
   z-index: 5;
   display: grid;
   place-items: center;
-  width: 1.2rem;
+  width: $blockgrip-width;
   height: 1.6rem;
   padding: 0;
   color: t.token('color-text-muted');
@@ -1204,6 +1206,21 @@
 // The editor's are drawn in a layer beside the surface; a print's inside the
 // content itself. One rule serves both, and it names `.trevixal` so the print
 // and a saved page collect it with the rest of the editor's CSS.
+//
+// On screen they stand in a gutter, as a code editor's do: right-aligned in a
+// column four digits wide, then room for the grip beside each block, then the
+// text. The gap is the grip, 6px from its block, and 6px more.
+$line-number-column: 2rem;
+$line-number-gap: calc(#{$blockgrip-width} + 12px);
+
+// Page view keeps its page margin, which holds the numbers already: that rule
+// comes later in the stylesheet and is as specific as this one. The width is a
+// property too, for a host whose own rule for the surface's padding wins.
+.trevixal-content[data-line-numbers] {
+  --tvx-line-gutter: calc(#{t.token('space-2')} + #{$line-number-column} + #{$line-number-gap});
+  padding-inline-start: var(--tvx-line-gutter);
+}
+
 .trevixal-line-numbers {
   position: absolute;
   top: 0;
@@ -1215,13 +1232,27 @@
   &[hidden] {
     display: none;
   }
+
+  // Each number is placed at the text's edge, and set off from it here.
+  > .trevixal-line-number {
+    transform: translateX(calc(-100% - #{$line-number-gap}));
+  }
+
+  &[data-side='right'] > .trevixal-line-number {
+    transform: translateX($line-number-gap);
+  }
+
+  // The caret's line, in the text's own colour.
+  > .trevixal-line-number--active {
+    color: t.token('color-text');
+  }
 }
 
 .trevixal-line-number {
   position: absolute;
   color: t.token('color-text-muted');
-  font-family: t.token('font-family');
-  font-size: 0.72rem;
+  font-family: t.token('font-family-mono');
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   user-select: none;

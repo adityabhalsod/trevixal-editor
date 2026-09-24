@@ -92,6 +92,11 @@ draft discussed line by line. The lines are the ones on screen, so a sentence
 that wraps takes a number per line. Tables, notes and the generated lists are
 not counted, and the numbers run on through the whole document.
 
+On screen the numbers stand in a gutter of their own, as a code editor's do.
+They are right-aligned, with room between them and the text for the grip
+beside each block. The number of the line the caret is on is lit. A drop cap
+spans several lines, and each of them takes its own number.
+
 Printing lays the page out at 170 mm, A4 less 20 mm margins, which fits Letter
 too, with the numbers in a 12 mm gutter beside the text. Each number is
 printed against its own line, so it stays with that line whichever page the

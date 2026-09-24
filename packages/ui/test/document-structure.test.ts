@@ -314,6 +314,23 @@ describe('line numbers', () => {
     vi.spyOn(empty, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 40, 50, 18))
     expect(measureLines(root).map((each) => each.top)).toEqual([0, 20, 40])
   })
+
+  it('count each line beside a drop cap, not the letter spanning them as one', () => {
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<p data-drop-cap="drop" data-drop-cap-lines="3">Drop caps set the letter large</p>'
+    document.body.appendChild(root)
+    const line = (top: number): DOMRect => new DOMRect(40, top, 200, 18)
+    // The letter's box is as tall as the three lines, while a range holds it.
+    const letter = new DOMRect(0, 0, 36, 58)
+    vi.spyOn(Range.prototype, 'getClientRects').mockImplementation(function (this: Range) {
+      const lines = [line(0), line(20), line(40)]
+      const pastLetter = this.startContainer.nodeType === Node.TEXT_NODE && this.startOffset > 0
+      return (pastLetter ? lines : [letter, ...lines]) as unknown as DOMRectList
+    })
+    expect(measureLines(root).map((each) => each.top)).toEqual([0, 20, 40])
+    root.remove()
+  })
 })
 
 describe('the document’s settings, through its source', () => {

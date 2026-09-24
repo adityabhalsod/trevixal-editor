@@ -182,6 +182,12 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   border-radius: 8px;
 }
 
+// With line numbers on, the gutter ui sizes for them, which the padding above
+// would otherwise cover.
+#editor .trevixal-content[data-line-numbers] {
+  padding-inline-start: var(--tvx-line-gutter, 1rem);
+}
+
 // A pane travels with the reader instead of scrolling away.
 //
 // Side-by-side means side by side: a short box beside a document thousands of

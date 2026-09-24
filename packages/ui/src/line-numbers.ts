@@ -18,8 +18,14 @@ const COUNTED = 'p, h1, h2, h3, h4, h5, h6, pre, figcaption, summary'
 const SKIPPED =
   'td, th, .trevixal-footnotes, .trevixal-endnotes, .trevixal-caption-list, .trevixal-index'
 
-/** Gap between a number and the text it counts, in px. */
-const GAP = 12
+/**
+ * A drop cap's letter, as CSS's `::first-letter` takes it: the first letter,
+ * number or symbol, with its combining marks and the punctuation either side.
+ */
+const FIRST_LETTER = /^\p{P}*[\p{L}\p{N}\p{S}]\p{M}*\p{P}*/u
+
+/** The number of the line holding the caret. */
+const ACTIVE_CLASS = 'trevixal-line-number--active'
 
 export interface MeasuredLine {
   /** Viewport coordinates, as `getBoundingClientRect` gives them. */
@@ -40,6 +46,10 @@ export function measureLines(root: HTMLElement): MeasuredLine[] {
     if (block.parentElement?.closest(COUNTED)) continue
     const range = block.ownerDocument.createRange()
     range.selectNodeContents(block)
+    // A drop cap's letter is as tall as the lines beside it, and would make
+    // them one line.
+    const letter = dropCapLetter(block)
+    if (letter) range.setStart(letter.node, letter.length)
     const rects = [...range.getClientRects()]
       .filter((rect) => rect.height > 0)
       .sort((a, b) => a.top - b.top)
@@ -65,12 +75,15 @@ export function measureLines(root: HTMLElement): MeasuredLine[] {
   return lines
 }
 
-/** One number, placed against the text it counts: left of it, or right of right-to-left text. */
+/**
+ * One number, level with the line it counts and placed at the edge the text
+ * starts from. The stylesheet sets it off from there, into the gutter.
+ */
 function numberElement(
   document: Document,
   n: number,
   line: MeasuredLine,
-  position: { top: number; edge: number; rtl: boolean },
+  position: { top: number; edge: number },
 ): HTMLElement {
   const element = document.createElement('span')
   element.className = 'trevixal-line-number'
@@ -79,9 +92,7 @@ function numberElement(
   element.style.top = `${position.top}px`
   element.style.height = `${line.height}px`
   element.style.lineHeight = `${line.height}px`
-  if (position.rtl) element.style.left = `${position.edge + GAP}px`
-  else element.style.left = `${position.edge - GAP}px`
-  if (!position.rtl) element.style.transform = 'translateX(-100%)'
+  element.style.left = `${position.edge}px`
   return element
 }
 
@@ -122,6 +133,9 @@ function lineStartsIn(block: HTMLElement): LineStart[] {
   }
   const starts: LineStart[] = []
   let bottom = Number.NEGATIVE_INFINITY
+  // Past a drop cap's letter: it is as tall as the lines beside it, so each
+  // of them would seem to start below it.
+  const letter = dropCapLetter(block)
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
   for (let found = walker.nextNode(); found; found = walker.nextNode()) {
     const node = found as Text
@@ -129,7 +143,7 @@ function lineStartsIn(block: HTMLElement): LineStart[] {
       const box = boxOf(node, offset)
       return box !== null && box.top >= bottom - 2
     }
-    let from = 0
+    let from = node === letter?.node ? letter.length : 0
     while (from < node.data.length) {
       let low = from
       let high = node.data.length
@@ -146,6 +160,18 @@ function lineStartsIn(block: HTMLElement): LineStart[] {
     }
   }
   return starts
+}
+
+/**
+ * The letter a drop cap draws, and the text node it starts: null for a block
+ * without one. The letter floats beside the block's first lines, so it is
+ * left out of them.
+ */
+function dropCapLetter(block: HTMLElement): { node: Text; length: number } | null {
+  if (!block.hasAttribute('data-drop-cap')) return null
+  const node = firstText(block)
+  const length = node ? (FIRST_LETTER.exec(node.data)?.[0].length ?? 0) : 0
+  return node && length > 0 ? { node, length } : null
 }
 
 /** The first text node under `block` with a character in it. */
@@ -277,35 +303,42 @@ export function createLineNumbers(editor: Editor, options: LineNumbersOptions = 
     const rtl = isRightToLeft(surface)
     const offsetTop = host.scrollTop - hostBox.top - host.clientTop
     const edge = textEdge(surface, rtl) - hostBox.left - host.clientLeft + host.scrollLeft
+    // The stylesheet sets the numbers off on the side the text starts from.
+    layer.dataset.side = rtl ? 'right' : 'left'
     measureLines(surface).forEach((line, index) => {
       layer.appendChild(
-        numberElement(document, index + 1, line, { top: line.top + offsetTop, edge, rtl }),
+        numberElement(document, index + 1, line, { top: line.top + offsetTop, edge }),
       )
     })
+    light()
   }
 
-  let frame: number | null = null
-  const schedule = (): void => {
-    if (frame !== null) return
-    const view = document.defaultView
-    if (!view?.requestAnimationFrame) {
-      render()
-      return
+  /** Light the number of the line the caret is on, as a code editor does. */
+  const light = (): void => {
+    // Nothing to light while the numbers are off, so no caret to measure.
+    if (layer.childElementCount === 0) return
+    const caret = surface ? caretMiddle(surface) : null
+    let lit = false
+    for (const number of Array.from(layer.children)) {
+      const box = number.getBoundingClientRect()
+      const on = !lit && caret !== null && caret >= box.top && caret < box.bottom
+      number.classList.toggle(ACTIVE_CLASS, on)
+      if (on) lit = true
     }
-    frame = view.requestAnimationFrame(() => {
-      frame = null
-      render()
-    })
   }
 
-  // Only a change to the document moves a line; a caret moving does not.
-  const unsubscribe = editor.on('update', schedule)
+  const redraw = nextFrame(document, render)
+  const relight = nextFrame(document, light)
+
+  // A change to the document moves the lines; the caret moving moves the light.
+  const unsubscribe = editor.on('update', redraw.request)
+  const offSelection = editor.on('selectionUpdate', relight.request)
   const Observer = document.defaultView?.ResizeObserver
-  const resize = Observer && surface ? new Observer(schedule) : null
+  const resize = Observer && surface ? new Observer(redraw.request) : null
   if (surface) resize?.observe(surface)
-  document.defaultView?.addEventListener('resize', schedule)
+  document.defaultView?.addEventListener('resize', redraw.request)
   // Web fonts arriving change every line's length.
-  void document.fonts?.ready.then(schedule)
+  void document.fonts?.ready.then(redraw.request)
   render()
 
   return {
@@ -313,10 +346,65 @@ export function createLineNumbers(editor: Editor, options: LineNumbersOptions = 
     refresh: render,
     destroy() {
       unsubscribe()
+      offSelection()
       resize?.disconnect()
-      document.defaultView?.removeEventListener('resize', schedule)
-      if (frame !== null) document.defaultView?.cancelAnimationFrame(frame)
+      document.defaultView?.removeEventListener('resize', redraw.request)
+      redraw.cancel()
+      relight.cancel()
       layer.remove()
     },
   }
+}
+
+/** Run `task` on the next frame, once however often it is asked for before then. */
+function nextFrame(document: Document, task: () => void): { request(): void; cancel(): void } {
+  let frame: number | null = null
+  return {
+    request() {
+      if (frame !== null) return
+      const view = document.defaultView
+      if (!view?.requestAnimationFrame) {
+        task()
+        return
+      }
+      frame = view.requestAnimationFrame(() => {
+        frame = null
+        task()
+      })
+    },
+    cancel() {
+      if (frame !== null) document.defaultView?.cancelAnimationFrame(frame)
+      frame = null
+    },
+  }
+}
+
+/**
+ * The middle of the caret's line, in viewport coordinates: the selection's
+ * head, read from the page, where the browser laid it out. Null when the
+ * selection is not in `surface`.
+ */
+function caretMiddle(surface: HTMLElement): number | null {
+  const document = surface.ownerDocument
+  const selection = document.getSelection()
+  const node = selection?.focusNode
+  if (!selection || !node || !surface.contains(node)) return null
+  const middle = (box: DOMRect | undefined): number | null =>
+    box && box.height > 0 ? box.top + box.height / 2 : null
+  const range = document.createRange()
+  range.setStart(node, selection.focusOffset)
+  const caret = middle(range.getClientRects()[0])
+  if (caret !== null) return caret
+  // WebKit measures nothing for a collapsed range: measure the character after
+  // the caret instead, or the one before it at the end of the text.
+  if (node.nodeType === node.TEXT_NODE && (node as Text).length > 0) {
+    const offset = Math.min(selection.focusOffset, (node as Text).length - 1)
+    range.setStart(node, offset)
+    range.setEnd(node, offset + 1)
+    return middle(range.getClientRects()[0])
+  }
+  // An empty paragraph has no text to measure: its line is the block itself.
+  const element = node.nodeType === node.ELEMENT_NODE ? (node as Element) : node.parentElement
+  if (!element || element === surface || element.textContent !== '') return null
+  return middle(element.getBoundingClientRect())
 }
