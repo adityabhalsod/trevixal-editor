@@ -138,6 +138,9 @@ $list-depth: 9;
   ol {
     margin: 0 0 0.75em;
     padding-inline-start: 1.5em;
+    // How far out past an item's text its fold chevron sits: beyond the
+    // marker. A task list and a defined scheme set their own.
+    --tvx-fold-gutter: 1.6em;
   }
 
   li > p {
@@ -224,6 +227,52 @@ $list-depth: 9;
       #{nested-list($depth - 1, 'ol')}:not([style]) > li::before {
         content: counter(list-item, list.nth($ordered-levels, ($depth - 1) % 3 + 1)) ')';
       }
+    }
+  }
+
+  // ---- folded list items -------------------------------------------------------
+  // A folded item shows its first block alone (see list-tools.ts). Only the
+  // editor folds: a print or a saved page has no chevron to open one with,
+  // so it shows everything.
+  &[contenteditable] {
+    li[data-folded] > :not(:first-child) {
+      display: none;
+    }
+
+    li:is([data-folded], :has(> :nth-child(2))) > :first-child {
+      position: relative;
+    }
+
+    // Open, the chevron points down; folded, at the text it hides, in the
+    // accent. Set on the item, so hovering never outranks being folded.
+    li {
+      --tvx-fold-turn: rotate(90deg);
+      --tvx-fold-ink: #{t.token('color-text-muted')};
+    }
+
+    li:dir(rtl) {
+      --tvx-fold-turn: rotate(-90deg);
+    }
+
+    li[data-folded] {
+      --tvx-fold-turn: none;
+      --tvx-fold-ink: #{t.token('color-accent')};
+    }
+
+    // The chevron that folds an item: before its first block, out past its
+    // marker, where the view looks for a press on it. On an item that can
+    // fold it shows while the pointer is over the item's own text; on a
+    // folded one it stays.
+    li[data-folded] > :first-child::before,
+    li:has(> :nth-child(2)):hover:not(:has(li:hover)) > :first-child::before {
+      content: '';
+      position: absolute;
+      inset-inline-end: calc(100% + var(--tvx-fold-gutter));
+      top: calc(0.5lh - 0.3em);
+      border-block: 0.3em solid transparent;
+      border-inline-start: 0.45em solid var(--tvx-fold-ink);
+      cursor: pointer;
+      transform: var(--tvx-fold-turn);
     }
   }
 

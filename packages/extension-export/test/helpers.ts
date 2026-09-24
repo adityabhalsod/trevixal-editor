@@ -33,6 +33,9 @@ export function extraNodes(): Record<string, NodeSpec> {
         totalRow: { default: false },
         bandedRows: { default: false },
         bandedColumns: { default: false },
+        freezeHeader: { default: false },
+        freezeColumn: { default: false },
+        cellPadding: { default: null },
       },
     },
     tableRow: { content: 'tableCell+', attrs: { height: { default: null } } },
@@ -45,6 +48,7 @@ export function extraNodes(): Record<string, NodeSpec> {
         width: { default: null },
         background: { default: null },
         hiddenBorders: { default: null },
+        verticalAlign: { default: null },
       },
     },
     image: {

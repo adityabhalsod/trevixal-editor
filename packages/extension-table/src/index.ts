@@ -3,7 +3,11 @@ export { enableCellSelection } from './cell-selection'
 export {
   type CellAlign,
   CELL_SIDES,
+  CELL_VERTICAL_ALIGNS,
   type CellSide,
+  type CellVerticalAlign,
+  cellPadding,
+  cellVerticalAlign,
   hiddenBordersValue,
   hiddenSides,
   safeTableLength,
@@ -36,6 +40,14 @@ export {
   toggleTableStyleOption,
 } from './table-design'
 export { hideCellBorder } from './cell-borders'
+export {
+  setCellPadding,
+  setCellVerticalAlign,
+  type TableLayout,
+  tableLayoutAt,
+  toggleFreezeFirstColumn,
+  toggleFreezeHeaderRow,
+} from './table-layout'
 export {
   addColumn,
   addRow,

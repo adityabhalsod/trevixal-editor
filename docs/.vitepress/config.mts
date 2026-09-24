@@ -67,6 +67,7 @@ export default defineConfig({
           { text: 'Files', link: '/using/files' },
           { text: 'Long documents', link: '/using/structure' },
           { text: 'Formatting tools', link: '/using/formatting' },
+          { text: 'Lists and tables', link: '/using/lists-and-tables' },
           { text: 'Appearance', link: '/using/appearance' },
           { text: 'Protecting a document', link: '/using/protection' },
           { text: 'Reviewing with tracked changes', link: '/using/review' },

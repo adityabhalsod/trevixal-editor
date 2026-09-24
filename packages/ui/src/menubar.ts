@@ -11,6 +11,7 @@ import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
+import { sortList, toggleListItemFold } from './list-tools'
 import { type ShortcutLabels, formatShortcut, parseShortcut } from './shortcuts'
 import {
   TABLE_LINE_STYLE_ENTRIES,
@@ -20,6 +21,21 @@ import {
   type TableStyleTile,
   tableStyleEntryName,
 } from './table-design'
+
+/**
+ * Table ▸ Cell padding: Word's cell margins, as four presets. Normal is the
+ * stylesheet's own, which the table then stores as none.
+ */
+export const CELL_PADDING_ENTRIES: readonly {
+  readonly name: string
+  readonly label: string
+  readonly padding: string | null
+}[] = [
+  { name: 'cellPaddingNone', label: 'None', padding: '0' },
+  { name: 'cellPaddingNarrow', label: 'Narrow', padding: '4px' },
+  { name: 'cellPaddingNormal', label: 'Normal', padding: null },
+  { name: 'cellPaddingWide', label: 'Wide', padding: '16px' },
+]
 
 /** One entry in a menu. A `separator` draws a rule and takes no action. */
 export interface MenuItem {
@@ -787,6 +803,40 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
                 // A task list keeps its checkboxes, so no scheme applies there.
                 isEnabled: (snapshot: EditorSnapshot) => snapshot.listType !== 'taskList',
               })),
+            {
+              name: 'defineListNumbering',
+              label: 'Define new multilevel list…',
+              icon: 'multilevelList',
+              isEnabled: (snapshot) => snapshot.listType !== 'taskList',
+            },
+            separator('list-sep-tools'),
+            {
+              name: 'sortListAscending',
+              label: 'Sort A to Z',
+              icon: 'tableSort',
+              run: (editor) => editor.exec(sortList('ascending')),
+              isEnabled: (snapshot) => snapshot.listType !== null,
+            },
+            {
+              name: 'sortListDescending',
+              label: 'Sort Z to A',
+              icon: 'tableSort',
+              run: (editor) => editor.exec(sortList('descending')),
+              isEnabled: (snapshot) => snapshot.listType !== null,
+            },
+            {
+              name: 'toggleListFold',
+              label: 'Fold or unfold item',
+              icon: 'chevronDown',
+              run: (editor) => editor.exec(toggleListItemFold),
+              isEnabled: (snapshot) => snapshot.listType !== null,
+            },
+            {
+              name: 'taskDetails',
+              label: 'Task due date and assignee…',
+              icon: 'taskList',
+              isEnabled: (snapshot) => snapshot.listType === 'taskList',
+            },
           ],
         },
         separator('format-sep-2'),
@@ -871,6 +921,10 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         separator('table-sep-3'),
         { name: 'mergeCells', icon: 'tableMerge', label: 'Merge cells' },
         { name: 'splitCell', icon: 'tableSplit', label: 'Split cells…' },
+        separator('table-sep-caption'),
+        { name: 'tableCaption', icon: 'caption', label: 'Insert caption…' },
+        { name: 'freezeHeaderRow', icon: 'tableHeaderRow', label: 'Freeze header row' },
+        { name: 'freezeFirstColumn', icon: 'tableFirstColumn', label: 'Freeze first column' },
         separator('table-sep-design'),
         // Word's Table Design tab: its gallery, then its style options.
         ...(tableStyles.length > 0
@@ -904,7 +958,21 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
             { name: 'cellAlignCenter', label: 'Center', icon: 'alignCenter' },
             { name: 'cellAlignRight', label: 'Right', icon: 'alignRight' },
             { name: 'cellAlignNone', label: 'Default', icon: 'removeFormat' },
+            separator('cell-align-sep-vertical'),
+            { name: 'cellAlignTop', label: 'Top', icon: 'cellAlign' },
+            { name: 'cellAlignMiddle', label: 'Middle', icon: 'cellAlign' },
+            { name: 'cellAlignBottom', label: 'Bottom', icon: 'cellAlign' },
           ],
+        },
+        {
+          name: 'cellPadding',
+          icon: 'paragraphSpacing',
+          label: 'Cell padding',
+          items: CELL_PADDING_ENTRIES.map(({ name, label }) => ({
+            name,
+            label,
+            icon: 'paragraphSpacing' as IconName,
+          })),
         },
         {
           name: 'tableBorders',

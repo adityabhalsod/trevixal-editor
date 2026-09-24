@@ -36,6 +36,7 @@ import {
 } from './resize'
 import {
   type CellAlign,
+  type CellVerticalAlign,
   type TableBorderStyle,
   type TableBorderWidth,
   type TableBorders,
@@ -54,6 +55,14 @@ import {
   toggleTableStyleOption,
 } from './table-design'
 import { measureTableGeometry } from './table-geometry'
+import {
+  type TableLayout,
+  setCellPadding,
+  setCellVerticalAlign,
+  tableLayoutAt,
+  toggleFreezeFirstColumn,
+  toggleFreezeHeaderRow,
+} from './table-layout'
 
 /**
  * The command bundle `@trevixal/ui`'s `createEditorUI` expects, so the UI
@@ -125,6 +134,15 @@ export interface TableUICommands {
   readonly insertTableFromCSV: (csv: string) => Command
   /** CSV for the table at the selection, or null outside one, not a command, a reader. */
   readonly csvAtSelection: (state: EditorState) => string | null
+  /** The header row held at the top of the window while a long table scrolls by. */
+  readonly toggleFreezeHeaderRow: Command
+  /** The first column held in view while a wide table scrolls sideways. */
+  readonly toggleFreezeFirstColumn: Command
+  /** Word's cell margins for the whole table: a length, or null for the default. */
+  readonly setCellPadding: (padding: string | null) => Command
+  readonly setCellVerticalAlign: (align: CellVerticalAlign | null) => Command
+  /** How the table at the selection is laid out, for the ticks; a reader. */
+  readonly tableLayoutAt: (state: EditorState) => TableLayout | null
 }
 
 export interface TableUICommandsOptions {
@@ -197,5 +215,10 @@ export function tableUICommands(options: TableUICommandsOptions = {}): TableUICo
     convertTableToText: convertTableToText(),
     insertTableFromCSV: (csv) => insertTableFromCSV(csv),
     csvAtSelection: (state) => csvAtSelection(state),
+    toggleFreezeHeaderRow,
+    toggleFreezeFirstColumn,
+    setCellPadding,
+    setCellVerticalAlign,
+    tableLayoutAt,
   }
 }

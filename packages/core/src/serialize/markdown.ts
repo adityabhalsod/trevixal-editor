@@ -174,14 +174,25 @@ function alignmentRule(align: unknown): string {
 
 /**
  * A cell's content flattened to one line: a pipe table has no way to express
- * a block break, so paragraphs join with a space and pipes are escaped.
+ * a block break, so paragraphs join with a space and pipes are escaped. A
+ * list or a table in the cell gives its text the same way, a space between
+ * each of its items and cells.
  */
 function cellText(cell: EditorNode, config: Resolved): string {
   return cell.content.children
-    .map((block) => serializeInline(block.content, config))
+    .map((block) => blockLine(block, config))
     .join(' ')
     .replaceAll('|', '\\|')
     .trim()
+}
+
+/** A block's text on one line: a textblock's inline content, or its own textblocks', spaced. */
+function blockLine(block: EditorNode, config: Resolved): string {
+  if (block.isTextblock) return serializeInline(block.content, config)
+  return block.content.children
+    .map((child) => blockLine(child, config))
+    .filter(Boolean)
+    .join(' ')
 }
 
 /** Inline content: text with marks, hard breaks, images and inline atoms. */

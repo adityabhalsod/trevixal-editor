@@ -20,6 +20,7 @@ import {
   safeStyleId,
   sliceInline,
   tabStopsOf,
+  taskMetaText,
   textDirection,
 } from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
@@ -115,6 +116,8 @@ const DEFAULT_IMAGE_PX = 400
 const CODE_FONT = 'Consolas'
 
 interface Context {
+  /** The document being written: its settings resolve what its lists name. */
+  readonly doc: EditorNode
   readonly basePt: number
   readonly rendered: RenderedDocument
   readonly relationships: string[]
@@ -178,6 +181,7 @@ export async function serializeToDOCX(
   const basePt = options.fontSize && options.fontSize > 0 ? options.fontSize : 11
   const palette = documentPalette(options.theme)
   const context: Context = {
+    doc,
     basePt,
     rendered: options.rendered ?? new Map(),
     // Settings is related unconditionally, theme or not, so that the ids the
@@ -501,6 +505,14 @@ const WORD_FORMATS: Readonly<Record<string, string>> = {
   'upper-roman': 'upperRoman',
 }
 
+/** A defined level's style as Word's `w:numFmt`: the counter styles, and Word's own two. */
+const CUSTOM_WORD_FORMATS: Readonly<Record<string, string>> = {
+  ...WORD_FORMATS,
+  'decimal-leading-zero': 'decimalZero',
+  bullet: 'bullet',
+  none: 'none',
+}
+
 /** Word's nine list levels, `w:ilvl` 0 to 8. */
 const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -515,15 +527,38 @@ interface LevelOptions {
   /** `w:isLgl`, Word's legal numbering: every part of an outline in decimal. */
   readonly legal?: boolean
   readonly hanging?: number
+  /** The level's first number; 1 unless a defined scheme says otherwise. */
+  readonly start?: number
+  /** Where the level's text starts, in twips; a step of `INDENT` a level unless given. */
+  readonly left?: number
 }
 
 /** One `w:lvl`. */
 function levelXML(ilvl: number, format: string, text: string, options: LevelOptions = {}): string {
-  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="${options.start ?? 1}"/><w:numFmt w:val="${format}"/>${
     options.legal ? '<w:isLgl/>' : ''
   }<w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${
-    INDENT * (ilvl + 1)
+    options.left ?? INDENT * (ilvl + 1)
   }" w:hanging="${options.hanging ?? HANGING}"/></w:pPr></w:lvl>`
+}
+
+/**
+ * A defined scheme's level as Word writes it: its marker is already Word's
+ * `%1.%2.`, and each level's indent adds to the ones above, as in the editor.
+ */
+function customLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  const levels = scheme.custom ?? []
+  const level = levels[ilvl]
+  if (!level) return levelXML(ilvl, 'decimal', `%${ilvl + 1}.`)
+  const twipsPerEm = basePt * 20
+  const left = levels
+    .slice(0, ilvl + 1)
+    .reduce((total, each) => total + Math.round(each.indent * twipsPerEm), 0)
+  return levelXML(ilvl, CUSTOM_WORD_FORMATS[level.style] ?? 'decimal', level.text, {
+    start: level.start,
+    left,
+    hanging: Math.min(HANGING, left),
+  })
 }
 
 /**
@@ -534,6 +569,7 @@ function levelXML(ilvl: number, format: string, text: string, options: LevelOpti
  * gap. So each level widens it by about one part, `1.`, at the body size.
  */
 function schemeLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  if (scheme.custom) return customLevelXML(scheme, ilvl, basePt)
   const marker = levelMarker(scheme, ilvl)
   if (scheme.listType === 'bulletList') return levelXML(ilvl, 'bullet', marker)
   if (scheme.outline) {
@@ -691,8 +727,10 @@ function listNumbering(
   tree: NumberingTree | null,
   context: Context,
 ): { instance: NumberingInstance; tree: NumberingTree | null } {
-  const scheme = listNumberingOf(list)
-  const start = ordered ? listStart(list) : null
+  const scheme = listNumberingOf(list, context.doc)
+  // A defined level starts where it says, unless the list sets its own start.
+  const own = ordered ? listStart(list) : null
+  const start = own === 1 && scheme?.custom ? (scheme.custom[level]?.start ?? 1) : own
   let instance: NumberingInstance
   let next = tree
   if (scheme !== null && scheme !== DEFAULT_LIST_NUMBERING) {
@@ -828,13 +866,24 @@ function paragraph(
   run: RunContext,
   props: ParagraphProps,
   prefix = '',
+  suffix = '',
 ): string {
   const dropped = dropCapFrame(node, context)
-  if (dropped) return `${dropped.frame}${paragraph(dropped.rest, context, run, props, prefix)}`
+  if (dropped) {
+    return `${dropped.frame}${paragraph(dropped.rest, context, run, props, prefix, suffix)}`
+  }
   const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
   const properties = pPr(rtl ? { ...props, bidi: true } : props, node, context)
   const body = paragraphBody(node, context, rtl ? { ...run, rtl: true } : run)
-  return `<w:p>${properties}${prefix}${body}</w:p>`
+  return `<w:p>${properties}${prefix}${body}${suffix}</w:p>`
+}
+
+/** The grey, smaller run a task's assignee and due date follow its text in. */
+function taskMetaRun(item: EditorNode, context: Context): string {
+  const text = taskMetaText(item.attrs)
+  if (!text) return ''
+  const size = Math.max(2, Math.round(context.basePt * 0.85 * 2))
+  return textRun(` ${text}`, `<w:color w:val="767676"/><w:sz w:val="${size}"/>`)
 }
 
 /** How tall one line of body text is, as Word lays it out, in points per point of type. */
@@ -1086,7 +1135,8 @@ function writeList(
           out.push(paragraph(block, context, run, { ...props, numbering }))
         } else {
           const prefix = textRun(`${isTask ? taskGlyph(item) : '•'} `, '')
-          out.push(paragraph(block, context, run, props, prefix))
+          const suffix = isTask ? taskMetaRun(item, context) : ''
+          out.push(paragraph(block, context, run, props, prefix, suffix))
         }
         return
       }
@@ -1113,6 +1163,7 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
       .map((side) => (edges[side] ? border(side, look.line, context) : `<w:${side} w:val="nil"/>`))
       .join('')}</w:tblBorders>`
   }
+  tblPr += cellMarginsXML(table, context)
   tblPr += tableLookElement(table, look)
   const grid = Array.from({ length: columns }, () => `<w:gridCol w:w="${unit}"/>`).join('')
 
@@ -1160,6 +1211,10 @@ function writeCell(
   // The cell's own shading wins over its style's, as a direct format does in Word.
   const fill = parseColor(cell.attrs.background) ?? look.fill
   if (fill) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(fill)}"/>`
+  const vAlign = attrString(cell.attrs, 'verticalAlign')
+  if (vAlign === 'middle' || vAlign === 'bottom') {
+    tcPr += `<w:vAlign w:val="${vAlign === 'middle' ? 'center' : 'bottom'}"/>`
+  }
   const align = attrString(cell.attrs, 'align')
   const jc = align === 'center' || align === 'right' || align === 'left' ? align : undefined
   const cellRun: RunContext = {
@@ -1174,6 +1229,21 @@ function writeCell(
   const last = blocks[blocks.length - 1]
   if (!last || !last.endsWith('</w:p>')) blocks.push('<w:p/>')
   return `<w:tc><w:tcPr>${tcPr}</w:tcPr>${blocks.join('')}</w:tc>`
+}
+
+/**
+ * Word's cell margins, for a table that sets its own padding: the same on
+ * every side, as the editor draws it. Word's default, 0.08" at the sides and
+ * none above and below, is its own `TableNormal` style's.
+ */
+function cellMarginsXML(table: EditorNode, context: Context): string {
+  const padding = attrString(table.attrs, 'cellPadding')
+  const twips = padding ? lengthToTwips(padding, context.basePt) : null
+  if (twips === null || twips < 0) return ''
+  const sides = ['top', 'left', 'bottom', 'right'].map(
+    (side) => `<w:${side} w:w="${twips}" w:type="dxa"/>`,
+  )
+  return `<w:tblCellMar>${sides.join('')}</w:tblCellMar>`
 }
 
 /** One edge of a table or cell, drawn with a line. Word weighs lines in eighths of a point. */

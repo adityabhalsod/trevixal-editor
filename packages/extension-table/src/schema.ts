@@ -109,6 +109,28 @@ export function hiddenBordersValue(sides: Iterable<CellSide>): string | null {
   return value === '' ? null : value
 }
 
+/** Where a cell's content sits in its height. Top, the default, is stored as null. */
+export type CellVerticalAlign = 'top' | 'middle' | 'bottom'
+
+export const CELL_VERTICAL_ALIGNS: readonly CellVerticalAlign[] = ['top', 'middle', 'bottom']
+
+/** A vertical alignment as a cell stores it: null for top, the default, and for anything unknown. */
+export function cellVerticalAlign(value: unknown): CellVerticalAlign | null {
+  const align = typeof value === 'string' ? value.trim().toLowerCase() : null
+  // `center` is what `valign` and Word call the middle.
+  const named = align === 'center' ? 'middle' : align
+  return named === 'middle' || named === 'bottom' ? named : null
+}
+
+/**
+ * The room inside a table's cells, as a length the schema will emit: `0`,
+ * or px, em or rem. Null is the stylesheet's own, the default.
+ */
+export function cellPadding(value: unknown): string | null {
+  const length = safeTableLength(value)
+  return length !== null && /^(?:0|[\d.]+(?:px|em|rem))$/.test(length) ? length : null
+}
+
 const ALIGNS: readonly CellAlign[] = ['left', 'center', 'right']
 
 function parseAlign(value: string | null): CellAlign | null {
@@ -177,6 +199,14 @@ export function tableNodes(): Record<string, NodeSpec> {
         totalRow: { default: false },
         bandedRows: { default: false },
         bandedColumns: { default: false },
+        // The header row stays at the top of the window while a long table
+        // scrolls by. (It heads every printed page, and every page in Word,
+        // either way: that is what a header row is for.)
+        freezeHeader: { default: false },
+        // The first column stays in view while a wide table scrolls sideways.
+        freezeColumn: { default: false },
+        // Word's cell margins, for every cell of the table (see cellPadding).
+        cellPadding: { default: null },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
@@ -203,6 +233,9 @@ export function tableNodes(): Record<string, NodeSpec> {
         for (const option of TABLE_STYLE_OPTIONS) {
           if (node.attrs[option] === true) attrs[OPTION_ATTRIBUTES[option]] = ''
         }
+        if (node.attrs.freezeHeader === true) attrs['data-freeze-header'] = ''
+        if (node.attrs.freezeColumn === true) attrs['data-freeze-column'] = ''
+        addStyle(attrs, '--tvx-cell-padding', cellPadding(node.attrs.cellPadding))
         return { tag: 'table', attrs }
       },
       parseHTML: [
@@ -226,6 +259,12 @@ export function tableNodes(): Record<string, NodeSpec> {
               tableStyle: style,
               accentColor: style ? safeColor(element.getAttribute('data-accent-color')) : null,
               ...options,
+              freezeHeader: element.hasAttribute('data-freeze-header'),
+              freezeColumn: element.hasAttribute('data-freeze-column'),
+              // Read off the attribute: not every DOM parses a custom property.
+              cellPadding: cellPadding(
+                /--tvx-cell-padding:\s*([^;]+)/.exec(element.getAttribute('style') ?? '')?.[1],
+              ),
             }
           },
         },
@@ -254,6 +293,8 @@ export function tableNodes(): Record<string, NodeSpec> {
         background: { default: null },
         // Sides whose line the Eraser took out, `'top left'`; null draws all four.
         hiddenBorders: { default: null },
+        // `middle` or `bottom`; null sits the content at the top.
+        verticalAlign: { default: null },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
@@ -261,6 +302,7 @@ export function tableNodes(): Record<string, NodeSpec> {
         if (typeof colspan === 'number' && colspan > 1) attrs.colspan = String(colspan)
         const align = parseAlign(node.attrs.align as string | null)
         if (align) addStyle(attrs, 'text-align', align)
+        addStyle(attrs, 'vertical-align', cellVerticalAlign(node.attrs.verticalAlign))
         addStyle(attrs, 'width', safeTableLength(node.attrs.width))
         addStyle(attrs, 'background-color', safeColor(node.attrs.background))
         const hidden = hiddenBordersValue(hiddenSides(node.attrs.hiddenBorders))
@@ -288,5 +330,16 @@ function cellAttrsFrom(element: HTMLElement, header: boolean): Record<string, un
     backgroundMatch?.[1]?.trim() ?? element.getAttribute('bgcolor') ?? null,
   )
   const hiddenBorders = hiddenBordersValue(hiddenSides(element.getAttribute('data-hidden-borders')))
-  return { header, colspan, align, width: styleValue(element, 'width'), background, hiddenBorders }
+  const verticalAlign = cellVerticalAlign(
+    element.style.verticalAlign || element.getAttribute('valign'),
+  )
+  return {
+    header,
+    colspan,
+    align,
+    width: styleValue(element, 'width'),
+    background,
+    hiddenBorders,
+    verticalAlign,
+  }
 }

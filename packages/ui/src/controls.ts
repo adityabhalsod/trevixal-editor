@@ -1,7 +1,10 @@
 import {
   type Editor,
+  type EditorNode,
   type EditorSnapshot,
   LIST_NUMBERING_SCHEMES,
+  type ListNumberingScheme,
+  documentListSchemes,
   listMarker,
   listNumberingAt,
 } from '@trevixal/core'
@@ -300,6 +303,21 @@ const SCHEME_LABELS: Readonly<Record<string, string>> = {
   symbols: 'Symbol bullets',
 }
 
+/** A scheme as the gallery shows it: its name, and the first marker of its first three levels. */
+function galleryOption(scheme: ListNumberingScheme, label: string): ListNumberingOption {
+  const starts = scheme.custom?.map((level) => level.start)
+  return {
+    value: scheme.id,
+    label,
+    markers: Array.from({ length: PREVIEW_LEVELS }, (_, level) =>
+      listMarker(
+        scheme,
+        Array.from({ length: level + 1 }, (_, each) => starts?.[each] ?? 1),
+      ),
+    ),
+  }
+}
+
 /**
  * The gallery Word offers under Multilevel List: None, then every scheme,
  * each previewed by the first marker of its first three levels.
@@ -307,17 +325,15 @@ const SCHEME_LABELS: Readonly<Record<string, string>> = {
 export function defaultListNumberings(): readonly ListNumberingOption[] {
   return [
     { value: NO_LIST_NUMBERING, label: 'None', markers: [] },
-    ...LIST_NUMBERING_SCHEMES.map((scheme) => ({
-      value: scheme.id,
-      label: SCHEME_LABELS[scheme.id] ?? scheme.id,
-      markers: Array.from({ length: PREVIEW_LEVELS }, (_, level) =>
-        listMarker(
-          scheme,
-          Array.from({ length: level + 1 }, () => 1),
-        ),
-      ),
-    })),
+    ...LIST_NUMBERING_SCHEMES.map((scheme) =>
+      galleryOption(scheme, SCHEME_LABELS[scheme.id] ?? scheme.id),
+    ),
   ]
+}
+
+/** The schemes a document defined, as the gallery offers them after its own. */
+export function definedListNumberings(doc: EditorNode): readonly ListNumberingOption[] {
+  return documentListSchemes(doc).map((scheme) => galleryOption(scheme, scheme.name ?? scheme.id))
 }
 
 /**
@@ -334,6 +350,13 @@ export function currentListNumbering(editor: Editor, snapshot: EditorSnapshot): 
 export interface ListNumberingControlOptions {
   readonly document: Document
   readonly options: readonly ListNumberingOption[]
+  /**
+   * Schemes of the document's own, read each time the gallery opens, since
+   * defining one adds to them: they follow the built-in ones.
+   */
+  readonly definedOptions?: () => readonly ListNumberingOption[]
+  /** Word's Define New Multilevel List…, at the foot of the gallery. */
+  readonly onDefine?: () => void
   /** The entry describing the selection, for marking it; null marks none. */
   readonly valueOf: (snapshot: EditorSnapshot) => string | null
   readonly onSelect: (value: string) => void
@@ -345,6 +368,47 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
   const tiles = new Map<string, HTMLButtonElement>()
   let releaseNavigation: (() => void) | null = null
 
+  let defined: HTMLElement | null = null
+  let definedValues: readonly string[] = []
+  /** The entry `refresh` last found current, for tiles drawn after it. */
+  let current: string | null = null
+
+  const tileFor = (option: ListNumberingOption, close: () => void): HTMLButtonElement => {
+    const tile = document.createElement('button')
+    tile.type = 'button'
+    tile.className = 'trevixal-listgallery__tile'
+    tile.dataset.value = option.value
+    const name =
+      option.markers.length > 0 ? `${option.label}: ${option.markers.join(' ')}` : option.label
+    tile.setAttribute('aria-label', name)
+    tile.title = name
+    tile.setAttribute('aria-pressed', 'false')
+    if (option.markers.length === 0) {
+      const none = document.createElement('span')
+      none.className = 'trevixal-listgallery__none'
+      none.textContent = option.label
+      tile.appendChild(none)
+    }
+    option.markers.forEach((marker, level) => {
+      const row = document.createElement('span')
+      row.className = 'trevixal-listgallery__row'
+      row.style.setProperty('--tvx-level', String(level))
+      const glyph = document.createElement('span')
+      glyph.className = 'trevixal-listgallery__marker'
+      glyph.textContent = marker
+      const line = document.createElement('span')
+      line.className = 'trevixal-listgallery__line'
+      row.append(glyph, line)
+      tile.appendChild(row)
+    })
+    tile.addEventListener('click', () => {
+      close()
+      options.onSelect(option.value)
+    })
+    tiles.set(option.value, tile)
+    return tile
+  }
+
   const dropdown = createDropdown({
     document,
     className: 'trevixal-listgallery',
@@ -352,43 +416,41 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
       panel.setAttribute('aria-label', 'Multilevel list')
       const grid = document.createElement('div')
       grid.className = 'trevixal-listgallery__grid'
-      for (const option of options.options) {
-        const tile = document.createElement('button')
-        tile.type = 'button'
-        tile.className = 'trevixal-listgallery__tile'
-        tile.dataset.value = option.value
-        const name =
-          option.markers.length > 0 ? `${option.label}: ${option.markers.join(' ')}` : option.label
-        tile.setAttribute('aria-label', name)
-        tile.title = name
-        tile.setAttribute('aria-pressed', 'false')
-        if (option.markers.length === 0) {
-          const none = document.createElement('span')
-          none.className = 'trevixal-listgallery__none'
-          none.textContent = option.label
-          tile.appendChild(none)
-        }
-        option.markers.forEach((marker, level) => {
-          const row = document.createElement('span')
-          row.className = 'trevixal-listgallery__row'
-          row.style.setProperty('--tvx-level', String(level))
-          const glyph = document.createElement('span')
-          glyph.className = 'trevixal-listgallery__marker'
-          glyph.textContent = marker
-          const line = document.createElement('span')
-          line.className = 'trevixal-listgallery__line'
-          row.append(glyph, line)
-          tile.appendChild(row)
-        })
-        tile.addEventListener('click', () => {
-          self.close()
-          options.onSelect(option.value)
-        })
-        grid.appendChild(tile)
-        tiles.set(option.value, tile)
-      }
+      for (const option of options.options) grid.appendChild(tileFor(option, () => self.close()))
       panel.appendChild(grid)
+      if (options.definedOptions) {
+        defined = document.createElement('div')
+        defined.className = 'trevixal-listgallery__grid trevixal-listgallery__grid--defined'
+        defined.setAttribute('aria-label', 'Defined in this document')
+        panel.appendChild(defined)
+      }
+      const onDefine = options.onDefine
+      if (onDefine) {
+        const define = document.createElement('button')
+        define.type = 'button'
+        define.className = 'trevixal-listgallery__define'
+        define.textContent = 'Define new multilevel list…'
+        define.addEventListener('click', () => {
+          self.close()
+          onDefine()
+        })
+        panel.appendChild(define)
+      }
       releaseNavigation = bindListNavigation(panel)
+    },
+    // The document's own schemes change as they are defined, so their tiles
+    // are drawn afresh each time the gallery opens.
+    onOpen: () => {
+      if (!defined || !options.definedOptions) return
+      for (const value of definedValues) tiles.delete(value)
+      defined.textContent = ''
+      const own = options.definedOptions()
+      for (const option of own) defined.appendChild(tileFor(option, () => dropdown.close()))
+      definedValues = own.map((option) => option.value)
+      defined.hidden = own.length === 0
+      for (const [candidate, tile] of tiles) {
+        tile.setAttribute('aria-pressed', String(candidate === current))
+      }
     },
   })
 
@@ -400,9 +462,9 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
   return {
     element: dropdown.element,
     refresh(snapshot) {
-      const value = options.valueOf(snapshot)
+      current = options.valueOf(snapshot)
       for (const [candidate, tile] of tiles) {
-        tile.setAttribute('aria-pressed', String(candidate === value))
+        tile.setAttribute('aria-pressed', String(candidate === current))
       }
     },
     destroy() {

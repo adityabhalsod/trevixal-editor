@@ -12,6 +12,7 @@ them, whether that is the [demo on this site](../full-editor),
 - **[Files](./files)**: saving, opening, importing, downloading, printing, and what an export carries
 - **[Long documents](./structure)**: heading numbers, captions, cross-references, an index, notes, line numbers and right-to-left text
 - **[Formatting tools](./formatting)**: named styles, AutoFormat and AutoCorrect, drop caps, text columns, hyphenation, borders and shading, tab stops
+- **[Lists and tables](./lists-and-tables)**: task dates and assignees, folding and sorting lists, multilevel lists of your own, frozen header rows, cell padding, tables in tables
 - **[Appearance](./appearance)**: themes, presets, custom CSS, fonts, page view, widths, focus and typewriter modes
 - **[Protecting a document](./protection)**: passwords, expiry, restrictions and read-only mode
 - **[Reviewing with tracked changes](./review)**: suggesting mode, accept and reject

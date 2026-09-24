@@ -18,6 +18,7 @@ export interface DialogField {
     | 'color'
     | 'password'
     | 'email'
+    | 'date'
   readonly value?: string
   readonly placeholder?: string
   readonly required?: boolean

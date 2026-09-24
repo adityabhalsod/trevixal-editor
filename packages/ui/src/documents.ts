@@ -439,12 +439,36 @@ function measuresPrint(editor: Editor): boolean {
 }
 
 /**
- * Lay out a loaded print frame as its print will be: its tabs at their stops,
- * then, when the document numbers them, its lines, at the printed width.
+ * Word's Repeat Header Rows, in print, as the Word export already has it: a
+ * browser heads every page a table runs onto with its `thead`, so each
+ * table's header row moves into one. Only the printed copy changes; the
+ * editor keeps a table's rows together, as the document does.
+ */
+export function repeatHeaderRowsIn(root: ParentNode): void {
+  const childrenNamed = (parent: Element, tag: string): Element[] =>
+    [...parent.children].filter((child) => child.tagName === tag)
+  for (const table of root.querySelectorAll('table')) {
+    if (childrenNamed(table, 'THEAD').length > 0) continue
+    // The parser a print page goes through puts the rows in a `tbody`.
+    const body = childrenNamed(table, 'TBODY')[0] ?? table
+    const first = childrenNamed(body, 'TR')[0]
+    const cells = first ? [...first.children] : []
+    if (!first || cells.length === 0 || !cells.every((cell) => cell.tagName === 'TH')) continue
+    const head = table.ownerDocument.createElement('thead')
+    head.appendChild(first)
+    table.insertBefore(head, table.firstChild)
+  }
+}
+
+/**
+ * Lay out a loaded print frame as its print will be: its header rows made
+ * to repeat, its tabs at their stops, then, when the document numbers them,
+ * its lines, at the printed width.
  */
 function layoutFrame(frame: HTMLIFrameElement, lineNumbers: boolean): void {
   const content = frame.contentDocument?.querySelector<HTMLElement>('.trevixal-content')
   if (!content) return
+  repeatHeaderRowsIn(content)
   layoutTabsIn(content, true)
   if (lineNumbers) numberLinesIn(content)
 }

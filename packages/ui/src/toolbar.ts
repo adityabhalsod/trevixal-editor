@@ -14,6 +14,7 @@ import {
   defaultFontFamilies,
   defaultFontSizes,
   defaultListNumberings,
+  definedListNumberings,
 } from './controls'
 import {
   ARIA_SUFFIX,
@@ -24,6 +25,7 @@ import {
   createTranslator,
 } from './i18n'
 import { type IconName, createIcon } from './icons'
+import { openDefineListNumbering } from './list-dialogs'
 import {
   type QuickInsertItem,
   type ToolUsageTracker,
@@ -686,6 +688,8 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
             createListNumberingControl({
               document,
               options: defaultListNumberings(),
+              definedOptions: () => definedListNumberings(editor.state.doc),
+              onDefine: () => openDefineListNumbering(editor, document),
               valueOf: (snapshot) => currentListNumbering(editor, snapshot),
               onSelect: (value) => {
                 if (value === NO_LIST_NUMBERING) editor.commands.unwrapList()

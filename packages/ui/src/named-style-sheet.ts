@@ -1,11 +1,12 @@
-import { type Editor, namedStylesCSS } from '@trevixal/core'
+import { type Editor, listSchemesCSS, namedStylesCSS } from '@trevixal/core'
 
 /**
  * The editor's named styles, drawn: the document's own definitions (a Normal
- * it changed, styles it made) as a stylesheet scoped to this editing surface
- * alone, so two editors on a page can each have their own Normal. Redrawn
- * only when the definitions change; every paragraph in a style follows at
- * once, since each is drawn by the one rule.
+ * it changed, styles it made, the list schemes it defined) as a stylesheet
+ * scoped to this editing surface alone, so two editors on a page can each
+ * have their own Normal. Redrawn only when the definitions change; every
+ * paragraph in a style, and every list in a scheme, follows at once, since
+ * each is drawn by the one rule.
  */
 
 let scopes = 0
@@ -26,12 +27,16 @@ export function createNamedStyleSheet(editor: Editor): NamedStyleSheet {
 
   // Outranks the stylesheet's own look for the built-in styles, whichever loads last.
   const selector = `.trevixal-content[data-trevixal-style-scope="${scope}"]`
-  let drawn: unknown
+  let drawnStyles: unknown
+  let drawnSchemes: unknown
   const draw = (): void => {
-    const styles = editor.state.doc.attrs.styles
-    if (styles === drawn) return
-    drawn = styles
-    sheet.textContent = namedStylesCSS(editor.state.doc, selector)
+    const { doc } = editor.state
+    if (doc.attrs.styles === drawnStyles && doc.attrs.listSchemes === drawnSchemes) return
+    drawnStyles = doc.attrs.styles
+    drawnSchemes = doc.attrs.listSchemes
+    sheet.textContent = [namedStylesCSS(doc, selector), listSchemesCSS(doc, selector)]
+      .filter(Boolean)
+      .join('\n')
   }
   draw()
   const stop = editor.on('update', draw)

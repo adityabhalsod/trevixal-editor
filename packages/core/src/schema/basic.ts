@@ -2,7 +2,7 @@ import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
 import { safeColor, safeFontFamily } from './css-values'
 import { type TextDirection, documentAttrs, textDirection } from './document-settings'
-import { storedNumberingsFor } from './list-numbering'
+import { isCustomNumberingId, isStoredNumbering } from './list-numbering'
 import { safeStyleId } from './named-styles'
 import {
   paragraphFormatAttrs,
@@ -224,14 +224,29 @@ function parseListStyle(
  */
 function numberingHTML(node: EditorNode): Record<string, string> {
   const id = node.attrs.numbering
-  if (typeof id !== 'string' || !storedNumberingsFor(node.type.name).has(id)) return {}
-  return { 'data-numbering': id }
+  return isStoredNumbering(node.type.name, id) ? { 'data-numbering': id } : {}
 }
 
 /** Read a multilevel scheme back from imported HTML, if this list type allows it. */
 function parseNumbering(element: HTMLElement, listTypeName: string): Record<string, unknown> {
   const id = element.getAttribute('data-numbering')
-  return id !== null && storedNumberingsFor(listTypeName).has(id) ? { numbering: id } : {}
+  return isStoredNumbering(listTypeName, id) ? { numbering: id } : {}
+}
+
+/**
+ * A numbered list's `style`: its own marker style, and under a defined
+ * scheme where its first level starts. A defined scheme counts with counters
+ * of its own (see `listSchemesCSS`), which the `start` attribute does not set.
+ */
+function orderedListStyleHTML(node: EditorNode): Record<string, string> {
+  const start = typeof node.attrs.start === 'number' ? Math.round(node.attrs.start) : 1
+  const declarations = [
+    listStyleHTML(node, ORDERED_LIST_STYLES).style,
+    isCustomNumberingId(node.attrs.numbering) && start !== 1
+      ? `counter-reset: tvx-list-1 ${start - 1}`
+      : undefined,
+  ].filter(Boolean)
+  return declarations.length > 0 ? { style: declarations.join('; ') } : {}
 }
 
 /**
@@ -258,6 +273,73 @@ function isCheckbox(element: Element): boolean {
     element.tagName.toLowerCase() === 'input' &&
     (element.getAttribute('type') ?? '').toLowerCase() === 'checkbox'
   )
+}
+
+/** A task's due date: a real calendar date written as ISO does, `2026-10-01`, or null. */
+export function safeTaskDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const real = date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  return real ? match[0] : null
+}
+
+/** Longest name a task's assignee keeps. */
+const MAX_ASSIGNEE = 60
+
+/** Who a task is assigned to: one line of text, trimmed, or null. */
+export function safeAssignee(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const name = value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: a name is one line of plain text
+    .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, ' ')
+    .trim()
+    .slice(0, MAX_ASSIGNEE)
+    .trim()
+  return name === '' ? null : name
+}
+
+/**
+ * A task's assignee and due date as one line, `@Priya · 2026-10-01`: what
+ * the editor's chip says, and what the Word and RTF exports write after the
+ * task. Null when it has neither.
+ */
+export function taskMetaText(attrs: Readonly<Record<string, unknown>>): string | null {
+  const assignee = safeAssignee(attrs.assignee)
+  const parts = [assignee ? `@${assignee}` : null, safeTaskDate(attrs.due)]
+  return parts.filter(Boolean).join(' · ') || null
+}
+
+/**
+ * The task attributes past `checked`: its due date, assignee and fold. The
+ * chip is drawn by the stylesheet at the end of the item's first line, from
+ * one custom property, so a print and a saved page show it too; the text is
+ * quoted for CSS, and a name can hold neither quote nor backslash unescaped.
+ */
+function taskItemHTML(node: EditorNode): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  const due = safeTaskDate(node.attrs.due)
+  const assignee = safeAssignee(node.attrs.assignee)
+  if (due) attrs['data-due'] = due
+  if (assignee) attrs['data-assignee'] = assignee
+  const chips = taskMetaText(node.attrs)
+  if (chips) attrs.style = `--tvx-task-meta: "${chips.replace(/["\\]/g, '\\$&')}"`
+  return { ...attrs, ...foldHTML(node) }
+}
+
+/** A list item folded shut, showing its first block only. */
+function foldHTML(node: EditorNode): Record<string, string> {
+  return node.attrs.folded === true ? { 'data-folded': '' } : {}
+}
+
+function parseTaskItem(element: HTMLElement): Record<string, unknown> {
+  return {
+    due: safeTaskDate(element.getAttribute('data-due')),
+    assignee: safeAssignee(element.getAttribute('data-assignee')),
+    folded: element.hasAttribute('data-folded'),
+  }
 }
 
 /**
@@ -405,19 +487,30 @@ export function defaultNodes(): Record<string, NodeSpec> {
     },
     taskItem: {
       content: 'block+',
-      attrs: { checked: { default: false } },
+      // `due` is an ISO date and `assignee` a name, both null until set;
+      // `folded` hides every block but the first, as a list item's does.
+      attrs: {
+        checked: { default: false },
+        due: { default: null },
+        assignee: { default: null },
+        folded: { default: false },
+      },
       toHTML: (node) => ({
         tag: 'li',
         attrs: {
           'data-type': 'taskItem',
           'data-checked': node.attrs.checked === true ? 'true' : 'false',
+          ...taskItemHTML(node),
         },
       }),
       parseHTML: [
         {
           tag: 'li',
           attribute: 'data-checked',
-          getAttrs: (element) => ({ checked: element.getAttribute('data-checked') === 'true' }),
+          getAttrs: (element) => ({
+            checked: element.getAttribute('data-checked') === 'true',
+            ...parseTaskItem(element),
+          }),
         },
         // GitHub-flavoured markdown and other editors paste a bare `<li>`
         // holding an `<input type=checkbox>`. The parser drops the input
@@ -460,7 +553,7 @@ export function defaultNodes(): Record<string, NodeSpec> {
       attrs: { start: { default: 1 }, listStyle: { default: null }, numbering: { default: null } },
       toHTML: (node) => {
         const attrs: Record<string, string> = {
-          ...listStyleHTML(node, ORDERED_LIST_STYLES),
+          ...orderedListStyleHTML(node),
           ...numberingHTML(node),
         }
         if (node.attrs.start !== 1) attrs.start = String(node.attrs.start)
@@ -482,8 +575,13 @@ export function defaultNodes(): Record<string, NodeSpec> {
     },
     listItem: {
       content: 'block+',
-      toHTML: () => ({ tag: 'li' }),
-      parseHTML: [{ tag: 'li' }],
+      // Folded shut: only the first block shows, so the items nested under
+      // it are out of sight until it is unfolded.
+      attrs: { folded: { default: false } },
+      toHTML: (node) => ({ tag: 'li', attrs: foldHTML(node) }),
+      parseHTML: [
+        { tag: 'li', getAttrs: (element) => ({ folded: element.hasAttribute('data-folded') }) },
+      ],
     },
     text: { group: 'inline' },
   }

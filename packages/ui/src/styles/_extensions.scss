@@ -9,10 +9,11 @@ $on-accent: #fff;
 
 // A table's rows, whether they sit straight in it, as the editor renders
 // them, or in the `tbody` a browser's parser adds, as an exported or pasted
-// copy has them. Child combinators, so a table nested in a cell keeps its
-// own look.
+// copy has them, or the `thead` a print repeats its header row from. Child
+// combinators, so a table nested in a cell keeps its own look.
 @mixin rows {
   > tr,
+  > thead > tr,
   > tbody > tr {
     @content;
   }
@@ -34,6 +35,10 @@ $on-accent: #fff;
   --tvx-table-width: 1px;
   --tvx-table-style: solid;
   --tvx-cell-band: initial;
+  --tvx-cell-padding: initial;
+  --tvx-cell-ring: initial;
+  --tvx-stuck-below: initial;
+  --tvx-stuck-side: initial;
   // The rule colour is a custom property so a table can recolour its own
   // lines (`setTableBorderColor` writes it inline) without touching every
   // cell: the pen's colour when there is one, else the style's, else the
@@ -192,12 +197,15 @@ $on-accent: #fff;
   // Border styles chosen from the Table menu. The cells keep their border
   // box (so column widths never change), only the colour goes transparent,
   // and with it a style's own rules under the header and over the total row.
+  // Its own cells only: a table nested in one keeps its own lines.
   &[data-borders='none'] {
     --tvx-table-rule: transparent;
 
-    td,
-    th {
-      border-color: transparent;
+    @include rows {
+      > td,
+      > th {
+        border-color: transparent;
+      }
     }
   }
 
@@ -205,17 +213,21 @@ $on-accent: #fff;
     --tvx-table-rule: transparent;
     border: var(--tvx-table-width) var(--tvx-table-style) var(--tvx-table-line);
 
-    td,
-    th {
-      border-color: transparent;
+    @include rows {
+      > td,
+      > th {
+        border-color: transparent;
+      }
     }
   }
 
   &[data-borders='horizontal'] {
-    td,
-    th {
-      border-left-color: transparent;
-      border-right-color: transparent;
+    @include rows {
+      > td,
+      > th {
+        border-left-color: transparent;
+        border-right-color: transparent;
+      }
     }
   }
 
@@ -270,7 +282,8 @@ $on-accent: #fff;
       // Keeps a column clickable when it is empty or holds one character.
       // Without it a freshly inserted table cannot be typed into.
       min-width: 3rem;
-      padding: t.token('space-2');
+      // A table's own cell margins, when it sets them (`setCellPadding`).
+      padding: var(--tvx-cell-padding, #{t.token('space-2')});
       // Text grows downward from the top of a cell, which is what typing
       // expects; the default middle alignment makes lines jump as they wrap.
       vertical-align: top;
@@ -302,18 +315,88 @@ $on-accent: #fff;
     }
   }
 
-  // A wide table scrolls inside its own wrapper instead of widening the page.
-  // Opt in by wrapping the table; the bare table above stays fluid.
-  .trevixal-table-scroll {
-    overflow-x: auto;
-    margin: t.token('space-3') 0;
+  // ---- header row and first column kept in view --------------------------------
+  // A frozen header row stays at the top of the window while a long table
+  // scrolls under it (in print every header row heads every page instead;
+  // the print puts it in a `thead`). A frozen first column does the same
+  // sideways, in a table wider than the page. A stuck cell needs an opaque
+  // fill, so the page colour goes under whatever tint it wears, which moves
+  // up into an image layer. And a collapsed border stays with the table
+  // rather than the stuck cell, so each draws its own rule as a shadow,
+  // which a selection's ring joins rather than replaces.
+  @media screen {
+    table:is([data-freeze-header], [data-freeze-column]) {
+      @include rows {
+        > * {
+          box-shadow:
+            var(--tvx-cell-ring, 0 0 transparent),
+            var(--tvx-stuck-below, 0 0 transparent),
+            var(--tvx-stuck-side, 0 0 transparent);
+        }
 
-    table {
-      margin: 0;
-      min-width: 100%;
-      width: max-content;
-      // The wrapper scrolls, so here the table may be as wide as it likes.
-      max-width: none;
+        > .trevixal-cell--selected {
+          --tvx-cell-ring: inset 0 0 0 2px #{t.token('color-accent')};
+        }
+      }
+    }
+
+    table[data-freeze-header] {
+      @include rows {
+        &:first-child > th {
+          --tvx-stuck-below: 0 1px 0 var(--tvx-table-line);
+          position: sticky;
+          top: var(--trevixal-sticky-top, 0);
+          z-index: 2;
+        }
+
+        // A selected range keeps its own fill.
+        &:first-child > th:not(.trevixal-cell--range) {
+          background-color: t.token('color-bg');
+          background-image: linear-gradient(var(--tvx-table-head-bg), var(--tvx-table-head-bg));
+        }
+      }
+    }
+
+    table[data-freeze-column] {
+      @include rows {
+        > :first-child {
+          --tvx-stuck-side: 1px 0 0 var(--tvx-table-line);
+          position: sticky;
+          inset-inline-start: 0;
+          z-index: 1;
+        }
+
+        > td:first-child:not(.trevixal-cell--range) {
+          background-color: t.token('color-bg');
+          background-image: linear-gradient(
+            var(--tvx-cell-band, transparent),
+            var(--tvx-cell-band, transparent)
+          );
+        }
+
+        > th:first-child:not(.trevixal-cell--range) {
+          background-color: t.token('color-bg');
+          background-image: linear-gradient(var(--tvx-table-head-bg), var(--tvx-table-head-bg));
+        }
+      }
+
+      // The rest scrolls under it from the other side in right-to-left text.
+      &:dir(rtl) {
+        @include rows {
+          > :first-child {
+            --tvx-stuck-side: -1px 0 0 var(--tvx-table-line);
+          }
+        }
+      }
+
+      // The corner cell, in both, stays above the rest of either.
+      &[data-freeze-header] {
+        @include rows {
+          &:first-child > th:first-child {
+            z-index: 3;
+          }
+        }
+      }
     }
   }
 
@@ -327,6 +410,9 @@ $on-accent: #fff;
     list-style: none;
     // Cancel the browser's default marker indent; the gutter replaces it.
     padding-inline-start: 0;
+    counter-reset: tvx-tasks tvx-tasks-done;
+    // A fold's chevron goes out past the checkbox, which sits inside the item.
+    --tvx-fold-gutter: calc(var(--tvx-task-box) + var(--tvx-task-gap) + 0.1em);
 
     // The box and the gutter are both in `em` so they scale together: a fixed
     // px gutter leaves the tick crowding the text as soon as the item holds a
@@ -335,6 +421,7 @@ $on-accent: #fff;
     --tvx-task-gap: 0.6em;
 
     li[data-type='taskItem'] {
+      --tvx-task-meta: none;
       position: relative;
       padding-inline-start: calc(var(--tvx-task-box) + var(--tvx-task-gap));
       // Items sat flush against each other, so a list of tasks read as one
@@ -397,6 +484,55 @@ $on-accent: #fff;
         color: t.token('color-text-muted');
         text-decoration: line-through;
       }
+
+      // Its assignee and due date, one chip at the end of its first line.
+      // The text is the item's own custom property, which the schema writes
+      // (quoted) from its attributes, so a print and a saved page draw it
+      // too; `--tvx-task-meta` is reset on every item (above), so a nested
+      // one does not inherit it.
+      > :first-child::after {
+        content: var(--tvx-task-meta);
+        // An inline block, so a finished task's line-through stops at it.
+        display: inline-block;
+        margin-inline-start: 0.5em;
+        padding: 0 0.5em;
+        border-radius: 999px;
+        background: t.token('color-code-bg');
+        color: t.token('color-text-muted');
+        font-size: 0.8em;
+        font-weight: 400;
+        line-height: 1.5;
+        white-space: nowrap;
+      }
+
+      // Past its date and not done: the editor marks it (see list-tools.ts).
+      &[data-overdue] > :first-child::after {
+        background: t.token('color-tone-danger-bg');
+        color: t.token('color-tone-danger-accent');
+      }
+    }
+
+    // How much of the list is done, under a list of two or more, counted by
+    // the stylesheet alone (the counters are reset above): an `::after`
+    // comes after every item, so they are final there. A nested list counts
+    // its own items.
+    > li[data-type='taskItem'] {
+      counter-increment: tvx-tasks;
+    }
+
+    > li[data-type='taskItem'][data-checked='true'] {
+      counter-increment: tvx-tasks tvx-tasks-done;
+    }
+
+    &:has(> li + li)::after {
+      // The words are properties, so a page in another language can say them its way.
+      content: counter(tvx-tasks-done) var(--trevixal-tasks-of, ' of ') counter(tvx-tasks)
+        var(--trevixal-tasks-done, ' done');
+      display: block;
+      margin-top: 0.15em;
+      color: t.token('color-text-muted');
+      font-size: 0.8em;
+      font-variant-numeric: tabular-nums;
     }
   }
 

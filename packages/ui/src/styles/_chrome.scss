@@ -421,6 +421,125 @@
     margin: auto;
     font-size: 0.85rem;
   }
+
+  // The document's own schemes, under a rule, after the built-in ones.
+  &__grid--defined {
+    padding-top: t.token('space-2');
+    border-top: 1px solid t.token('color-border');
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__define {
+    display: block;
+    width: calc(100% - 2 * #{t.token('space-2')});
+    margin: 0 t.token('space-2') t.token('space-2');
+    padding: t.token('space-2');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover {
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
+// ------------------------------------------- define a multilevel list (dialog)
+// Nine levels, one a row, with the first few drawn below as they will number.
+.trevixal-listscheme {
+  width: min(36rem, 100%);
+
+  &__scroller {
+    max-height: 14rem;
+    overflow-y: auto;
+    @include t.slim-scrollbar;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+  }
+
+  &__levels {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+
+    th,
+    td {
+      padding: 2px 4px;
+      text-align: start;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: t.token('color-surface');
+      color: t.token('color-text-muted');
+      font-weight: 500;
+    }
+
+    tbody th {
+      width: 2.5rem;
+      color: t.token('color-text-muted');
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .trevixal-dialog__input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 2px 4px;
+    }
+
+    input[type='number'] {
+      width: 4.5rem;
+    }
+  }
+
+  // As the list lays it out: each level's text starts at its indent, and
+  // its marker hangs in the gutter before it, however long the marker is.
+  &__preview {
+    padding: t.token('space-2') t.token('space-3');
+    padding-inline-start: 5em;
+    overflow: hidden;
+    background: t.token('color-surface');
+    border-radius: t.token('radius-sm');
+    font-size: 0.85rem;
+  }
+
+  &__line {
+    position: relative;
+    display: flex;
+    align-items: center;
+    // The marker is out of the flow, so the line is as tall as a line of text itself.
+    min-height: 1.8em;
+    padding-inline-start: var(--tvx-preview-indent, 0);
+  }
+
+  &__marker {
+    position: absolute;
+    inset-inline-end: calc(100% - var(--tvx-preview-indent, 0) + 0.3em);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar {
+    flex: 1;
+    max-width: 12rem;
+    height: 2px;
+    background: t.token('color-border');
+  }
 }
 
 // ------------------------------------------------------------ table design

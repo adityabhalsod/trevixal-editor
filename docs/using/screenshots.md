@@ -21,6 +21,15 @@ columns, hyphenation, borders and shading, and tab stops, as
 
 <ScreenshotGallery :shots="formattingTools" />
 
+## Lists and tables
+
+Task dates and assignees, folding and sorting a list, a multilevel list of
+your own, a frozen header row, cell padding and vertical alignment, a table
+inside a table and the header row a print repeats, as
+[Lists and tables](./lists-and-tables) describes them.
+
+<ScreenshotGallery :shots="listsAndTables" />
+
 <script setup>
 const longDocuments = [
   { file: '01-report-overview.png', caption: 'A quarterly report to work on' },
@@ -70,5 +79,25 @@ const formattingTools = [
   { file: '42-autocorrect-own-entry.png', caption: 'The added entry, corrected as it is typed' },
   { file: '43-two-text-columns-with-line-and-hyphenation.png', caption: 'Two text columns with a line between, hyphenated' },
   { file: '44-print-preview-formatting.png', caption: 'Print preview of the formatting' },
+]
+
+const listsAndTables = [
+  { file: '45-launch-plan-overview.png', caption: 'A launch plan: tasks, an agenda, suppliers and a budget' },
+  { file: '46-format-menu-list-tools.png', caption: 'Format menu: define a multilevel list, sort, fold and task details' },
+  { file: '47-task-due-date-and-assignee-dialog.png', caption: 'A task’s due date and assignee' },
+  { file: '48-task-chips-overdue-and-done-count.png', caption: 'Each task’s chip, the overdue one in red, and the done count' },
+  { file: '49-list-item-fold-chevron.png', caption: 'The chevron beside an item with something under it' },
+  { file: '50-list-item-folded.png', caption: 'The item folded shut' },
+  { file: '51-list-sorted-a-to-z.png', caption: 'The list sorted A to Z, the folded item with it' },
+  { file: '52-define-new-multilevel-list-dialog.png', caption: 'Define new multilevel list: nine levels and a preview' },
+  { file: '53-custom-multilevel-list.png', caption: 'The agenda numbered Part I –, then II.1' },
+  { file: '54-multilevel-gallery-with-own-scheme.png', caption: 'The scheme in the gallery, under the built-in ones' },
+  { file: '55-table-menu-caption-and-freeze.png', caption: 'Table menu: Insert caption, Freeze header row and first column' },
+  { file: '56-table-menu-cell-alignment-and-padding.png', caption: 'Table menu: vertical alignment and cell padding' },
+  { file: '57-frozen-header-row-while-scrolling.png', caption: 'The header row held at the top while the table scrolls' },
+  { file: '58-cell-padding-and-vertical-alignment.png', caption: 'Wide padding, and a cost aligned to the middle' },
+  { file: '59-table-inside-a-cell.png', caption: 'A table inside a cell' },
+  { file: '60-print-preview-with-header-row.png', caption: 'Print preview of the budget' },
+  { file: '61-printed-page-two-repeats-the-header-row.png', caption: 'Printed page 2 starts with the header row' },
 ]
 </script>

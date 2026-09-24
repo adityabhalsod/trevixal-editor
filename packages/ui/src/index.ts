@@ -17,8 +17,34 @@ export {
   type ToolbarOptions,
 } from './toolbar'
 
+// List tools: sort, fold, task details, defined multilevel schemes
+export {
+  bindListFolding,
+  defineListNumbering,
+  highlightOverdueTasks,
+  isFoldable,
+  type ListSortDirection,
+  localToday,
+  nextListSchemeId,
+  revealSelection,
+  setListItemFolded,
+  setTaskDetails,
+  sortList,
+  type TaskDetails,
+  taskDetailsAt,
+  toggleListItemFold,
+} from './list-tools'
+export {
+  editableLevels,
+  listDialogEntries,
+  openDefineListNumbering,
+  openListSchemeDialog,
+  type ListSchemeDialogOptions,
+} from './list-dialogs'
+
 // Menubar
 export {
+  CELL_PADDING_ENTRIES,
   createMenubar,
   defaultMenus,
   type Menu,
@@ -42,6 +68,7 @@ export {
   defaultFontFamilies,
   defaultFontSizes,
   defaultListNumberings,
+  definedListNumberings,
   DEFAULT_SWATCHES,
   type ListNumberingControlOptions,
   type ListNumberingOption,
@@ -257,6 +284,7 @@ export {
   printDocument,
   printableHTML,
   type PrintOptions,
+  repeatHeaderRowsIn,
   readFileText,
   selectionDocument,
   suggestFileName,
@@ -365,6 +393,7 @@ export {
   type ImageActions,
   type MathCommands,
   type TableCommands,
+  type TableLayoutState,
   VIEW_TOGGLES,
   type ViewActions,
   type ViewToggle,

@@ -39,7 +39,9 @@ test('registers every menu and menu entry it did before', () => {
     Insert: 43,
     Format: 31,
     Tools: 25,
-    Table: 37,
+    // Insert caption..., Freeze header row, Freeze first column, Cell padding
+    // and the rule before them.
+    Table: 42,
     View: 22,
     Help: 3,
   })
@@ -58,7 +60,9 @@ test('renders the whole chrome, not just the menus', () => {
     menuTriggers: 8,
     toolbarGroups: 14,
     toolbarItems: 65,
-    everythingNamed: 389,
+    // The five list tools under Format > Lists, and ten Table entries: the
+    // three above, Top / Middle / Bottom and the four paddings.
+    everythingNamed: 404,
   })
 })
 

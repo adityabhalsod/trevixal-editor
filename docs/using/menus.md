@@ -55,8 +55,9 @@ Single / 1.15 / 1.5 / Double ·
 space before none / medium / large, then space after none / medium / large ·
 **Letter spacing >** Normal / Tight / Wide / Wider · **Lists >** Bullet
 `Ctrl+Shift+8` / Numbered `Ctrl+Shift+7` / Task `Ctrl+Shift+9`, eight list
-styles, Restart numbering, Continue numbering, five multilevel lists ·
-Format painter · Clear text formatting · Clear all formatting `Ctrl+\`
+styles, Restart numbering, Continue numbering, five multilevel lists, Define
+new multilevel list..., Sort A to Z, Sort Z to A, Fold or unfold item, Task
+due date and assignee... · Format painter · Clear text formatting · Clear all formatting `Ctrl+\`
 
 ## Tools
 
@@ -72,10 +73,12 @@ count
 
 Insert table · Draw table · Eraser · Border painter · Row above · Row below ·
 Delete row · Column left · Column right · Delete column · Merge cells · Split
-cells... · **Table style >** Table grid / Grid / Blue grid ... Lime grid /
+cells... · Insert caption... · Freeze header row · Freeze first column ·
+**Table style >** Table grid / Grid / Blue grid ... Lime grid /
 Header / Blue header ... Lime header · **Style options >** Header row / Total
 row / Banded rows / First column / Last column / Banded columns · Cell
-background... · **Cell alignment >** Left / Center / Right / Default ·
+background... · **Cell alignment >** Left / Center / Right / Default / Top /
+Middle / Bottom · **Cell padding >** None / Narrow / Normal / Wide ·
 **Borders >** All / Outside only / Rows only / No borders / Border colour... ·
 **Line style >** Solid / Dashed / Dotted / Double · **Line weight >** ½ pt /
 1½ pt / 2¼ pt / 3 pt · **Sort by this column >** Ascending / Descending ·
@@ -86,8 +89,9 @@ Delete table
 
 Draw table, Eraser and Border painter are tools rather than commands: picking
 one hands it to the pointer, and the entry shows a tick until you pick it
-again or press `Escape`. The table style, style options, line style and line
-weight entries tick what the table at the caret has.
+again or press `Escape`. The table style, style options, line style, line
+weight, freeze, cell padding and vertical alignment entries tick what the
+table at the caret has.
 
 ## View
 

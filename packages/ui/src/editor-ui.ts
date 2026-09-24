@@ -20,7 +20,16 @@ import { type DialogField, openCharacterPicker, openDialog } from './dialog'
 import { printDocument } from './documents'
 import { type FindReplace, createFindReplace } from './find-replace'
 import type { Messages } from './i18n'
-import { type Menu, type MenuItem, type Menubar, createMenubar, defaultMenus } from './menubar'
+import { listDialogEntries } from './list-dialogs'
+import { bindListFolding, highlightOverdueTasks } from './list-tools'
+import {
+  CELL_PADDING_ENTRIES,
+  type Menu,
+  type MenuItem,
+  type Menubar,
+  createMenubar,
+  defaultMenus,
+} from './menubar'
 import { createNamedStyleSheet } from './named-style-sheet'
 import { paragraphFormatEntries } from './paragraph-dialogs'
 import { referenceEntries } from './reference-dialogs'
@@ -108,6 +117,24 @@ export interface TableCommands {
   readonly setTableBorderWidth?: (width: TableLineWeight | null) => Command
   /** The design of the table at the selection, for the toolbar and the ticks; a reader. */
   readonly tableDesignAt?: (state: EditorState) => TableDesignState | null
+  // How the table sits on the page and in its cells, from `tableUICommands()`.
+  /** The header row held at the top of the window while a long table scrolls by. */
+  readonly toggleFreezeHeaderRow?: Command
+  readonly toggleFreezeFirstColumn?: Command
+  /** Word's cell margins for the whole table; Table ▸ Cell padding offers four. */
+  readonly setCellPadding?: (padding: string | null) => Command
+  readonly setCellVerticalAlign?: (align: 'top' | 'middle' | 'bottom' | null) => Command
+  /** How the table at the selection is laid out, for the ticks; a reader. */
+  readonly tableLayoutAt?: (state: EditorState) => TableLayoutState | null
+}
+
+/** What {@link TableCommands.tableLayoutAt} reads off the table at the selection. */
+export interface TableLayoutState {
+  readonly freezeHeader: boolean
+  readonly freezeColumn: boolean
+  readonly cellPadding: string | null
+  /** The caret's cell's; top reads as null. */
+  readonly verticalAlign: 'top' | 'middle' | 'bottom' | null
 }
 
 /** Media and embed commands, from `@trevixal/extension-embed`. */
@@ -415,8 +442,12 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
   syncDirection()
   const stopSyncingDirection = editor.on('update', syncDirection)
   // The document's named styles, drawn on this surface: a Normal it changed,
-  // styles of its own.
+  // styles of its own, and the list schemes it defined.
   const namedStyles = createNamedStyleSheet(editor)
+  // A fold's chevron opens and shuts it, and a caret is never left hidden in
+  // one; a task past its date is marked for its chip to say so.
+  const stopFolding = bindListFolding(editor)
+  const stopOverdue = highlightOverdueTasks(editor)
 
   options.container.appendChild(root)
   return {
@@ -437,6 +468,8 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     },
     destroy() {
       stopSyncingDirection()
+      stopFolding()
+      stopOverdue()
       namedStyles.destroy()
       findReplace?.destroy()
       statusBar?.destroy()
@@ -567,6 +600,8 @@ function createActions(
   })
   // Format ▸ Borders and shading…, Format ▸ Drop cap ▸ Drop cap options…
   for (const [name, run] of paragraphFormatEntries(document)) byName.set(name, run)
+  // Format ▸ Lists ▸ Define new multilevel list…, Task due date and assignee…
+  for (const [name, run] of listDialogEntries(document)) byName.set(name, run)
   byName.set('sourceCode', (target) => {
     void openDialog({
       document,
@@ -739,6 +774,9 @@ function createActions(
     }
     // Captions, cross-references, their lists, the index and endnotes.
     for (const [name, run] of referenceEntries(blocks, document)) byName.set(name, run)
+    // Table ▸ Insert caption… is Insert ▸ Caption…, which starts on Table in a table.
+    const caption = byName.get('insertCaption')
+    if (caption) byName.set('tableCaption', caption)
   }
 
   // Code formatting, when the host supplies the extension's commands.
@@ -1111,6 +1149,7 @@ function createActions(
         byName.set(name, (target) => target.exec(align(value)))
       }
     }
+    wireTableLayout(editor, commands, byName, activeByName)
     const background = commands.setCellBackground
     if (background) {
       byName.set('cellBackground', (target) => {
@@ -1249,6 +1288,51 @@ function applyLink(target: Editor, values: Readonly<Record<string, string>>): vo
   const href = values.kind === 'anchor' ? `#${values.anchor ?? ''}` : (values.href ?? '').trim()
   if (href === '#' || !safeHref(href)) return
   if (target.commands.setLink(href, title)) target.exec(setLinkTarget(tab))
+}
+
+/**
+ * Table ▸ Freeze header row, Freeze first column, Cell padding and the
+ * vertical half of Cell alignment, each ticked while the table at the
+ * selection has it.
+ */
+function wireTableLayout(
+  editor: Editor,
+  commands: TableCommands,
+  byName: Map<string, (editor: Editor) => void>,
+  activeByName: Map<string, () => boolean>,
+): void {
+  const read = commands.tableLayoutAt
+  const wire = (name: string, command: Command, isOn: (layout: TableLayoutState) => boolean) => {
+    byName.set(name, (target) => target.exec(command))
+    if (!read) return
+    activeByName.set(name, () => {
+      const layout = read(editor.state)
+      return layout !== null && isOn(layout)
+    })
+  }
+  if (commands.toggleFreezeHeaderRow) {
+    wire('freezeHeaderRow', commands.toggleFreezeHeaderRow, (layout) => layout.freezeHeader)
+  }
+  if (commands.toggleFreezeFirstColumn) {
+    wire('freezeFirstColumn', commands.toggleFreezeFirstColumn, (layout) => layout.freezeColumn)
+  }
+  const padding = commands.setCellPadding
+  if (padding) {
+    for (const entry of CELL_PADDING_ENTRIES) {
+      wire(entry.name, padding(entry.padding), (layout) => layout.cellPadding === entry.padding)
+    }
+  }
+  const vertical = commands.setCellVerticalAlign
+  if (vertical) {
+    const alignments: readonly [string, 'middle' | 'bottom' | null][] = [
+      ['cellAlignTop', null],
+      ['cellAlignMiddle', 'middle'],
+      ['cellAlignBottom', 'bottom'],
+    ]
+    for (const [name, value] of alignments) {
+      wire(name, vertical(value), (layout) => (layout.verticalAlign ?? null) === value)
+    }
+  }
 }
 
 /**

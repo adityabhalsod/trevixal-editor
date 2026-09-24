@@ -1,13 +1,14 @@
 import type { EditorNode } from '../model/node'
 import { headingNumberingScheme } from './heading-numbering'
+import { parseListSchemes, storedListSchemesAttr } from './list-numbering'
 import { parseStoredStyles, storedStylesAttr } from './named-styles'
 
 /**
  * Settings that belong to the whole document rather than to any one block,
  * the way Word keeps them in its settings part: heading numbering, the
  * document's direction, line numbers, hyphenation, widow and orphan control,
- * text columns, named styles. They are the doc node's attributes, so
- * they travel with the file and undo like any edit.
+ * text columns, named styles, list schemes. They are the doc node's
+ * attributes, so they travel with the file and undo like any edit.
  *
  * In HTML a document with any of them set is wrapped in one element carrying
  * them, `<div data-trevixal-document …>`; a document with none is written
@@ -57,6 +58,9 @@ export function documentAttrs(): Record<string, { default?: unknown }> {
     // Named styles' definitions, where they differ from the built-in look:
     // JSON, see named-styles.ts. Null is every style as it ships.
     styles: { default: null },
+    // Multilevel list schemes the writer defined, as JSON (see
+    // list-numbering.ts); the gallery offers them beside the built-in ones.
+    listSchemes: { default: null },
   }
 }
 
@@ -74,6 +78,8 @@ export function documentSettingsAttrs(doc: EditorNode): Record<string, string> {
   if (columns > 1 && doc.attrs.columnRule === true) attrs['data-column-rule'] = ''
   const styles = storedStylesAttr(parseStoredStyles(doc.attrs.styles))
   if (styles) attrs['data-styles'] = styles
+  const schemes = storedListSchemesAttr(parseListSchemes(doc.attrs.listSchemes))
+  if (schemes) attrs['data-list-schemes'] = schemes
   if (Object.keys(attrs).length > 0) attrs[DOCUMENT_ATTRIBUTE] = ''
   return attrs
 }
@@ -92,6 +98,8 @@ export function parseDocumentSettings(element: Element): Record<string, unknown>
   if (element.hasAttribute('data-column-rule')) attrs.columnRule = true
   const styles = storedStylesAttr(parseStoredStyles(element.getAttribute('data-styles')))
   if (styles) attrs.styles = styles
+  const schemes = storedListSchemesAttr(parseListSchemes(element.getAttribute('data-list-schemes')))
+  if (schemes) attrs.listSchemes = schemes
   return attrs
 }
 
