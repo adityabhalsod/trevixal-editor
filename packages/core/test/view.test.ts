@@ -184,6 +184,47 @@ describe('mutation repair', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(editor.getText()).toBe('hallo')
   })
+
+  it('leaves a widget’s own redraw alone, and the caret the browser has yet to report', async () => {
+    const { editor, view } = mount(
+      doc(
+        h(1, 'Trevixal'),
+        p('The full editor'),
+        testSchema.node('codeBlock', undefined, [text('graph TD')]),
+      ),
+    )
+    // Chrome an extension appends inside a block, the way the diagram preview
+    // sits in its code block's `<pre>` after the `<code>`.
+    const widget = window.document.createElement('div')
+    widget.contentEditable = 'false'
+    widget.dataset.trevixalWidget = 'true'
+    widget.textContent = 'Rendering diagram…'
+    view.dom.querySelector('pre')?.appendChild(widget)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // A click in the paragraph. WebKit reports it with a `selectionchange`
+    // that can arrive a long task later, so the model still has the caret at
+    // the start of the heading. happy-dom reports it at once, so the report is
+    // held back here and delivered by hand below.
+    view.dom.focus()
+    const clicked = view.dom.querySelector('p')?.firstChild as globalThis.Node
+    const holdBack = (event: Event): void => event.stopImmediatePropagation()
+    window.addEventListener('selectionchange', holdBack, { capture: true })
+    window.document.getSelection()?.setBaseAndExtent(clicked, 4, clicked, 4)
+    window.removeEventListener('selectionchange', holdBack, { capture: true })
+
+    // The diagram finishes drawing in that gap. Re-rendering for it wrote the
+    // model's stale caret over the click, and the typing that followed went
+    // into the heading.
+    widget.innerHTML = '<svg></svg>'
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(window.document.getSelection()?.focusNode).toBe(clicked)
+    expect(window.document.getSelection()?.focusOffset).toBe(4)
+
+    window.document.dispatchEvent(new Event('selectionchange'))
+    expect(editor.state.selection.eq(new TextSelection(pos([1], 4)))).toBe(true)
+    editor.destroy()
+  })
 })
 
 describe('lifecycle', () => {

@@ -43,7 +43,12 @@ import { cleanPastedHTML } from '../serialize/paste-source'
 import type { EditorState } from '../state/editor-state'
 import { TextSelection } from '../state/selection'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
-import { domPointFromPosition, pathOfElement, positionFromDOMPoint } from './dom-point'
+import {
+  domPointFromPosition,
+  isInsideNonContent,
+  pathOfElement,
+  positionFromDOMPoint,
+} from './dom-point'
 import { type Keymap, baseKeymap, keydownHandler } from './keymap'
 import {
   DOMRenderer,
@@ -836,9 +841,15 @@ export class EditorView {
 
   private onMutations = (records: MutationRecord[]): void => {
     if (this.destroyed || this.updatingDOM || this.composing || records.length === 0) return
+    // A widget redrawing itself (a diagram preview whose render has landed) is
+    // chrome, not an edit: nothing in it maps to the model. Treating it as one
+    // re-rendered the document, and the re-render wrote the model's caret over
+    // a click the browser had not reported yet.
+    const edits = records.filter((record) => !isInsideNonContent(record.target, this.dom))
+    if (edits.length === 0) return
     const blocks = new Set<HTMLElement>()
     let fallback = false
-    for (const record of records) {
+    for (const record of edits) {
       const block = this.blockElementAround(record.target)
       if (block) blocks.add(block)
       else fallback = true

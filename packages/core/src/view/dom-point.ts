@@ -18,6 +18,18 @@ function isNonContent(node: globalThis.Node): boolean {
   return dataset.trevixalPlaceholder === 'true' || dataset.trevixalWidget === 'true'
 }
 
+/** Whether `node` is, or sits inside, an element that occupies no model offsets, up to `root`. */
+export function isInsideNonContent(node: globalThis.Node, root: globalThis.Node): boolean {
+  for (
+    let current: globalThis.Node | null = node;
+    current && current !== root;
+    current = current.parentNode
+  ) {
+    if (isNonContent(current)) return true
+  }
+  return false
+}
+
 /** Model node an element renders, if any. */
 function modelAt(renderer: DOMRenderer, node: globalThis.Node): EditorNode | null {
   return renderer.modelOf.get(node) ?? null
