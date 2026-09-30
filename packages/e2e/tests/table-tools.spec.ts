@@ -194,9 +194,10 @@ test('Draw table: a line across splits the row in two', async ({ page }) => {
     ['delta:1', 'epsilon:1', 'zeta:1'],
   ])
   const spans = await page.evaluate(() =>
-    [...(document.querySelector('.trevixal-content table') as HTMLTableElement).rows[0]?.cells ?? []].map(
-      (cell) => cell.rowSpan,
-    ),
+    [
+      ...((document.querySelector('.trevixal-content table') as HTMLTableElement).rows[0]?.cells ??
+        []),
+    ].map((cell) => cell.rowSpan),
   )
   expect(spans).toEqual([2, 1, 2])
 })

@@ -25,6 +25,12 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "locales": ["./dist/locales/index.d.ts"],
+      "locales/*": ["./dist/locales/*.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "import": {

@@ -196,7 +196,9 @@ test('the language select floats over the code block holding the caret', async (
     // Changing it re-highlights without altering the code.
     const text = await block.textContent()
     // The language trigger: the bar also holds the code options', styled alike.
-    await select.locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)').click()
+    await select
+      .locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)')
+      .click()
     await page.click('[data-trevixal-language="python"]')
     await expect(block.locator('.tvx-tok-keyword', { hasText: 'interface' })).toHaveCount(0)
     expect(await block.textContent()).toBe(text)
@@ -366,7 +368,9 @@ test('the full-editor example highlights code and paints formatting', async ({ p
     const bar = page.locator('.trevixal-codelang')
     await expect(bar).toBeVisible()
     const pick = async (language: string): Promise<void> => {
-      await bar.locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)').click()
+      await bar
+        .locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)')
+        .click()
       await page.click(`[data-trevixal-language="${language}"]`)
     }
     await pick('sql')
