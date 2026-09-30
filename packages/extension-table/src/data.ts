@@ -470,12 +470,19 @@ function quoted(text: string): string {
   return `"${text.replace(/"/g, "'").replace(/\s+/g, ' ').trim()}"`
 }
 
+/** Whether a cell totals the rows above it: a formula over ABOVE, as a total row holds. */
+function totalsAbove(node: EditorNode): boolean {
+  if (node.type.name === 'tableFormula')
+    return /\bABOVE\b/i.test(String(node.attrs.expression ?? ''))
+  return node.content.children.some(totalsAbove)
+}
+
 /**
  * Mermaid source for a chart of the table's data: the first column's
  * texts label the points, and every other column holding a number is a
  * series, named by its header. A pie takes the first such column. Rows with
- * no number, and a total row, are left out. Null when the table has no
- * numbers to draw.
+ * no number, and a total row (Word's option, or one whose formulas add up
+ * the rows above), are left out. Null when the table has no numbers to draw.
  */
 export function tableChartSource(table: EditorNode, kind: ChartKind): string | null {
   const map = TableMap.of(table)
@@ -488,10 +495,16 @@ export function tableChartSource(table: EditorNode, kind: ChartKind): string | n
   // Word's Total row option, and not a row with no numbers at all.
   const groups = rowGroups(table).slice(header ? 1 : 0)
   const counted = table.attrs.totalRow === true ? groups.slice(0, -1) : groups
-  const body = counted.filter((group) =>
-    Array.from({ length: map.width - 1 }, (_, offset) => text(group.first, offset + 1)).some(
-      (value) => parseCellNumber(value) !== null,
-    ),
+  const totalled = (row: number): boolean =>
+    Array.from({ length: map.width }, (_, column) => map.at(row, column)).some(
+      (cell) => cell !== undefined && cell !== null && cell.top === row && totalsAbove(cell.node),
+    )
+  const body = counted.filter(
+    (group) =>
+      !totalled(group.first) &&
+      Array.from({ length: map.width - 1 }, (_, offset) => text(group.first, offset + 1)).some(
+        (value) => parseCellNumber(value) !== null,
+      ),
   )
   if (body.length === 0 || map.width < 2) return null
   const labels = body.map((group) => text(group.first, 0) || `Row ${group.first + 1}`)

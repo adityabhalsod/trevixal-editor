@@ -60,6 +60,7 @@ test('comments on a selection, replies, resolves, and keeps the thread in the fi
       'Is this approved?',
       'Yes, on Monday.',
     ])
+    await expect(thread.getByRole('textbox', { name: 'Reply' })).toHaveValue('')
 
     // The quote takes the reader to the text it is about.
     await page.locator(`${surface} > p`).click()

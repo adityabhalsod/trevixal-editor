@@ -67,6 +67,24 @@ test('shows the chrome in another language, mirrored for Arabic, and remembers i
     const first = await file.boundingBox()
     if (!menus || !first) throw new Error('no boxes')
     expect(first.x + first.width).toBeGreaterThan(menus.x + menus.width / 2)
+    // The status line is still English, so it reads in English order: the
+    // count comes before the word "words", not after it.
+    const countFirst = await page.locator('.trevixal-statusbar__counts').evaluate((element) => {
+      const text = element.firstChild as Text
+      const leftOf = (index: number): number => {
+        const range = document.createRange()
+        range.setStart(text, index)
+        range.setEnd(text, index + 1)
+        return range.getBoundingClientRect().left
+      }
+      return leftOf(0) < leftOf(text.data.indexOf('words'))
+    })
+    expect(countFirst).toBe(true)
+    // ...at the far end of the bar from the element path, as in English.
+    const bar = await page.locator('.trevixal-statusbar').boundingBox()
+    const counts = await page.locator('.trevixal-statusbar__counts').boundingBox()
+    if (!bar || !counts) throw new Error('no status bar')
+    expect(counts.x + counts.width).toBeLessThan(bar.x + bar.width / 2)
 
     await page.reload()
     await page.waitForSelector(surface)

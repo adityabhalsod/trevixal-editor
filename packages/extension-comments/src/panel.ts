@@ -193,9 +193,13 @@ export function createCommentsPanel(editor: Editor, options: CommentsPanelOption
       reply.addEventListener('submit', (event) => {
         event.preventDefault()
         const comment = { author: options.author(), text: box.value, time: now() }
+        // Emptied first: the redraw the reply causes keeps each box's text as a draft.
+        box.value = ''
         if (editor.exec(replyToComment(thread.id, comment))) {
           drafts.delete(thread.id)
           notify(thread.id, comment)
+        } else {
+          box.value = comment.text
         }
       })
       const actions = make('div', 'trevixal-comments__actions')

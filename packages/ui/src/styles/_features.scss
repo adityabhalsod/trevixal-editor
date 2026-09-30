@@ -1027,6 +1027,8 @@ pre > .trevixal-diagram {
   border: 1px solid t.token('color-border');
   border-radius: t.token('radius-md');
   box-shadow: 0 6px 20px rgba(16, 16, 32, 0.16);
+  // Mounted on the page's body, so it would take the page's font otherwise.
+  font-family: t.token('font-family');
 
   // `display` set by a class outranks the user-agent rule for `[hidden]`, so
   // a floating control has to opt back out explicitly, otherwise it stays
@@ -1593,6 +1595,99 @@ pre > .trevixal-diagram {
   flex-direction: column;
   gap: t.token('space-2');
   font-size: 0.8rem;
+
+  // The search box and the two actions under it, in the chrome's own look
+  // rather than the browser's.
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: t.token('space-1');
+  }
+
+  &__search {
+    flex: 1 1 100%;
+    min-width: 0;
+    padding: 4px t.token('space-2');
+    color: t.token('color-text');
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+  }
+
+  &__action {
+    flex: 1;
+    padding: 3px t.token('space-2');
+    color: t.token('color-text');
+    background: t.token('color-surface');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: t.token('color-selection');
+    }
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__folder > .trevixal-workspace__list {
+    padding-inline-start: t.token('space-3');
+  }
+
+  &__folder-heading {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-1');
+    padding: 2px t.token('space-1');
+    cursor: pointer;
+  }
+
+  &__folder-name {
+    flex: 1;
+  }
+
+  &__empty {
+    margin: 0;
+    color: t.token('color-text-muted');
+  }
+
+  // A row's title, star and menu: flat, the row itself is what looks pressable.
+  &__title,
+  &__star,
+  &__more {
+    padding: 2px;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__star,
+  &__more {
+    color: t.token('color-text-muted');
+  }
 
   &__row {
     display: flex;

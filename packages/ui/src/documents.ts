@@ -565,19 +565,25 @@ export function repeatHeaderRowsIn(root: ParentNode): void {
 
 /**
  * Lay out a loaded print frame as its print will be: its header rows made
- * to repeat, its tabs at their stops, then, when the document numbers them,
- * its lines, at the printed width; then all of it set as pages.
+ * to repeat and its tabs at their stops, at the printed width; then all of
+ * it set as pages; then, when the document numbers them, the lines of each
+ * page, on from the page before. Numbered once the pages are made, as text
+ * beside a float can wrap otherwise on its page than in one long column.
  */
 function layoutFrame(frame: HTMLIFrameElement, doc: EditorNode): void {
   const content = frame.contentDocument?.querySelector<HTMLElement>('.trevixal-content')
   if (!content) return
   repeatHeaderRowsIn(content)
   layoutTabsIn(content, true)
-  if (doc.attrs.lineNumbers === true) numberLinesIn(content)
   paginate(content, {
     setup: pageSetupOf(doc.attrs.pageSetup),
     widowControl: doc.attrs.widowControl !== false,
   })
+  if (doc.attrs.lineNumbers !== true) return
+  let next = 1
+  for (const body of content.querySelectorAll<HTMLElement>('.trevixal-page__body')) {
+    next = numberLinesIn(body, next)
+  }
 }
 
 /** The standalone HTML a print job or preview renders. */

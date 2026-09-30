@@ -78,6 +78,18 @@ test('sets the page up, and the page view shows it with its header and footer', 
     const footers = page.locator('.trevixal-page-marks__footer')
     await expect(footers.first()).toHaveText(/^Page 1 of \d+$/)
     await expect(page.locator('.trevixal-page-marks__header').first()).toHaveText('The plan')
+    // The sheet keeps the page's margins, so the header sits above the text.
+    // Both measured at once: the marks are redrawn as the sheet settles.
+    await expect
+      .poll(() =>
+        page.evaluate((selector) => {
+          const header = document.querySelector('.trevixal-page-marks__header')
+          const text = document.querySelector(selector)?.firstElementChild
+          if (!header || !text) return Number.NaN
+          return text.getBoundingClientRect().top - header.getBoundingClientRect().bottom
+        }, surface),
+      )
+      .toBeGreaterThanOrEqual(0)
   } finally {
     await server.close()
   }

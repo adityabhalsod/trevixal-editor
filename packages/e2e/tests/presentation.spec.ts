@@ -56,6 +56,13 @@ test('presents the document as slides, with notes, from the keyboard', async ({ 
     await expect(show.getByRole('complementary', { name: 'Speaker notes' })).toHaveText(
       'Pause here for questions.',
     )
+    // Set in the chrome's face, not in the page's default serif.
+    const face = (selector: string): Promise<string> =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((element) => getComputedStyle(element).fontFamily)
+    expect(await face('.trevixal-presentation__notes')).toBe(await face('.trevixal-menubar'))
     await page.keyboard.press('ArrowRight')
     await expect(show.locator('.trevixal-presentation__title')).toHaveText('How we get there')
     await expect(show.locator('.trevixal-presentation__counter')).toHaveText('2 / 2')

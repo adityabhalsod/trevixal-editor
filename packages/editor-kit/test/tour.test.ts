@@ -58,6 +58,41 @@ describe('the tour', () => {
     expect(html).toContain('Tools ▸ Mail merge')
   })
 
+  test('holds a comment thread on its words, a reply in it', () => {
+    expect(html).toContain('data-comment="c-tour"')
+    const threads = JSON.parse(String(editor.state.doc.attrs.comments)) as {
+      comments: { author: string; text: string }[]
+    }[]
+    expect(threads[0]?.comments.map((comment) => comment.author)).toEqual(['Priya', 'Sam'])
+  })
+
+  test('holds a margin note, a poll and a block shown only when its variable says so', () => {
+    expect(html).toContain('class="trevixal-margin-note"')
+    expect(html).toContain('class="trevixal-poll"')
+    expect(html).toContain('data-if="edition" data-equals="pro"')
+    // Set, so the block shows rather than sitting dimmed.
+    expect(JSON.parse(String(editor.state.doc.attrs.variables))).toEqual({ edition: 'pro' })
+  })
+
+  test('holds a gallery of pictures, each described', () => {
+    const gallery = /<div class="trevixal-gallery"[^>]*>(.*?)<\/div>/.exec(html)?.[1] ?? ''
+    const alts = [...gallery.matchAll(/<img [^>]*alt="([^"]*)"/g)].map((match) => match[1])
+    expect(alts).toHaveLength(3)
+    expect(alts.every((alt) => (alt ?? '').length > 0)).toBe(true)
+  })
+
+  test('lines its costs up as money, and ticks and chooses in its form fields', () => {
+    expect(html.match(/data-value-type="currency"/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(html).toContain('data-form-field="checkbox"')
+    expect(html).toContain('data-form-field="dropdown"')
+  })
+
+  test('prints its pages numbered at the foot', () => {
+    expect(JSON.parse(String(editor.state.doc.attrs.pageSetup)).footer).toBe(
+      'Page {page} of {pages}',
+    )
+  })
+
   test('says where the page layout is', () => {
     expect(html).toContain('File ▸ Page setup')
     expect(html).toContain('Insert ▸ Section break')

@@ -64,6 +64,9 @@ async function insertMenu(page: Page, entry: string): Promise<void> {
 
 const dialog = (page: Page, name: string) => page.getByRole('dialog', { name })
 
+/** The pictures a test puts in, after the first paragraph: not the tour gallery's, further on. */
+const inserted = (page: Page) => page.locator('#editor .trevixal-content > img.trevixal-image')
+
 test('embeds a CodePen pen from its page URL', async ({ page }) => {
   const server = await open(page)
   try {
@@ -83,25 +86,31 @@ test('embeds a CodePen pen from its page URL', async ({ page }) => {
 test('takes a camera photo, asks what it shows, and opens it full size', async ({ page }) => {
   const server = await open(page)
   try {
-    const before = await page.locator('#editor img.trevixal-image').count()
     await insertMenu(page, 'Camera photo…')
     const camera = dialog(page, 'Camera photo')
     await camera.getByRole('button', { name: 'Take photo' }).click()
     await camera.getByRole('button', { name: 'Insert', exact: true }).click()
-    await expect(page.locator('#editor img.trevixal-image')).toHaveCount(before + 1)
+    await expect(inserted(page)).toHaveCount(1)
 
     // The new image asks for its alt text.
     const prompt = dialog(page, 'Describe this image')
     await expect(prompt).toBeVisible()
     await prompt.locator('[name="alt"]').fill('A blue square with a white box')
     await prompt.getByRole('button', { name: 'Save' }).click()
-    const photo = page.locator('#editor img.trevixal-image').last()
+    const photo = inserted(page)
     await expect(photo).toHaveAttribute('alt', 'A blue square with a white box')
 
     await photo.dblclick()
     const lightbox = page.locator('.trevixal-lightbox')
     await expect(lightbox).toBeVisible()
     await expect(lightbox.locator('img')).toHaveAttribute('alt', 'A blue square with a white box')
+    // Its caption is set in the chrome's face, not in the page's default serif.
+    const face = (selector: string): Promise<string> =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((element) => getComputedStyle(element).fontFamily)
+    expect(await face('.trevixal-lightbox__caption')).toBe(await face('.trevixal-menubar'))
     await page.keyboard.press('Escape')
     await expect(lightbox).toHaveCount(0)
   } finally {
@@ -129,7 +138,7 @@ test('marks an image up: a box drawn over it goes into its pixels', async ({ pag
     await dialog(page, 'Camera photo').getByRole('button', { name: 'Take photo' }).click()
     await dialog(page, 'Camera photo').getByRole('button', { name: 'Insert', exact: true }).click()
     await dialog(page, 'Describe this image').getByRole('button', { name: 'Skip' }).click()
-    const photo = page.locator('#editor img.trevixal-image').last()
+    const photo = inserted(page)
     await expect(photo).toHaveAttribute('src', /^data:image\//)
     const before = await photo.getAttribute('src')
     await photo.click()
@@ -225,17 +234,38 @@ test('puts picked images in as one gallery', async ({ page }) => {
   try {
     const chooser = page.waitForEvent('filechooser')
     await insertMenu(page, 'Image gallery…')
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      'base64',
-    )
+    // Three pictures, each its own: a red, a green and a blue pixel.
+    const png = (data: string) => Buffer.from(data, 'base64')
     await (await chooser).setFiles([
-      { name: 'one.png', mimeType: 'image/png', buffer: png },
-      { name: 'two.png', mimeType: 'image/png', buffer: png },
+      {
+        name: 'one.png',
+        mimeType: 'image/png',
+        buffer: png(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGO4o6YGAAMKASng8MlTAAAAAElFTkSuQmCC',
+        ),
+      },
+      {
+        name: 'two.png',
+        mimeType: 'image/png',
+        buffer: png(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMQW+wFAAHWAQSeqOZrAAAAAElFTkSuQmCC',
+        ),
+      },
+      {
+        name: 'three.png',
+        mimeType: 'image/png',
+        buffer: png(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQTX4NAAIkAXSaGkHUAAAAAElFTkSuQmCC',
+        ),
+      },
     ])
     const gallery = page.locator('#editor .trevixal-gallery')
-    await expect(gallery.locator('img.trevixal-image[src^="data:image/png"]')).toHaveCount(2)
+    await expect(gallery.locator('img.trevixal-image[src^="data:image/png"]')).toHaveCount(3)
+    // One question for the pick, not a stack of them, one over another.
+    await page.waitForTimeout(500)
+    await expect(dialog(page, 'Describe this image')).toHaveCount(1)
     await dialog(page, 'Describe this image').getByRole('button', { name: 'Skip' }).click()
+    await expect(dialog(page, 'Describe this image')).toHaveCount(0)
   } finally {
     await server.close()
   }
@@ -254,8 +284,9 @@ test('takes the script out of an uploaded SVG', async ({ page }) => {
       mimeType: 'image/svg+xml',
       buffer: Buffer.from(svg),
     })
-    const image = page.locator('#editor img.trevixal-image[src^="data:image/svg+xml"]')
+    const image = inserted(page)
     await expect(image).toHaveCount(1)
+    await expect(image).toHaveAttribute('src', /^data:image\/svg\+xml/)
     const markup = await image.evaluate(async (element) => {
       const response = await fetch((element as HTMLImageElement).src)
       return response.text()

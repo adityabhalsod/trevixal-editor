@@ -169,8 +169,9 @@ columns* brings it back.
 
 *Table > Insert chart* draws the table as a bar, line or pie chart, using a
 Mermaid diagram after the table. The first column labels the points. Each
-other column with numbers in it becomes a series, named by its header. The
-chart does not update when the table changes, as a Word chart made from a
+other column with numbers in it becomes a series, named by its header. A
+total row is left out: the table style's total row, or a row whose formulas
+add up the rows above it. The chart does not update when the table changes, as a Word chart made from a
 table does not. Draw it again after a change.
 
 Pasting a table from Excel or Google Sheets keeps what its cells hold.

@@ -315,6 +315,20 @@ describe('line numbers', () => {
     expect(measureLines(root).map((each) => each.top)).toEqual([0, 20, 40])
   })
 
+  it('leave a margin note out, as Word leaves a text box', () => {
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<aside class="trevixal-margin-note"><p id="note">A note</p></aside><p id="body">Text beside it</p>'
+    document.body.appendChild(root)
+    const line = (top: number): DOMRect => new DOMRect(0, top, 50, 18)
+    vi.spyOn(Range.prototype, 'getClientRects').mockImplementation(function (this: Range) {
+      const id = (this.startContainer as Element).id
+      return (id === 'note' || id === 'body' ? [line(0)] : []) as unknown as DOMRectList
+    })
+    expect(measureLines(root)).toHaveLength(1)
+    root.remove()
+  })
+
   it('count each line beside a drop cap, not the letter spanning them as one', () => {
     const root = document.createElement('div')
     root.innerHTML =

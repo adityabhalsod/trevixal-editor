@@ -374,8 +374,14 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       })
     }),
   )
+  // One question at a time: pictures picked together finish uploading one
+  // after another, and each prompt stacked over the last would say nothing
+  // of which picture it was for.
+  let describing = false
   disposers.push(
     promptForAltText(editor, (path) => {
+      if (describing) return
+      describing = true
       void openDialog({
         document,
         title: 'Describe this image',
@@ -387,6 +393,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
           { name: 'decorative', label: 'Decorative only', type: 'checkbox' },
         ],
       }).then((values) => {
+        describing = false
         editor.view?.focus()
         if (!values) return
         if (values.decorative === 'true') editor.exec(setImageDecorative(true, path))

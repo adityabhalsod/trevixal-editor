@@ -83,6 +83,25 @@ and names the menus for the ones a document cannot show:
   own. A captioned table with its header row frozen, wide cell padding, a
   cell aligned to the middle and a table inside a cell. Its header row heads
   every printed page it runs onto.
+- **Tables as data**: a total that a formula adds up, costs in a currency
+  column, and a timetable with cells merged down a column. Filtering rows and
+  drawing a chart are under *Table*.
+- **Media**: an image gallery that opens each picture full size, and a
+  whiteboard drawing to draw on. The camera, screen and audio captures and
+  video chapters are under *Insert*, and a new image asks for its alt text.
+- **Code and equations**: a titled code block with numbered lines and one
+  picked out, a terminal session, a chemical equation and a numbered display
+  equation. Diffs, code to run, Graphviz and PlantUML are under *Insert*.
+- **Review, blocks and forms**: a comment thread with a reply that mentions
+  someone, a sticky note in the margin, a poll, a paragraph shown only while
+  a template variable says so, and a text box, a tick box and a drop-down to
+  fill in. Its printed pages carry a numbered footer.
+- **Named with their menus**: links to any block, wiki links and backlinks,
+  versions and comparing, redaction, locked sections, signatures and the
+  audit log, page setup and section breaks, presenting as slides, the
+  chrome's languages, toolbar presets, theme files, the dyslexia-friendly
+  font, the writing checks and assistant, synonyms, the accessibility check,
+  citation styles, snippets, macros and several carets.
 
 ## Around the document
 

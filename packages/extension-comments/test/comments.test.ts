@@ -141,4 +141,31 @@ describe('the comments panel', () => {
     expect(document.head.querySelector('style')?.textContent).toContain('[data-comment="c1"]')
     panel.destroy()
   })
+
+  it('empties the reply box once the reply is sent, and keeps an unsent one', () => {
+    const editor = mount()
+    const container = document.createElement('aside')
+    document.body.append(container)
+    const panel = createCommentsPanel(editor, { container, author: () => 'Ada', now: () => 5 })
+    selectBudget(editor)
+    panel.addComment('Is this approved?')
+    selectBudget(editor)
+    panel.addComment('And this?')
+    const boxOf = (id: string): HTMLTextAreaElement =>
+      container.querySelector(`textarea[data-thread="${id}"]`) as HTMLTextAreaElement
+
+    boxOf('c2').value = 'Not sent yet'
+    boxOf('c1').value = 'Yes, on Monday.'
+    boxOf('c1')
+      .closest('form')
+      ?.dispatchEvent(new Event('submit', { cancelable: true }))
+    const replied = commentThreads(editor.state.doc).find((thread) => thread.id === 'c1')
+    expect(replied?.comments.map((comment) => comment.text)).toEqual([
+      'Is this approved?',
+      'Yes, on Monday.',
+    ])
+    expect(boxOf('c1').value).toBe('')
+    expect(boxOf('c2').value).toBe('Not sent yet')
+    panel.destroy()
+  })
 })

@@ -14,9 +14,9 @@ import type { Editor } from '@trevixal/core'
 /** The blocks whose lines are counted. A list item's lines are its paragraphs'. */
 const COUNTED = 'p, h1, h2, h3, h4, h5, h6, pre, figcaption, summary'
 
-/** Where lines are not counted. */
+/** Where lines are not counted: tables, the notes and lists the document builds, and margin notes, as Word leaves text boxes. */
 const SKIPPED =
-  'td, th, .trevixal-footnotes, .trevixal-endnotes, .trevixal-caption-list, .trevixal-index'
+  'td, th, .trevixal-footnotes, .trevixal-endnotes, .trevixal-caption-list, .trevixal-index, .trevixal-margin-note'
 
 /**
  * A drop cap's letter, as CSS's `::first-letter` takes it: the first letter,
@@ -215,7 +215,19 @@ function anchorLine(start: LineStart | null, block: HTMLElement, n: number, offs
   if (character.data.length > length) character.splitText(length)
   character.replaceWith(anchor)
   anchor.appendChild(character)
+  // The line broke here, after a hyphen, when it was measured, and wrapping
+  // its first letter must not move the break: Firefox breaks after a hyphen
+  // only inside one run of text, so "stand-|in" would come back together.
+  const before = anchor.previousSibling
+  if (before?.nodeType === 3 && AFTER_HYPHEN.test((before as Text).data)) {
+    const opportunity = document.createElement('wbr')
+    opportunity.dataset.trevixalLineBreak = ''
+    anchor.before(opportunity)
+  }
 }
+
+/** Text ending where a line can break after a hyphen or a dash. */
+const AFTER_HYPHEN = /[-\u00ad\u2010-\u2014]$/
 
 /**
  * Number the lines of a rendered document in place: a print frame or a
@@ -223,13 +235,16 @@ function anchorLine(start: LineStart | null, block: HTMLElement, n: number, offs
  * character of its line, so a page break moves it with the text rather than
  * leaving it where the unbroken layout had the line; any numbered before are
  * taken out first. The numbers sit beside the edge the text starts from,
- * which is the right one in a right-to-left document.
+ * which is the right one in a right-to-left document. They count from
+ * `first`; the next number is returned, so a print's pages number on from
+ * one another.
  */
-export function numberLinesIn(root: HTMLElement): void {
+export function numberLinesIn(root: HTMLElement, first = 1): number {
   for (const old of root.querySelectorAll('.trevixal-line-anchor')) {
     old.querySelector(':scope > .trevixal-line-number')?.remove()
     old.replaceWith(...old.childNodes)
   }
+  for (const old of root.querySelectorAll('wbr[data-trevixal-line-break]')) old.remove()
   root.normalize()
   // A saved document keeps its direction on the element carrying its settings.
   const settings = root.querySelector<HTMLElement>(':scope > [data-trevixal-document]') ?? root
@@ -260,8 +275,9 @@ export function numberLinesIn(root: HTMLElement): void {
   // Last first, so splitting a text node never moves a start not yet anchored.
   for (let index = lines.length - 1; index >= 0; index--) {
     const line = lines[index]
-    if (line) anchorLine(line.start, line.block, index + 1, line.offset)
+    if (line) anchorLine(line.start, line.block, first + index, line.offset)
   }
+  return first + lines.length
 }
 
 /**

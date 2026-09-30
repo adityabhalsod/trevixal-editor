@@ -909,6 +909,8 @@
   padding: t.token('space-4');
   background: rgba(8, 8, 16, 0.88);
   color: #fff;
+  // Mounted on the page's body, so it would take the page's font otherwise.
+  font-family: t.token('font-family');
 
   &__image {
     max-width: 92vw;
@@ -1094,6 +1096,14 @@
   color: t.token('color-text-muted');
   font-family: t.token('font-family');
   font-size: 0.75rem;
+
+  // Both read in English, so a mirrored chrome keeps their English order
+  // ("62 words", not "words 62"). `dir="auto"` would do it too, but would
+  // also flip the margin that holds the counts at the far end.
+  &__path,
+  &__counts {
+    unicode-bidi: plaintext;
+  }
 
   &__path {
     text-transform: lowercase;

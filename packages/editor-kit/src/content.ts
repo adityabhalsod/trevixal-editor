@@ -1,4 +1,11 @@
-import { type DocJSON, customListScheme, storedListSchemesAttr } from '@trevixal/core'
+import {
+  DEFAULT_PAGE_SETUP,
+  type DocJSON,
+  customListScheme,
+  storedListSchemesAttr,
+  storedPageSetup,
+  storedVariables,
+} from '@trevixal/core'
 
 const paragraph = (text: string): unknown => ({
   type: 'paragraph',
@@ -12,6 +19,13 @@ const cell = (text: string, header = false): unknown => ({
 })
 
 const row = (cells: unknown[]): unknown => ({ type: 'tableRow', content: cells })
+
+/** A cost, typed as money (Table ▸ Column type), so it lines up on the right. */
+const cost = (text: string): unknown => ({
+  type: 'tableCell',
+  attrs: { header: false, valueType: 'currency' },
+  content: [paragraph(text)],
+})
 
 const listItem = (text: string): unknown => ({ type: 'listItem', content: [paragraph(text)] })
 
@@ -80,6 +94,33 @@ const INDEX_ENTRIES = JSON.stringify(
   ].map(([term, id]) => ({ term, locations: [{ id, label: '1' }], subentries: [] })),
 )
 
+/** When the tour's comment thread was written: fixed, so every app shows the same. */
+const COMMENTED_AT = Date.UTC(2026, 8, 28, 9, 30)
+
+/** A comment thread on the tour's words, a reply in it, as View ▸ Comments keeps one. */
+const COMMENTS = JSON.stringify([
+  {
+    id: 'c-tour',
+    resolved: false,
+    comments: [
+      { author: 'Priya', text: 'Could the tour show a comment thread?', time: COMMENTED_AT },
+      {
+        author: 'Sam',
+        text: '@Priya Here it is. Reply below, or resolve it.',
+        time: COMMENTED_AT + 60 * 60 * 1000,
+      },
+    ],
+  },
+])
+
+/** A small picture for the gallery, drawn as SVG: shapes of its own colours, on a sky. */
+const picture = (sky: string, shapes: string): string =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" fill="${sky}"/>${shapes}</svg>`,
+  )}`
+
+const galleryImage = (src: string, alt: string): unknown => ({ type: 'image', attrs: { src, alt } })
+
 const callout = (variant: string, text: string): unknown => ({
   type: 'callout',
   attrs: { variant, icon: null },
@@ -97,6 +138,12 @@ export const initialContent = {
   attrs: {
     styles: JSON.stringify([PULL_QUOTE]),
     listSchemes: storedListSchemesAttr([STEPS]),
+    // The thread on the words about comments, below.
+    comments: COMMENTS,
+    // What the block shown only when a variable says so reads.
+    variables: storedVariables({ edition: 'pro' }),
+    // Each printed page numbered at its foot (File ▸ Page setup).
+    pageSetup: storedPageSetup({ ...DEFAULT_PAGE_SETUP, footer: 'Page {page} of {pages}' }),
   },
   content: [
     { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Trevixal' }] },
@@ -395,9 +442,16 @@ export const initialContent = {
     paragraph(
       'View ▸ Suggesting mode records edits as suggestions. The review bar accepts or rejects them all, or one reviewer’s.',
     ),
-    paragraph(
-      'Select words and press Ctrl+Alt+M to comment on them. View ▸ Comments holds the replies, @mentions and Resolve.',
-    ),
+    {
+      type: 'paragraph',
+      content: [
+        text('Select words and press Ctrl+Alt+M to comment on them. View ▸ Comments '),
+        text('holds the replies, @mentions and Resolve', [
+          { type: 'comment', attrs: { id: 'c-tour' } },
+        ]),
+        text(', as the thread on these words shows.'),
+      ],
+    },
     paragraph(
       'Alt+click adds a caret, and Ctrl+D the next match; typing goes to each. Ctrl+G goes to a line, a heading or a bookmark.',
     ),
@@ -413,8 +467,20 @@ export const initialContent = {
     {
       type: 'paragraph',
       content: [
-        text('Insert ▸ Form field adds a box to fill in, like this one: '),
+        text('Insert ▸ Form field adds boxes to fill in, like these: '),
         { type: 'formField', attrs: { kind: 'text', name: 'your_name', label: 'Your name' } },
+        text(', a tick box '),
+        { type: 'formField', attrs: { kind: 'checkbox', name: 'agree', label: 'I agree' } },
+        text(' and a drop-down '),
+        {
+          type: 'formField',
+          attrs: {
+            kind: 'dropdown',
+            name: 'plan',
+            label: 'Plan',
+            options: JSON.stringify(['Basic', 'Pro', 'Team']),
+          },
+        },
         text(
           '. File ▸ Download as writes a Fillable PDF form, and Tools ▸ Mail merge makes a copy for each row of a CSV file.',
         ),
@@ -424,8 +490,34 @@ export const initialContent = {
       'File ▸ Page setup sets the paper, the margins, a header and footer with page numbers, and a watermark. Insert ▸ Section break turns the pages after it. File ▸ Print preview shows the pages as they print.',
     ),
     paragraph(
-      'Insert ▸ Margin note, Poll and Map add a sticky note, a vote and a map. Insert ▸ Show only when hides blocks until a template variable is set.',
+      'Insert ▸ Margin note, Poll and Map add a sticky note, a vote and a map. Insert ▸ Show only when hides blocks until a template variable says so.',
     ),
+    {
+      type: 'poll',
+      attrs: {
+        question: 'Which download do you use most?',
+        options: JSON.stringify([
+          { label: 'Word', votes: 4 },
+          { label: 'PDF', votes: 6 },
+          { label: 'Markdown', votes: 2 },
+        ]),
+      },
+    },
+    {
+      type: 'conditional',
+      attrs: { variable: 'edition', equals: 'pro' },
+      content: [
+        paragraph(
+          'This paragraph shows while the edition variable is pro. Tools ▸ Template variables changes it.',
+        ),
+      ],
+    },
+    // Floated beside the plain text after it: a bordered block would run under it.
+    {
+      type: 'marginNote',
+      attrs: { color: 'yellow' },
+      content: [paragraph('A sticky note sits in the margin, beside the text it is about.')],
+    },
     paragraph(
       'Tools ▸ Redact selection blacks out words, and a download, a print or a copy carries only a stand-in. Tools ▸ Lock selected blocks keeps a section as it is.',
     ),
@@ -462,6 +554,33 @@ export const initialContent = {
     paragraph(
       'Insert ▸ Image gallery lays photos out in a grid. Double-click any image to see it full size.',
     ),
+    {
+      type: 'gallery',
+      attrs: { columns: 3 },
+      content: [
+        galleryImage(
+          picture(
+            '#fde68a',
+            '<circle cx="80" cy="96" r="30" fill="#f97316"/><path d="M0 160 L0 116 Q48 86 96 118 T160 104 L160 160 Z" fill="#65a30d"/>',
+          ),
+          'A sunrise over green hills',
+        ),
+        galleryImage(
+          picture(
+            '#1e3a8a',
+            '<circle cx="112" cy="44" r="18" fill="#f8fafc"/><circle cx="120" cy="38" r="16" fill="#1e3a8a"/><rect y="104" width="160" height="56" fill="#0ea5e9"/>',
+          ),
+          'A crescent moon over a lake',
+        ),
+        galleryImage(
+          picture(
+            '#bae6fd',
+            '<path d="M40 140 L60 70 L80 140 Z M72 140 L96 52 L120 140 Z M108 140 L126 84 L144 140 Z" fill="#166534"/><rect y="138" width="160" height="22" fill="#4d7c0f"/>',
+          ),
+          'Three pines on a green slope',
+        ),
+      ],
+    },
     paragraph(
       'Insert ▸ Camera photo, Screenshot and Record audio capture straight into the document. New images ask for their alt text.',
     ),
@@ -736,8 +855,8 @@ export const initialContent = {
       attrs: { freezeHeader: true, cellPadding: '16px' },
       content: [
         row([cell('Item', true), cell('Cost (£)', true)]),
-        row([cell('Hall hire, two days'), cell('1,200.00')]),
-        row([cell('Catering, 120 guests'), cell('2,640.00')]),
+        row([cell('Hall hire, two days'), cost('1,200.00')]),
+        row([cell('Catering, 120 guests'), cost('2,640.00')]),
         row([
           {
             // A table inside a cell, with a look of its own.
@@ -757,19 +876,19 @@ export const initialContent = {
           // Sat in the middle of its row, beside the crew table.
           {
             type: 'tableCell',
-            attrs: { header: false, verticalAlign: 'middle' },
+            attrs: { header: false, verticalAlign: 'middle', valueType: 'currency' },
             content: [paragraph('780.00')],
           },
         ]),
-        row([cell('Banners and programmes'), cell('483.00')]),
-        row([cell('Photographer'), cell('600.00')]),
-        row([cell('Insurance'), cell('140.00')]),
+        row([cell('Banners and programmes'), cost('483.00')]),
+        row([cell('Photographer'), cost('600.00')]),
+        row([cell('Insurance'), cost('140.00')]),
         row([
           cell('Total'),
           {
             // Table ▸ Formula: Word's =SUM(ABOVE), kept up to date as the costs change.
             type: 'tableCell',
-            attrs: { header: false, valueType: 'number' },
+            attrs: { header: false, valueType: 'currency' },
             content: [
               {
                 type: 'paragraph',

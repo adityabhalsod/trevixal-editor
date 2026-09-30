@@ -188,6 +188,12 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   padding-inline-start: var(--tvx-line-gutter, 1rem);
 }
 
+// In the page view the sheet keeps the page setup's margins, which the
+// padding above would otherwise replace; the header and footer sit in them.
+.trevixal-paged #editor .trevixal-content {
+  padding: var(--tvx-page-margin, 20mm);
+}
+
 // A pane travels with the reader instead of scrolling away.
 //
 // Side-by-side means side by side: a short box beside a document thousands of
@@ -443,6 +449,8 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   grid-template-rows: 1fr auto auto;
   background: var(--tvx-color-bg, #ffffff);
   color: var(--tvx-color-text, #1a1a2b);
+  // Mounted on the page's body, so it would take the page's font otherwise.
+  font-family: var(--tvx-font-family, system-ui, sans-serif);
 
   &:focus {
     outline: none;

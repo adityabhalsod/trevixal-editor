@@ -341,6 +341,13 @@ describe('charts from a table', () => {
     )
   })
 
+  it('leaves out a total row its formulas work out, as it leaves out Word’s', () => {
+    const totalled = budget(row(cell('Total'), cell(formula('SUM(ABOVE)'))))
+    expect(tableChartSource(settled(totalled).child(0), 'bar')).toBe(
+      'xychart-beta\n    x-axis ["Hall", "Catering", "Lights"]\n    y-axis "Cost"\n    bar [1200, 2640, 780]',
+    )
+  })
+
   it('goes in after the table as a Mermaid block', () => {
     const next = run(at(budget(), 1, 1), insertTableChart('line'))
     const block = next.doc.child(1)

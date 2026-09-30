@@ -69,6 +69,13 @@ test('suggests inclusive wording, and flags tone and clichés once asked to', as
     await expect(page.locator(`${surface} .trevixal-writing--cliche`)).toHaveText('utilize')
 
     await inclusive.click()
+    // Set in the chrome's face, not in the page's default serif.
+    const face = (selector: string): Promise<string> =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((element) => getComputedStyle(element).fontFamily)
+    expect(await face('.trevixal-writing-menu')).toBe(await face('.trevixal-menubar'))
     await page.locator('.trevixal-writing-menu [data-trevixal-writing-action="apply"]').click()
     await expect(page.locator(`${surface} > p`)).toHaveText(
       'The chair will utilize a very long agenda.',
