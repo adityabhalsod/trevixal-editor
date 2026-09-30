@@ -69,7 +69,7 @@ test.describe('code blocks', () => {
       const block = page.locator('#editor pre').first()
       const before = await block.textContent()
       // Somewhere inside the first line, nowhere near the end.
-      await block.locator('text=Twelve').click()
+      await block.locator('text=Fourteen').click()
       await page.keyboard.press('Control+Enter')
       await page.keyboard.type('after the code')
 

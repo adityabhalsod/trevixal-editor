@@ -33,6 +33,21 @@ export {
 } from './commands'
 export { formatBytes } from './format'
 export {
+  chaptersHTML,
+  enableChapterLinks,
+  enableEmbedSelection,
+  formatTime,
+  parseChapters,
+  parseWaveform,
+  setVideoChapters,
+  type VideoChapter,
+  videoChaptersAt,
+  WAVEFORM_BARS,
+  waveformPeaks,
+  waveformSVG,
+} from './media'
+export { type AudioRecorderOptions, openAudioRecorder, type Recording } from './recorder'
+export {
   EMBED_BLOCK_NODES,
   EMBED_NODES,
   embedNodes,

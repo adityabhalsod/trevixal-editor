@@ -7,6 +7,7 @@ import {
   NodeSelection,
   ReplaceInlineStep,
   Schema,
+  SetNodeAttrsStep,
   TextSelection,
   createEditor,
   defaultMarks,
@@ -50,7 +51,12 @@ const schema = new Schema({
     mathBlock: {
       group: 'block',
       atom: true,
-      attrs: { latex: { default: '' } },
+      attrs: {
+        latex: { default: '' },
+        numbered: { default: false },
+        number: { default: null },
+        id: { default: null },
+      },
       toHTML: () => ({ tag: 'div' }),
     },
   },
@@ -421,5 +427,44 @@ describe('the reference nodes in HTML', () => {
 
   it('leave a document with no fields untouched', () => {
     expect(fieldSteps(schema.node('doc', undefined, [p('plain')]))).toEqual([])
+  })
+})
+
+describe('numbered equations', () => {
+  const equation = (latex: string, numbered = true): EditorNode =>
+    schema.node('mathBlock', { latex, numbered })
+
+  it('take the next equation numbers, in one sequence with equation captions', () => {
+    const editor = editorWith(equation('a'), p('text'), equation('b', false), equation('c'))
+    const blocks = editor.state.doc.content.children
+    expect(blocks.map((block) => block.attrs.number ?? null)).toEqual(['1', null, null, '2'])
+    expect(blocks[0]?.attrs.id).toBe('eq-1')
+    expect(captions(editor)).toEqual(['Equation (1)', 'Equation (2)'])
+
+    // A caption on the first equation's text comes between them.
+    select(editor, new TextSelection(pos([1], 4)))
+    run(editor, insertCaption('equation', { label: 'Equation', text: 'Sum' }))
+    expect(captions(editor)).toEqual(['Equation (1)', 'Equation 2: Sum', 'Equation (3)'])
+    editor.destroy()
+  })
+
+  it('drops the number of one no longer numbered, and a reference reads the new one', () => {
+    const editor = editorWith(equation('a'), equation('b'), p('See '))
+    select(editor, new TextSelection(pos([2], 4)))
+    run(editor, insertCrossReference({ id: 'eq-2', path: [1] }, 'label'))
+    const reference = () =>
+      editor.state.doc
+        .child(2)
+        .content.children.find((child) => child.type.name === 'crossReference')
+    expect(reference()?.attrs.text).toBe('Equation (2)')
+
+    const first = editor.state.doc.child(0)
+    editor.dispatch(
+      editor.state.tr.step(new SetNodeAttrsStep([0], { ...first.attrs, numbered: false })),
+    )
+    expect(editor.state.doc.child(0).attrs.number).toBeNull()
+    expect(editor.state.doc.child(1).attrs.number).toBe('1')
+    expect(reference()?.attrs.text).toBe('Equation (1)')
+    editor.destroy()
   })
 })

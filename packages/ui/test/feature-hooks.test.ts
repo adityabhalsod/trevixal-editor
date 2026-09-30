@@ -355,6 +355,7 @@ describe('link dialog', () => {
       'web',
       'email',
       'anchor',
+      'block',
     ])
     const anchor = document.querySelector<HTMLSelectElement>('.trevixal-dialog [name="anchor"]')
     expect([...(anchor?.options ?? [])].map((option) => option.textContent)).toEqual(['Intro'])
@@ -375,6 +376,33 @@ describe('link dialog', () => {
     ui.openLinkDialog()
     await submitDialog({ kind: 'email', email: 'not an address' })
     expect(editor.getHTML()).toContain('href="mailto:ada@example.com"')
+    ui.destroy()
+    editor.destroy()
+  })
+
+  it('links to any block, giving it an id from its words first', async () => {
+    const editor = mountEditor()
+    const ui = createEditorUI(editor, { container })
+    editor.setContent({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Go there' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Next steps' }] },
+      ],
+    })
+    // A selection made in code is lost to happy-dom's focus handling; the
+    // browser suite links part of a paragraph.
+    editor.commands.selectAll()
+    ui.openLinkDialog()
+    const block = document.querySelector<HTMLSelectElement>('.trevixal-dialog [name="block"]')
+    expect([...(block?.options ?? [])].map((option) => option.textContent)).toEqual([
+      'Paragraph: Go there',
+      'Paragraph: Next steps',
+    ])
+    await submitDialog({ kind: 'block', block: '1' })
+
+    expect(editor.state.doc.child(1).attrs.id).toBe('next-steps')
+    expect(editor.getHTML()).toContain('href="#next-steps"')
     ui.destroy()
     editor.destroy()
   })

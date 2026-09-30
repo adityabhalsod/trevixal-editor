@@ -249,21 +249,41 @@ describe('drawColumnLine', () => {
 describe('drawRowLine', () => {
   const geometry = { columns: [100, 100], rows: [40, 20], width: 200, room: 400 }
 
-  it('splits the whole row where the line was drawn, the text staying above', () => {
+  it('splits the cells it crosses where it was drawn, the text staying above', () => {
     const doc = docOf(row(cell('a'), cell('b')), row(cell('c'), cell('d')))
     const line = { tablePath: [0], geometry, y: 15, fromColumn: 1, toColumn: 1 }
+    const state = run(caret(doc), drawRowLine(line))
+    // Only the crossed cell splits; the one it missed spans both new rows.
+    expect(grid(state)).toEqual([['a:1', 'b:1'], [':1'], ['c:1', 'd:1']])
+    expect(state.doc.child(0).child(0).child(0).attrs.rowspan).toBe(2)
+    expect(state.doc.child(0).content.children.map((line) => line.attrs.height)).toEqual([
+      '15px',
+      '25px',
+      null,
+    ])
+    expect(state.selection.from).toEqual(pos([0, 1, 0, 0], 0))
+  })
+
+  it('splits the whole row when the line crosses every column', () => {
+    const doc = docOf(row(cell('a'), cell('b')), row(cell('c'), cell('d')))
+    const line = { tablePath: [0], geometry, y: 15, fromColumn: 0, toColumn: 1 }
     const state = run(caret(doc), drawRowLine(line))
     expect(grid(state)).toEqual([
       ['a:1', 'b:1'],
       [':1', ':1'],
       ['c:1', 'd:1'],
     ])
-    expect(state.doc.child(0).content.children.map((line) => line.attrs.height)).toEqual([
-      '15px',
-      '25px',
-      null,
+  })
+
+  it('splits a merged cell back along a row line it lands on', () => {
+    const doc = docOf(row(cell('a', { rowspan: 2 }), cell('b')), row(cell('d')))
+    const line = { tablePath: [0], geometry, y: 40, fromColumn: 0, toColumn: 0 }
+    const state = run(caret(doc), drawRowLine(line))
+    expect(grid(state)).toEqual([
+      ['a:1', 'b:1'],
+      [':1', 'd:1'],
     ])
-    expect(state.selection.from).toEqual(pos([0, 1, 1, 0], 0))
+    expect(state.doc.child(0).child(0).child(0).attrs.rowspan).toBe(1)
   })
 
   it('gives the new row the formatting of the cells, and the erased sides below the line', () => {

@@ -12,6 +12,9 @@ import {
 } from '@trevixal/core'
 import { findImage, insertImage, updateImage } from './commands'
 import { type CompressOptions, DEFAULT_COMPRESS_OPTIONS, compressImage } from './compress'
+import { galleryOf } from './gallery'
+import { type MarkupShape, renderMarkup } from './markup'
+import { isSVGFile, sanitizeSVGFile } from './sanitize-svg'
 import {
   type ImageStorage,
   type UploadConstraints,
@@ -21,7 +24,35 @@ import {
 } from './storage'
 import { type ImageTransform, type ImageTransformer, transformImage } from './transform'
 
-export { imageNodes, type ImageAlign } from './schema'
+export { GALLERY_COLUMNS, galleryColumns, imageNodes, type ImageAlign } from './schema'
+export { galleryAt, galleryOf, makeGallery, setGalleryColumns, unwrapGallery } from './gallery'
+export { isSVGFile, sanitizeSVG, sanitizeSVGFile } from './sanitize-svg'
+export { needsAltText, promptForAltText } from './alt-text'
+export { enableLightbox, LIGHTBOX_CLASS } from './lightbox'
+export { type CaptureOptions, capturePhoto, captureScreen } from './capture'
+export {
+  DRAWING_COLORS,
+  DRAWING_SIZE,
+  type DrawingData,
+  type DrawingShape,
+  type DrawingTool,
+  drawingAt,
+  drawingFile,
+  drawingNodes,
+  drawingSVG,
+  enableDrawingEditing,
+  insertDrawing,
+  openDrawingEditor,
+  parseDrawing,
+  updateDrawing,
+} from './drawing'
+export {
+  drawMarkup,
+  type MarkupShape,
+  type MarkupTool,
+  openImageMarkup,
+  renderMarkup,
+} from './markup'
 export {
   activeImage,
   deleteImage,
@@ -35,6 +66,7 @@ export {
   setImageAlign,
   setImageAlt,
   setImageCaption,
+  setImageDecorative,
   setImageWidth,
   toggleImageCaption,
   updateImage,
@@ -140,7 +172,7 @@ export class ImageController {
   }
 
   /** Open the OS file picker and upload everything chosen. */
-  pickFiles(): void {
+  pickFiles(options: { gallery?: boolean } = {}): void {
     const document = this.editor.view?.dom.ownerDocument
     if (!document) return
     const input = document.createElement('input')
@@ -149,13 +181,16 @@ export class ImageController {
     input.multiple = true
     input.addEventListener('change', () => {
       const files = input.files ? [...input.files] : []
-      void this.uploadFiles(files)
+      void this.uploadFiles(files, options)
     })
     input.click()
   }
 
-  /** Validate and upload files, inserting one image node per accepted file. */
-  async uploadFiles(files: readonly File[]): Promise<void> {
+  /**
+   * Validate and upload files, inserting one image node per accepted file.
+   * With `gallery`, the images go in together as one gallery.
+   */
+  async uploadFiles(files: readonly File[], options: { gallery?: boolean } = {}): Promise<void> {
     const jobs: { file: File; id: string }[] = []
     for (const file of files) {
       // Only the type is checked here, and synchronously, so a file the editor
@@ -179,7 +214,17 @@ export class ImageController {
     // multi-file drop up backwards, because the selection they insert after
     // never moves off the block the user dropped onto.
     let previous: Path | null = null
-    for (const job of jobs) previous = this.insertPlaceholder(job.id, job.file, previous)
+    let first: Path | null = null
+    for (const job of jobs) {
+      previous = this.insertPlaceholder(job.id, job.file, previous)
+      first ??= previous
+    }
+    // The placeholders went in one after another, so they are siblings.
+    const start = first?.[first.length - 1]
+    const end = previous?.[previous.length - 1]
+    if (options.gallery && first && start !== undefined && end !== undefined) {
+      this.editor.exec(galleryOf(first.slice(0, -1), start, end + 1))
+    }
     for (const job of jobs) await this.uploadOne(job.file, job.id)
   }
 
@@ -197,7 +242,42 @@ export class ImageController {
    * Everything lands in a single transaction labelled for the history, so one
    * undo puts back both the old URL and the old dimensions.
    */
-  async transform(transform: ImageTransform, at?: Path): Promise<boolean> {
+  transform(transform: ImageTransform, at?: Path): Promise<boolean> {
+    const transformer = this.options.transformer ?? transformImage
+    return this.replacePixels(
+      (source) => transformer(source, transform, { mimeType: source.type || 'image/png' }),
+      transform.crop ? 'Crop image' : 'Rotate image',
+      (node) => transformedSize(node, transform),
+      at,
+    )
+  }
+
+  /**
+   * Draw arrows, boxes, words and blurs over the image under the selection
+   * (or at `at`), burn them into its pixels and re-upload it, as a crop is.
+   * One undo takes the markup off again.
+   */
+  markup(shapes: readonly MarkupShape[], at?: Path): Promise<boolean> {
+    if (shapes.length === 0) return Promise.resolve(false)
+    return this.replacePixels(
+      (source) => renderMarkup(source, shapes),
+      'Mark up image',
+      () => ({}),
+      at,
+    )
+  }
+
+  /**
+   * Replace an image's pixels: read its bytes back, run them through
+   * `render`, upload the result, and point the node at it with the size
+   * `size` gives, in one transaction labelled `label`.
+   */
+  private async replacePixels(
+    render: (source: Blob) => Promise<Blob>,
+    label: string,
+    size: (node: EditorNode) => Attrs,
+    at?: Path,
+  ): Promise<boolean> {
     if (this.destroyed) return false
     const hit = findImage(this.editor.state, at)
     const src = typeof hit?.node.attrs.src === 'string' ? hit.node.attrs.src : ''
@@ -210,8 +290,7 @@ export class ImageController {
     this.report({ id, fileName, progress: 0, state: 'uploading' })
     try {
       const source = await this.loadSource(src, abort.signal)
-      const transformer = this.options.transformer ?? transformImage
-      const blob = await transformer(source, transform, { mimeType: source.type || 'image/png' })
+      const blob = await render(source)
       if (this.destroyed || !this.inFlight.has(id)) return false
 
       const type = blob.type || source.type || 'image/png'
@@ -230,11 +309,11 @@ export class ImageController {
       const attrs: Attrs = {
         src: result.url,
         storageKey: result.key ?? null,
-        ...transformedSize(target.node, transform),
+        ...size(target.node),
       }
       const tr = updateImage(attrs, target.path)(this.editor.state)
       if (!tr) return false
-      tr.setMeta(HISTORY_LABEL, transform.crop ? 'Crop image' : 'Rotate image')
+      tr.setMeta(HISTORY_LABEL, label)
       this.editor.dispatch(tr)
       // Registered after the dispatch: the transaction is what drops the old
       // source out of the document, and that is what triggers its delete.
@@ -353,7 +432,11 @@ export class ImageController {
     try {
       // Compression comes before the upload *and* before the size check: it
       // is the compressed bytes, not the originals, the constraints apply to.
-      const candidate = await this.compress(file)
+      // An SVG is not compressed but sanitised: it is markup, and could carry
+      // a script to wherever its bytes are served from.
+      const candidate = isSVGFile(file)
+        ? await sanitizeSVGFile(file, this.editor.view?.dom.ownerDocument)
+        : await this.compress(file)
       if (this.destroyed || !this.inFlight.has(id)) return
       const problem = validateFile(candidate, this.options)
       if (problem) throw new UploadError(problem)

@@ -26,8 +26,22 @@ import {
   findRepeatedWords,
 } from './analysis'
 import { checkGrammar } from './grammar'
+import {
+  CLICHES,
+  INCLUSIVE_TERMS,
+  type StyleEntry,
+  TONE_PHRASES,
+  findPhrases,
+} from './style-checks'
 
-export type WritingIssueKind = 'passive' | 'repeat' | 'grammar' | 'long'
+export type WritingIssueKind =
+  | 'passive'
+  | 'repeat'
+  | 'grammar'
+  | 'long'
+  | 'inclusive'
+  | 'tone'
+  | 'cliche'
 
 export interface WritingIssue {
   /**
@@ -68,6 +82,12 @@ export interface WritingAssistantOptions {
   readonly grammar?: boolean
   /** Flag sentences over 25 words (default false, it is noisy in long-form prose). */
   readonly longSentences?: boolean
+  /** Flag wording that leaves people out (default true). */
+  readonly inclusive?: boolean
+  /** Flag hedges, empty intensifiers and condescension (default false: a matter of voice). */
+  readonly tone?: boolean
+  /** Flag clichés and jargon (default false: a matter of voice). */
+  readonly cliches?: boolean
   /** Decoration layer key (default `'writing'`). */
   readonly layer?: string
   /** Delay between the last edit and the re-check; 0 runs synchronously (default 200). */
@@ -137,6 +157,16 @@ export const WRITING_KIND_LABELS: Readonly<Record<WritingIssueKind, string>> = {
   repeat: 'Repeated word',
   grammar: 'Grammar',
   long: 'Long sentence',
+  inclusive: 'Inclusive language',
+  tone: 'Tone',
+  cliche: 'Cliché or jargon',
+}
+
+/** The word list behind each word-list kind. */
+const WORD_LISTS: Readonly<Record<'inclusive' | 'tone' | 'cliche', readonly StyleEntry[]>> = {
+  inclusive: INCLUSIVE_TERMS,
+  tone: TONE_PHRASES,
+  cliche: CLICHES,
 }
 
 /** The attribute each painted span carries, naming the issue underneath it. */
@@ -152,6 +182,9 @@ const CLASS_BY_KIND: Readonly<Record<WritingIssueKind, string>> = {
   repeat: 'trevixal-writing trevixal-writing--repeat',
   grammar: 'trevixal-writing trevixal-writing--grammar',
   long: 'trevixal-writing trevixal-writing--long',
+  inclusive: 'trevixal-writing trevixal-writing--inclusive',
+  tone: 'trevixal-writing trevixal-writing--tone',
+  cliche: 'trevixal-writing trevixal-writing--cliche',
 }
 
 export function createWritingAssistant(
@@ -165,6 +198,9 @@ export function createWritingAssistant(
     repeat: options.repeated !== false,
     grammar: options.grammar !== false,
     long: options.longSentences === true,
+    inclusive: options.inclusive !== false,
+    tone: options.tone === true,
+    cliche: options.cliches === true,
   }
 
   let destroyed = false
@@ -237,6 +273,20 @@ export function createWritingAssistant(
             to: sentence.index + sentence.length,
             message: `Long sentence (${sentence.words} words)`,
             text: sentence.sentence,
+          })
+        }
+      }
+      for (const kind of ['inclusive', 'tone', 'cliche'] as const) {
+        if (!enabled[kind]) continue
+        for (const match of findPhrases(text, WORD_LISTS[kind])) {
+          found.push({
+            kind,
+            path,
+            from: match.index,
+            to: match.index + match.length,
+            message: match.message,
+            ...(match.suggestion === undefined ? {} : { suggestion: match.suggestion }),
+            text: text.slice(match.index, match.index + match.length),
           })
         }
       }

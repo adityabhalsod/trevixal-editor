@@ -2,19 +2,33 @@ import {
   type Attrs,
   type Command,
   type EditorNode,
+  type EditorState,
   Fragment,
   type Path,
   type Position,
   ReplaceNodesStep,
   type Schema,
   SetNodeAttrsStep,
+  TableMap,
+  type TableMapCell,
+  type TableRect,
   TextSelection,
+  type Transaction,
   nodeAtPath,
   pos,
   replaceNodeAt,
 } from '@trevixal/core'
-import { sidesOfColumnPart, sidesOfMerge } from './cell-borders'
+import { sidesOfMergedRect, sidesOfPart } from './cell-borders'
 import { type CellAlign, safeTableLength } from './schema'
+import {
+  type BuiltTable,
+  type Placed,
+  caretAtGrid,
+  carrySelection,
+  placedFor,
+  placementsOf,
+  tableFrom,
+} from './table-grid'
 
 export interface CellContext {
   readonly tablePath: Path
@@ -48,28 +62,44 @@ export function cellContextAt(doc: EditorNode, position: Position): CellContext 
   return null
 }
 
+/** The context's cell as its table's grid places it. */
+export function gridCellOf(context: CellContext): TableMapCell {
+  return TableMap.of(context.table).cellAt(context.rowIndex, context.cellIndex) as TableMapCell
+}
+
 /** How many grid columns a cell covers. */
 export function colspanOf(cell: EditorNode): number {
   const value = cell.attrs.colspan
   return typeof value === 'number' && value > 1 ? value : 1
 }
 
-/** Column index where a cell begins (colspans included). */
+/** How many rows a cell covers. */
+export function rowspanOf(cell: EditorNode): number {
+  const value = cell.attrs.rowspan
+  return typeof value === 'number' && value > 1 ? value : 1
+}
+
+/**
+ * Column index where a cell begins, counting the colspans before it in its
+ * own row. A cell spanning down from a row above stands in this row's
+ * columns too without being one of its cells, so for a table with vertical
+ * merges read the column off `TableMap` instead.
+ */
 export function columnStart(row: EditorNode, cellIndex: number): number {
   let column = 0
   for (let i = 0; i < cellIndex; i++) column += colspanOf(row.child(i))
   return column
 }
 
+/** How many grid columns the table has. */
 export function columnCount(table: EditorNode): number {
-  let max = 0
-  for (const row of table.content.children) {
-    max = Math.max(max, columnStart(row, row.childCount))
-  }
-  return max
+  return TableMap.of(table).width
 }
 
-/** The cell covering a column, with its index and start column. */
+/**
+ * The cell covering a column among a row's own cells, with its index and
+ * start column. Like {@link columnStart}, it sees only the row's own cells.
+ */
 export function cellAtColumn(
   row: EditorNode,
   column: number,
@@ -103,6 +133,22 @@ export function withCells(
   const children = [...row.content.children]
   children.splice(index, 1, ...cells)
   return row.withContent(Fragment.from(children))
+}
+
+/**
+ * Swap a rebuilt table in, with the selection it should land on. Declines
+ * when the table came out the same.
+ */
+export function replaceTable(
+  state: EditorState,
+  tablePath: Path,
+  built: EditorNode,
+  selection: TextSelection | null,
+): Transaction | null {
+  const before = nodeAtPath(state.doc, tablePath)
+  if (!before || built.eq(before)) return null
+  const tr = state.tr.step(replaceNodeAt(tablePath, Fragment.of(built)))
+  return selection ? tr.setSelection(selection) : tr
 }
 
 /**
@@ -198,153 +244,198 @@ export function insertTable(options: InsertTableOptions = {}): Command {
   }
 }
 
-/** Add a row above or below the current one, mirroring its column layout. */
+/** The distinct cells covering a grid row, left to right, skipping holes. */
+function cellsAcross(map: TableMap, row: number): TableMapCell[] {
+  const found: TableMapCell[] = []
+  for (let column = 0; column < map.width; column++) {
+    const cell = map.at(row, column)
+    if (cell && found[found.length - 1] !== cell) found.push(cell)
+  }
+  return found
+}
+
+/**
+ * Add a row above or below the current cell, mirroring the columns of the
+ * row beside it. Below a cell that spans rows means below its last one. A
+ * cell spanning across the new row's place grows to cover it, as Word's
+ * merged cells do.
+ */
 export function addRow(where: 'before' | 'after'): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
+    const { table, tablePath } = context
     const schema = state.schema
-    // The width travels with the mirrored cell: under `table-layout: fixed`
-    // the browser reads the columns off the first row, so a new row without
-    // widths inserted before it would resize the whole table.
-    const cells = context.row.content.children.map((cell) =>
-      emptyCell(schema, {
-        header: false,
-        colspan: colspanOf(cell),
-        align: null,
-        width: cell.attrs.width ?? null,
-      }),
+    const map = TableMap.of(table)
+    const current = gridCellOf(context)
+    const boundary = where === 'after' ? current.top + current.height : current.top
+    const reference = where === 'after' ? boundary - 1 : boundary
+    const placed = placementsOf(table)
+    const added: Placed[] = []
+    for (const cell of cellsAcross(map, reference)) {
+      const standing = placedFor(map, placed, cell)
+      if (cell.top < boundary && cell.top + cell.height > boundary) {
+        standing.height += 1
+        continue
+      }
+      // The width travels with the mirrored cell: under `table-layout: fixed`
+      // the browser reads the columns off the first row, so a new row without
+      // widths inserted before it would resize the whole table.
+      added.push({
+        node: emptyCell(schema, {
+          header: false,
+          colspan: 1,
+          align: null,
+          width: cell.node.attrs.width ?? null,
+        }),
+        top: boundary,
+        left: cell.left,
+        width: cell.width,
+        height: 1,
+      })
+    }
+    // A row the cells beside it would cover completely has no cell of its own.
+    const first = added[0]
+    if (!first) return null
+    for (const cell of placed) if (cell.top >= boundary) cell.top += 1
+    const rows = [...table.content.children]
+    rows.splice(boundary, 0, schema.nodeType('tableRow').create())
+    const built = tableFrom(table, rows, [...placed, ...added])
+    const row = built.rowIndex[boundary] ?? boundary
+    return replaceTable(
+      state,
+      tablePath,
+      built.table,
+      caretAtGrid(tablePath, built.table, row, first.left),
     )
-    const row = schema.nodeType('tableRow').create(undefined, Fragment.from(cells))
-    const target = context.rowIndex + (where === 'after' ? 1 : 0)
-    const tr = state.tr
-    tr.step(new ReplaceNodesStep(context.tablePath, target, target, Fragment.of(row)))
-    tr.setSelection(cursorIn(context.tablePath, target, 0))
-    return tr
   }
 }
 
-/** Add a column left or right of the current cell across every row. */
+/**
+ * Add a column left or right of the current cell. A cell the new column's
+ * place falls inside widens across it instead, once, however many rows it
+ * spans.
+ */
 export function addColumn(where: 'before' | 'after'): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
+    const { table, tablePath } = context
     const schema = state.schema
-    const boundary =
-      columnStart(context.row, context.cellIndex) +
-      (where === 'after' ? colspanOf(context.cell) : 0)
-    const tr = state.tr
-    context.table.content.children.forEach((row, rowIndex) => {
-      const rowPath = [...context.tablePath, rowIndex]
-      const covering = cellAtColumn(row, boundary)
-      if (covering && covering.start < boundary) {
-        // The boundary falls inside a spanning cell: widen it instead.
-        tr.step(
-          new SetNodeAttrsStep([...rowPath, covering.index], {
-            ...covering.cell.attrs,
-            colspan: colspanOf(covering.cell) + 1,
-          }),
-        )
-        return
+    const map = TableMap.of(table)
+    const current = gridCellOf(context)
+    const boundary = where === 'after' ? current.left + current.width : current.left
+    const placed = placementsOf(table)
+    const added: Placed[] = []
+    for (let row = 0; row < map.height; row++) {
+      const inside = map.at(row, boundary)
+      if (inside && inside.left < boundary) {
+        // Widened below, once for the whole cell.
+        if (inside.top === row) placedFor(map, placed, inside).width += 1
+        continue
       }
-      const insertAt = covering ? covering.index : row.childCount
-      const neighbor = row.content.maybeChild(Math.min(insertAt, row.childCount - 1))
-      const header = neighbor?.attrs.header === true
-      tr.step(
-        new ReplaceNodesStep(
-          rowPath,
-          insertAt,
-          insertAt,
-          Fragment.of(emptyCell(schema, { header, colspan: 1, align: null })),
-        ),
-      )
-    })
-    return tr
+      const neighbor = inside ?? map.at(row, boundary - 1)
+      added.push({
+        node: emptyCell(schema, {
+          header: neighbor?.node.attrs.header === true,
+          colspan: 1,
+          align: null,
+        }),
+        top: row,
+        left: boundary,
+        width: 1,
+        height: 1,
+      })
+    }
+    for (const cell of placed) if (cell.left >= boundary) cell.left += 1
+    const built = tableFrom(table, table.content.children, [...placed, ...added])
+    const selection = state.selection
+    const carried =
+      selection instanceof TextSelection
+        ? carrySelection(selection, tablePath, table, placed, built)
+        : null
+    return replaceTable(state, tablePath, built.table, carried)
   }
 }
 
-/** Delete the current cell's leftmost column across every row. */
+/**
+ * Delete the current cell's leftmost column. A cell wider than the column
+ * narrows instead; a row left with no cell of its own goes with it.
+ */
 export const deleteColumn: Command = (state) => {
   const context = cellContextAt(state.doc, state.selection.from)
   if (!context) return null
-  if (columnCount(context.table) <= 1) return deleteTable(state)
-  const column = columnStart(context.row, context.cellIndex)
-  const tr = state.tr
-  // Rows that lose their only cell go with it: a row with no cells is not a
-  // valid table row, and a short row whose one cell sat in this column has
-  // nothing left to show. Removing one shifts the rows after it, so the steps
-  // are addressed against the table as it stands.
-  const survivors: number[] = []
-  context.table.content.children.forEach((row, rowIndex) => {
-    const covering = cellAtColumn(row, column)
-    const at = survivors.length
-    if (!covering) {
-      survivors.push(rowIndex)
-      return
+  const { table, tablePath } = context
+  const map = TableMap.of(table)
+  if (map.width <= 1) return deleteTable(state)
+  const current = gridCellOf(context)
+  const column = current.left
+  const kept: Placed[] = []
+  for (const cell of placementsOf(table)) {
+    if (cell.left <= column && cell.left + cell.width > column) {
+      if (cell.width === 1) continue
+      cell.width -= 1
+    } else if (cell.left > column) {
+      cell.left -= 1
     }
-    if (colspanOf(covering.cell) > 1) {
-      survivors.push(rowIndex)
-      tr.step(
-        new SetNodeAttrsStep([...context.tablePath, at, covering.index], {
-          ...covering.cell.attrs,
-          colspan: colspanOf(covering.cell) - 1,
-        }),
-      )
-      return
-    }
-    if (row.childCount <= 1) {
-      tr.step(new ReplaceNodesStep(context.tablePath, at, at + 1, Fragment.empty))
-      return
-    }
-    survivors.push(rowIndex)
-    tr.step(
-      new ReplaceNodesStep(
-        [...context.tablePath, at],
-        covering.index,
-        covering.index + 1,
-        Fragment.empty,
-      ),
-    )
-  })
-  if (survivors.length === 0) return deleteTable(state)
-  if (!tr.docChanged) return null
-  tr.setSelection(cursorIn(context.tablePath, ...caretAfterDelete(context, column, survivors)))
-  return tr
-}
-
-/** Where the caret lands once a column is gone: [rowIndex, cellIndex]. */
-function caretAfterDelete(
-  context: CellContext,
-  column: number,
-  survivors: readonly number[],
-): [number, number] {
-  const stayed = survivors.indexOf(context.rowIndex)
-  // The caret's own row went with the column: follow it to the row that took
-  // its place, or to the last one when it was at the bottom.
-  if (stayed === -1) {
-    const before = survivors.filter((index) => index < context.rowIndex).length
-    return [Math.min(before, survivors.length - 1), 0]
+    kept.push(cell)
   }
-  const covering = cellAtColumn(context.row, column)
-  const removed = covering !== null && colspanOf(covering.cell) === 1
-  const shifted =
-    removed && covering.index < context.cellIndex ? context.cellIndex - 1 : context.cellIndex
-  const remaining = context.row.childCount - (removed ? 1 : 0)
-  return [stayed, Math.max(0, Math.min(shifted, remaining - 1))]
+  if (kept.length === 0) return deleteTable(state)
+  const built = tableFrom(table, table.content.children, kept)
+  const width = TableMap.of(built.table).width
+  const row = landingRow(built, current.top)
+  // The caret's own row went with the column: the first cell of the row that
+  // took its place. Otherwise the cell that took the column's place.
+  const vanished = built.rowIndex[current.top] === -1
+  const landing = vanished
+    ? cursorIn(tablePath, row, 0)
+    : caretAtGrid(tablePath, built.table, row, Math.min(column, width - 1))
+  return replaceTable(state, tablePath, built.table, landing)
 }
 
-/** Delete the current row (or the whole table when it is the last one). */
+/** Where a row went in a rebuilt table: its own index, or that of the row that took its place. */
+function landingRow(built: BuiltTable, row: number): number {
+  const height = built.table.childCount
+  const own = built.rowIndex[row] ?? -1
+  if (own !== -1) return own
+  const before = built.rowIndex.slice(0, row).filter((index) => index !== -1).length
+  return Math.min(before, height - 1)
+}
+
+/**
+ * Delete the rows the current cell covers (one, unless it spans more), or
+ * the whole table when that is every row. A cell spanning into them from
+ * above loses them; one starting in them and reaching below moves down to
+ * the first row left, with its content.
+ */
 export const deleteRow: Command = (state) => {
   const context = cellContextAt(state.doc, state.selection.from)
   if (!context) return null
-  if (context.table.childCount <= 1) return deleteTable(state)
-  const tr = state.tr
-  tr.step(
-    new ReplaceNodesStep(context.tablePath, context.rowIndex, context.rowIndex + 1, Fragment.empty),
-  )
-  const rowIndex = Math.min(context.rowIndex, context.table.childCount - 2)
-  tr.setSelection(cursorIn(context.tablePath, rowIndex, 0))
-  return tr
+  const { table, tablePath } = context
+  const current = gridCellOf(context)
+  const first = current.top
+  const last = current.top + current.height - 1
+  const count = last - first + 1
+  if (count >= table.childCount) return deleteTable(state)
+  const kept: Placed[] = []
+  for (const cell of placementsOf(table)) {
+    const end = cell.top + cell.height - 1
+    if (cell.top >= first && end <= last) continue
+    if (cell.top >= first && cell.top <= last) {
+      cell.height = end - last
+      cell.top = first
+    } else if (cell.top < first && end >= first) {
+      cell.height -= Math.min(end, last) - first + 1
+    } else if (cell.top > last) {
+      cell.top -= count
+    }
+    kept.push(cell)
+  }
+  const rows = [...table.content.children]
+  rows.splice(first, count)
+  const built = tableFrom(table, rows, kept)
+  const rowIndex = Math.min(first, built.table.childCount - 1)
+  return replaceTable(state, tablePath, built.table, cursorIn(tablePath, rowIndex, 0))
 }
 
 /** Replace the whole table with an empty paragraph. */
@@ -397,74 +488,113 @@ export function setCellAlign(align: CellAlign | null): Command {
   }
 }
 
-/** Merge the horizontally adjacent cells covered by the selection. */
-export const mergeCells: Command = (state) => {
+/** The part of a table a merge would take in: the selection's corner cells' rectangle, grown to whole cells. */
+export function mergeRect(state: EditorState): { context: CellContext; rect: TableRect } | null {
   const selection = state.selection
   const fromContext = cellContextAt(state.doc, selection.from)
   const toContext = cellContextAt(state.doc, selection.to)
   if (!fromContext || !toContext) return null
-  if (
-    // The same depth is not the same table: two tables side by side in the
-    // document both sit at depth one, and merging across them would edit the
-    // first on the strength of a selection that left it.
-    fromContext.tablePath.join('/') !== toContext.tablePath.join('/') ||
-    fromContext.rowIndex !== toContext.rowIndex ||
-    fromContext.cellIndex === toContext.cellIndex
-  ) {
-    return null
-  }
-  const first = Math.min(fromContext.cellIndex, toContext.cellIndex)
-  const last = Math.max(fromContext.cellIndex, toContext.cellIndex)
-  const row = fromContext.row
-  const merged = row.content.children.slice(first, last + 1)
-  const colspan = merged.reduce((sum, cell) => sum + colspanOf(cell), 0)
-  const firstCell = merged[0] as EditorNode
-  const combined = merged.reduce((fragment, cell) => fragment.append(cell.content), Fragment.empty)
+  // The same depth is not the same table: two tables side by side in the
+  // document both sit at depth one, and merging across them would edit the
+  // first on the strength of a selection that left it.
+  if (fromContext.tablePath.join('/') !== toContext.tablePath.join('/')) return null
+  const map = TableMap.of(fromContext.table)
+  const rect = map.expand(map.rectAround(gridCellOf(fromContext), gridCellOf(toContext)))
+  return map.cellsIn(rect).length > 1 ? { context: fromContext, rect } : null
+}
+
+/**
+ * Merge the cells the selection covers into one: a row of them, a column of
+ * them, or any rectangle. A cell reaching outside the selection is taken in
+ * whole, since part of a cell cannot be merged. The text goes into the
+ * top-left cell, in reading order.
+ */
+export const mergeCells: Command = (state) => {
+  const found = mergeRect(state)
+  if (!found) return null
+  const { context, rect } = found
+  const { table, tablePath } = context
+  const map = TableMap.of(table)
+  const inside = map.cellsIn(rect).sort((a, b) => a.top - b.top || a.left - b.left)
+  const corner = inside[0] as TableMapCell
+  const combined = inside.reduce(
+    (fragment, cell) => fragment.append(cell.node.content),
+    Fragment.empty,
+  )
   // Empty paragraphs from vacant cells are noise; keep at least one block.
-  const kept = combined.children.filter(
+  const blocks = combined.children.filter(
     (block) => !(block.isTextblock && block.textContent.length === 0),
   )
-  const content = kept.length > 0 ? Fragment.from(kept) : combined.slice(0, 1)
-  const cell = firstCell
+  const content = blocks.length > 0 ? Fragment.from(blocks) : combined.slice(0, 1)
+  const topEdge = inside.filter((cell) => cell.top === rect.top).map((cell) => cell.node)
+  const merged = corner.node
     .withAttrs({
-      ...firstCell.attrs,
-      colspan,
-      width: sumWidths(merged),
-      hiddenBorders: sidesOfMerge(merged),
+      ...corner.node.attrs,
+      width: sumWidths(topEdge),
+      hiddenBorders: sidesOfMergedRect(inside, rect),
     })
     .withContent(content)
-  const rowPath = [...fromContext.tablePath, fromContext.rowIndex]
-  const tr = state.tr
-  tr.step(new ReplaceNodesStep(rowPath, first, last + 1, Fragment.of(cell)))
-  tr.setSelection(cursorIn(fromContext.tablePath, fromContext.rowIndex, first))
-  return tr
+  const placed = placementsOf(table)
+  const gone = new Set(inside.map((cell) => placedFor(map, placed, cell)))
+  const kept = placed.filter((cell) => !gone.has(cell))
+  kept.push({
+    node: merged,
+    top: rect.top,
+    left: rect.left,
+    width: rect.right - rect.left,
+    height: rect.bottom - rect.top,
+  })
+  const built = tableFrom(table, table.content.children, kept)
+  const row = built.rowIndex[rect.top] ?? rect.top
+  return replaceTable(
+    state,
+    tablePath,
+    built.table,
+    caretAtGrid(tablePath, built.table, row, rect.left),
+  )
 }
 
-/** Split a merged (colspan > 1) cell back into unit cells. */
+/** Split a merged cell, across columns, rows or both, back into unit cells. */
 export const splitCell: Command = (state) => {
   const context = cellContextAt(state.doc, state.selection.from)
-  if (!context || colspanOf(context.cell) <= 1) return null
+  if (!context) return null
+  const { table, tablePath } = context
+  const current = gridCellOf(context)
+  if (current.width <= 1 && current.height <= 1) return null
   const schema = state.schema
-  const span = colspanOf(context.cell)
-  const cells = Array.from({ length: span }, (_, index) => {
-    const attrs = {
-      ...context.cell.attrs,
-      colspan: 1,
-      width: shareWidth(context.cell.attrs.width, span),
-      hiddenBorders: sidesOfColumnPart(context.cell, index, span),
+  const map = TableMap.of(table)
+  const placed = placementsOf(table)
+  const target = placedFor(map, placed, current)
+  const parts: Placed[] = []
+  for (let row = 0; row < current.height; row++) {
+    for (let column = 0; column < current.width; column++) {
+      const attrs = {
+        ...current.node.attrs,
+        colspan: 1,
+        rowspan: 1,
+        width: shareWidth(current.node.attrs.width, current.width),
+        hiddenBorders: sidesOfPart(current.node, row, column, current.height, current.width),
+      }
+      parts.push({
+        node: row === 0 && column === 0 ? current.node.withAttrs(attrs) : emptyCell(schema, attrs),
+        top: current.top + row,
+        left: current.left + column,
+        width: 1,
+        height: 1,
+      })
     }
-    return index === 0 ? context.cell.withAttrs(attrs) : emptyCell(schema, attrs)
-  })
-  const rowPath = [...context.tablePath, context.rowIndex]
-  const tr = state.tr
-  tr.step(
-    new ReplaceNodesStep(rowPath, context.cellIndex, context.cellIndex + 1, Fragment.from(cells)),
+  }
+  const kept = [...placed.filter((cell) => cell !== target), ...parts]
+  const built = tableFrom(table, table.content.children, kept)
+  const row = built.rowIndex[current.top] ?? current.top
+  return replaceTable(
+    state,
+    tablePath,
+    built.table,
+    caretAtGrid(tablePath, built.table, row, current.left),
   )
-  tr.setSelection(cursorIn(context.tablePath, context.rowIndex, context.cellIndex))
-  return tr
 }
 
-/** Tab navigation: move to the next/previous cell; Tab past the end adds a row. */
 /**
  * Enter on the empty last paragraph of the bottom-right cell: a new paragraph
  * after the table, with the caret in it.
@@ -484,10 +614,12 @@ export const escapeTableOnEnter: Command = (state) => {
   const context = cellContextAt(state.doc, selection.from)
   if (!context) return null
 
-  const { table, tablePath, row, rowIndex, cell, cellIndex } = context
+  const { table, tablePath, cell } = context
   // Only the bottom-right cell: anywhere else there is still table to move
-  // through, and Tab is how you move through it.
-  if (rowIndex !== table.childCount - 1 || cellIndex !== row.childCount - 1) return null
+  // through, and Tab is how you move through it. A cell spanning down to the
+  // last row counts, from whichever row holds it.
+  const map = TableMap.of(table)
+  if (map.at(map.height - 1, map.width - 1) !== gridCellOf(context)) return null
 
   const blockIndex = path[path.length - 1] as number
   if (blockIndex !== cell.childCount - 1) return null
@@ -515,6 +647,7 @@ export const escapeTableOnEnter: Command = (state) => {
   return tr
 }
 
+/** Tab navigation: move to the next/previous cell; Tab past the end adds a row. */
 export function goToNextCell(direction: 1 | -1): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)

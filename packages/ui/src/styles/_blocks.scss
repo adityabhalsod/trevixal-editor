@@ -286,6 +286,28 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     }
   }
 
+  // ---- section breaks ----------------------------------------------------------
+  // A page break that starts pages of their own: a double line, labelled with
+  // what the new section changes.
+  .trevixal-section-break {
+    position: relative;
+    margin: t.token('space-4') 0;
+    border-top: 3px double t.token('color-border');
+
+    &::after {
+      content: attr(data-label);
+      position: absolute;
+      top: -0.8em;
+      inset-inline-end: 0;
+      padding: 0 t.token('space-2');
+      background: t.token('color-bg');
+      color: t.token('color-text-muted');
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  }
+
   // ---- badges ----------------------------------------------------------------
   // An inline pill. `neutral` is the base; the tone modifiers only swap
   // colors, so an unknown tone still renders as a readable chip.
@@ -482,7 +504,8 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
 // above. Its screen chrome has to go, or it prints as a stray label.
 @media print {
   .trevixal-content {
-    .trevixal-page-break {
+    .trevixal-page-break,
+    .trevixal-section-break {
       page-break-after: always;
       // The modern spelling; both ship because printer support still varies.
       break-after: page;

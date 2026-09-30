@@ -202,3 +202,42 @@
     }
   }
 }
+
+// ---- phones ------------------------------------------------------------------
+// On a touch screen this narrow, the editor's own toolbar is a bar along the
+// bottom, where a thumb reaches it, riding on top of the on-screen keyboard
+// (`--tvx-keyboard-inset`, kept by `trackVirtualKeyboard`). One row that
+// scrolls sideways, as a phone's own keyboards and toolbars do; the page keeps
+// the caret clear of it.
+@media (max-width: 40rem) and (pointer: coarse) {
+  .trevixal-ui > .trevixal-toolbar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: var(--tvx-keyboard-inset, 0px);
+    z-index: 30;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: max(#{t.token('space-1')}, env(safe-area-inset-bottom));
+    border-top: 1px solid t.token('color-border');
+    background: t.token('color-surface');
+    box-shadow: 0 -1px 3px rgba(16, 16, 32, 0.12);
+
+    .trevixal-toolbar__group {
+      flex: 0 0 auto;
+    }
+
+    .trevixal-toolbar__button {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+
+  html:has(.trevixal-ui) {
+    scroll-padding-bottom: 5rem;
+  }
+
+  .trevixal-content {
+    padding-bottom: 4.5rem;
+  }
+}
+

@@ -7,6 +7,7 @@ import {
   viewChild,
 } from '@angular/core'
 import { type FullEditor, mountFullEditor } from '@trevixal/editor-kit'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 
 /**
  * The whole editor, mounted from Angular's lifecycle.
@@ -31,6 +32,7 @@ export class FullEditorComponent {
       this.editor = mountFullEditor({
         element: this.host().nativeElement,
         namespace: 'trevixal:angular',
+        languages: uiLanguageLoaders,
         aboutRows: [
           { term: 'Framework', description: 'Angular 22, zoneless, mounted after render' },
         ],

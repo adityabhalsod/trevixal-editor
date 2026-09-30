@@ -126,6 +126,18 @@ mountFullEditor({
   namespace: 'my-app',             // the localStorage prefix for everything it saves
   uploadEndpoint: '/api/uploads',  // or null to skip the request and use a data URL
   maxImageBytes: 5 * 1024 * 1024,
+  fetchLinkTitle: (href) => myServer.titleOf(href), // a pasted address takes its page's title
+  checkLinkURL: null,              // Check links asks web addresses by default; null keeps it offline
+  plantumlServer: 'https://uml.example.com/plantuml', // or null; PlantUML's source goes to this server
+  autoLockMinutes: 10,             // a protected document locks when left alone; 0 for never
+  writingProvider: myProvider,     // Tools > Writing assistant; rules in the page by default, null for none
+  users: [{ id: 'u1', name: 'Sam' }], // who a comment can @mention
+  onMention: ({ user, comment }) => notify(user, comment.text),
+  thesaurus: (word) => myThesaurus(word), // right-click synonyms; a small built-in list by default
+  languages: {                     // View > Language; each catalogue loads when it is picked
+    de: () => import('@trevixal/ui/locales/de').then((module) => module.default),
+    ar: () => import('@trevixal/ui/locales/ar').then((module) => module.default),
+  },
   heading: 'My editor',            // or null for none
   paragraphs: ['<b>Some</b> copy.'],
   showSerializedHTML: false,
@@ -139,6 +151,15 @@ mounted, and a `destroy()` that takes all three back.
 Call it once per page: the autosave draft, the workspace store and the command
 palette are singletons by nature, and a second mount sharing a namespace would
 have two editors writing over one another's saves.
+
+## Working offline
+
+The editor saves to local storage as you type, so it keeps working when the
+network goes. To open with no network at all, the page itself has to be
+cached too, and that is the host's job: a service worker is the page's, not
+the editor's. The [full-editor example](https://github.com/adityabhalsod/trevixal-editor/tree/main/examples/full-editor)
+shows one way. Its build writes a service worker that caches every file it
+made, and a manifest makes the page installable as an app.
 
 ## Most of it, but not all
 

@@ -45,6 +45,7 @@ import { TextSelection } from '../state/selection'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
 import {
   domPointFromPosition,
+  isInsideInlineAtom,
   isInsideNonContent,
   pathOfElement,
   positionFromDOMPoint,
@@ -57,7 +58,8 @@ import {
   type NodeViewInstance,
 } from './renderer'
 
-const TREVIXAL_MIME = 'application/x-trevixal+json'
+/** The clipboard type that carries copied blocks as Trevixal JSON, for a lossless paste. */
+export const TREVIXAL_MIME = 'application/x-trevixal+json'
 
 /** A pasted string that is one URL and nothing else. */
 const BARE_URL = /^(?:https?:\/\/|www\.)[^\s<>"'`]{2,2000}$/i
@@ -387,6 +389,13 @@ export class EditorView {
     this.syncSelectionToDOM()
     this.withDOMUpdate(() => this.dom.focus({ preventScroll: true }))
     this.syncSelectionToDOM()
+    // A selected node has no browser form, so the caret the browser puts
+    // somewhere on focus is its own, not the reader's: it is not read back
+    // as a move, which would swap the selected node for that caret.
+    if (!(this.editor.state.selection instanceof TextSelection)) {
+      const domSelection = this.document.getSelection?.()
+      if (domSelection) this.lastDOMSelection = snapshotOf(domSelection)
+    }
   }
 
   /**
@@ -534,7 +543,19 @@ export class EditorView {
       : anchor
     if (!anchor || !head) return
     const next = new TextSelection(anchor, head)
-    if (this.editor.state.selection.eq(next)) return
+    if (this.editor.state.selection.eq(next)) {
+      // A caret inside an atom (Chromium and Firefox put it there when the
+      // atom ends a line) is moved out, beside it: Firefox will not break a
+      // line or delete from inside an element that is not editable.
+      const focusNode = domSelection.focusNode ?? anchorNode
+      if (
+        isInsideInlineAtom(this.dom, this.renderer, anchorNode) ||
+        isInsideInlineAtom(this.dom, this.renderer, focusNode)
+      ) {
+        this.syncSelectionToDOM()
+      }
+      return
+    }
     this.editor.dispatch(this.editor.state.tr.setSelection(next))
   }
 

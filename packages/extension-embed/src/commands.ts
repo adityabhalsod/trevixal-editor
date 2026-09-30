@@ -17,6 +17,7 @@ import {
 import { EMBED_BLOCK_NODES, embedProvider } from './schema'
 import {
   type EmbedNodesOptions,
+  type EmbedProvider,
   hostnameOf,
   parseEmbedURL,
   safeEmbedSrc,
@@ -31,12 +32,16 @@ export interface VideoAttrs {
   readonly height?: string | number | null
   readonly controls?: boolean
   readonly title?: string | null
+  /** Chapters, one a line: `1:30 Setting up`. */
+  readonly chapters?: string | null
 }
 
 export interface AudioAttrs {
   readonly src: string
   readonly title?: string | null
   readonly controls?: boolean
+  /** A recording's waveform: bar heights 0-100, comma-separated. */
+  readonly waveform?: string | null
 }
 
 export interface IframeAttrs {
@@ -45,7 +50,7 @@ export interface IframeAttrs {
   readonly width?: string | number | null
   readonly height?: string | number | null
   /** Derived from the host when omitted. */
-  readonly provider?: 'youtube' | 'vimeo' | 'generic'
+  readonly provider?: EmbedProvider
 }
 
 export interface LinkCardAttrs {
@@ -120,6 +125,7 @@ export function insertVideo(attrs: VideoAttrs): Command {
       height: attrs.height === undefined || attrs.height === null ? null : String(attrs.height),
       controls: attrs.controls ?? true,
       title: attrs.title ?? null,
+      chapters: attrs.chapters ?? null,
     })
     return insertEmbedBlock(state, node)
   }
@@ -134,6 +140,7 @@ export function insertAudio(attrs: AudioAttrs): Command {
       src,
       title: attrs.title ?? null,
       controls: attrs.controls ?? true,
+      waveform: attrs.waveform ?? null,
     })
     return insertEmbedBlock(state, node)
   }
@@ -195,7 +202,10 @@ export function insertEmbed(url: string, options: EmbedNodesOptions = {}): Comma
       case 'vimeo':
         return insertIframe({ src: target.src, provider: 'vimeo' }, options)(state)
       default:
-        return insertIframe({ src: target.src, provider: 'generic' }, options)(state)
+        return insertIframe(
+          { src: target.src, provider: target.provider ?? 'generic' },
+          options,
+        )(state)
     }
   }
 }

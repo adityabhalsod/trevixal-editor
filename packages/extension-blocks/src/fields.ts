@@ -74,6 +74,8 @@ interface Walk {
     readonly target: ReferenceTarget
   })[]
   readonly references: Found[]
+  /** Display equations: each numbered one with the number it should show, and any other. */
+  readonly equations: (Found & { readonly number: number | null })[]
   readonly lists: Found[]
   readonly indexes: Found[]
   readonly occurrences: Occurrence[]
@@ -101,6 +103,7 @@ function walkDocument(doc: EditorNode): Walk {
     targets: [],
     captions: [],
     references: [],
+    equations: [],
     lists: [],
     indexes: [],
     occurrences: [],
@@ -201,9 +204,36 @@ function walkDocument(doc: EditorNode): Walk {
     flush()
   }
 
+  /**
+   * A numbered display equation takes the next equation number, in one
+   * sequence with the equation captions, and reads "(2)" as LaTeX's do.
+   */
+  const equationAt = (node: EditorNode, path: Path): void => {
+    // A schema whose display equations cannot be numbered has none to keep.
+    if (!node.type.spec.attrs || !('numbered' in node.type.spec.attrs)) return
+    if (node.attrs.numbered !== true) {
+      walk.equations.push({ path, node, number: null })
+      return
+    }
+    counts.equation += 1
+    const number = counts.equation
+    const shown = `(${number})`
+    walk.equations.push({ path, node, number })
+    walk.targets.push({
+      kind: 'equation',
+      id: safeElementId(node.attrs.id),
+      path,
+      label: `Equation ${shown}`,
+      number: shown,
+      text: shown,
+      full: `Equation ${shown}`,
+    })
+  }
+
   const visit = (node: EditorNode, path: Path): void => {
     const id = safeElementId(node.attrs.id)
     if (id) walk.ids.add(id)
+    if (node.type.name === 'mathBlock') equationAt(node, path)
     if (node.type.name === 'captionList') walk.lists.push({ path, node })
     else if (node.type.name === 'documentIndex') walk.indexes.push({ path, node })
     if (!node.isTextblock) {
@@ -322,7 +352,11 @@ function indexEntries(occurrences: readonly Occurrence[]): IndexEntry[] {
 export function fieldSteps(doc: EditorNode): Step[] {
   const walk = walkDocument(doc)
   const fields =
-    walk.captions.length + walk.references.length + walk.lists.length + walk.indexes.length
+    walk.captions.length +
+    walk.references.length +
+    walk.lists.length +
+    walk.indexes.length +
+    walk.equations.length
   if (fields === 0) return []
   const steps: Step[] = []
   const byId = new Map<string, ReferenceTarget>()
@@ -340,6 +374,27 @@ export function fieldSteps(doc: EditorNode): Step[] {
     if (caption.node.attrs.number !== caption.number || caption.node.attrs.id !== id) {
       const attrs = { ...caption.node.attrs, number: caption.number, id }
       steps.push(new SetNodeAttrsStep(caption.path, attrs))
+    }
+  }
+  // A numbered equation gets an id to be pointed at, and its number; one no
+  // longer numbered loses the number it showed.
+  for (const equation of walk.equations) {
+    const attrs = equation.node.attrs
+    if (equation.number === null) {
+      if (attrs.number !== null) {
+        steps.push(new SetNodeAttrsStep(equation.path, { ...attrs, number: null }))
+      }
+      continue
+    }
+    const own = safeElementId(attrs.id)
+    const id = own && !claimed.has(own) ? own : freshId('eq', walk.ids)
+    walk.ids.add(id)
+    claimed.add(id)
+    const target = walk.targets.find((each) => each.path === equation.path)
+    if (target) byId.set(id, { ...target, id })
+    const number = String(equation.number)
+    if (attrs.number !== number || attrs.id !== id) {
+      steps.push(new SetNodeAttrsStep(equation.path, { ...attrs, number, id }))
     }
   }
   for (const target of walk.targets) {

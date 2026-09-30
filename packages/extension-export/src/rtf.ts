@@ -7,6 +7,7 @@ import {
   type Mark,
   type NamedStyle,
   type StyleProps,
+  type TableMapCell,
   type TextNode,
   columnCount,
   documentStyles,
@@ -34,6 +35,7 @@ import {
   blockLayout,
   cellSpan,
   decodeDataURL,
+  formulaInstruction,
   headingLevel,
   hiddenCellSides,
   imageDimensions,
@@ -43,6 +45,8 @@ import {
   primaryFont,
   tableColumns,
   taskGlyph,
+  withCheckbox,
+  wordRows,
 } from './shared'
 import { type TableColors, type TableLine, type TableLook, tableLook } from './table-look'
 import { type ThemeTokens, documentPalette } from './theme'
@@ -793,21 +797,21 @@ function rtfLine(line: TableLine, context: Context): string {
 
 /**
  * Which sides of a cell the table's own lines run along: RTF draws each
- * cell's border itself, so the table's border style is worked out per cell.
+ * cell's border itself, so the table's border style is worked out per cell,
+ * from where it stands on the grid.
  */
 function drawnSides(
   look: TableLook,
-  rowIndex: number,
-  cellIndex: number,
+  placed: TableMapCell,
   rowCount: number,
-  cellCount: number,
+  columnCount: number,
 ): Readonly<Record<'top' | 'left' | 'bottom' | 'right', boolean>> {
   const { edges } = look
   return {
-    top: rowIndex === 0 ? edges.top : edges.insideH,
-    bottom: rowIndex === rowCount - 1 ? edges.bottom : edges.insideH,
-    left: cellIndex === 0 ? edges.left : edges.insideV,
-    right: cellIndex === cellCount - 1 ? edges.right : edges.insideV,
+    top: placed.top === 0 ? edges.top : edges.insideH,
+    bottom: placed.top + placed.height === rowCount ? edges.bottom : edges.insideH,
+    left: placed.left === 0 ? edges.left : edges.insideV,
+    right: placed.left + placed.width === columnCount ? edges.right : edges.insideV,
   }
 }
 
@@ -841,6 +845,7 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
   const unit = Math.floor(state.tableWidth / columns)
   const look = tableLook(table, context.tableColors)
   const rowCount = table.childCount
+  const layout = wordRows(table)
   const rows: string[] = []
   for (const [rowIndex, row] of table.content.children.entries()) {
     if (row.type.name !== NODE.tableRow) continue
@@ -851,16 +856,20 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
     let definition = `\\trowd${context.direction === 'rtl' ? '\\rtlrow' : ''}${
       header && row.childCount > 0 ? '\\trhdr' : ''
     }\\trgaph108\\trleft-108${cellPaddingRTF(table, context)}`
-    let right = 0
     const cells: string[] = []
-    for (const [cellIndex, cell] of row.content.children.entries()) {
+    for (const { placed, merge } of layout[rowIndex] ?? []) {
+      const cell = withCheckbox(placed.node)
       if (cell.type.name !== NODE.tableCell) continue
-      right += unit * cellSpan(cell)
-      const cellLook = look.cell(rowIndex, cellIndex)
+      const right = unit * (placed.left + placed.width)
+      const cellLook = look.cell(placed.row, placed.index)
+      // A cell spanning rows is RTF's vertical merge: begun in its first row,
+      // continued, empty, in each of the others.
+      if (merge === 'restart') definition += '\\clvmgf'
+      if (merge === 'continue') definition += '\\clvmrg'
       // A line the Eraser took out is simply not written; a style's rule
       // under the header or over the total row takes the table's line's place.
-      const hidden = hiddenCellSides(table, rowIndex, cellIndex)
-      const drawn = drawnSides(look, rowIndex, cellIndex, rowCount, row.childCount)
+      const hidden = hiddenCellSides(table, placed.row, placed.index)
+      const drawn = drawnSides(look, placed, rowCount, columns)
       for (const [code, side] of RTF_SIDES) {
         if (hidden.has(side)) continue
         const line =
@@ -891,7 +900,8 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
         ...(cellLook.ink ? { ink: colorIndex(context, cellLook.ink) } : {}),
         align: align === 'center' || align === 'right' ? align : null,
       }
-      const paragraphs = writeBlocks(cell.content.children, context, cellState)
+      const paragraphs =
+        merge === 'continue' ? [] : writeBlocks(cell.content.children, context, cellState)
       // `\cell` ends the cell's last paragraph in place of `\par`; a cell
       // ending in a table of its own takes an empty paragraph to end on.
       const end = nested ? '\\nestcell' : '\\cell'
@@ -958,6 +968,10 @@ function inlineNode(node: EditorNode, context: Context): string {
   if (node.type.name === 'captionNumber') {
     const number = escapeRTF(String(node.attrs.number ?? ''))
     return `{\\field{\\*\\fldinst SEQ ${sequenceName(node.attrs.kind)} \\\\* ARABIC}{\\fldrslt ${number}}}`
+  }
+  if (node.type.name === 'tableFormula') {
+    const result = escapeRTF(attrString(node.attrs, 'result') ?? '')
+    return `{\\field{\\*\\fldinst ${escapeRTF(formulaInstruction(node))}}{\\fldrslt ${result}}}`
   }
   if (node.type.name === NODE.image) {
     const alt = attrString(node.attrs, 'alt') ?? 'image'

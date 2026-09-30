@@ -13,6 +13,20 @@ import {
   toggleHeaderRow,
 } from './commands'
 import {
+  type ChartKind,
+  type ColumnType,
+  type RowFilter,
+  columnTypeAt,
+  filterRows,
+  hiddenAt,
+  hideColumn,
+  insertTableChart,
+  setColumnType,
+  showAllColumns,
+  showAllRows,
+  tableColumnLabels,
+} from './data'
+import {
   convertTableToText,
   convertTextToTable,
   csvAtSelection,
@@ -22,6 +36,7 @@ import {
   setTableBorders,
   sortTable,
 } from './features'
+import { formulaAt, insertFormula, suggestedFormula } from './formula'
 import { moveColumn, moveRow, swapCellContent } from './move'
 import {
   autoFitContents,
@@ -82,8 +97,8 @@ export interface TableUICommands {
   readonly deleteColumn: Command
   readonly mergeCells: Command
   readonly splitCell: Command
-  /** Word's Split Cells: each selected cell into this many columns. */
-  readonly splitCellInto: (columns: number) => Command
+  /** Word's Split Cells: each selected cell into this many columns, and each of those this many rows. */
+  readonly splitCellInto: (columns: number, rows?: number) => Command
   readonly toggleHeaderRow: Command
   readonly deleteTable: Command
   readonly moveRowUp: Command
@@ -143,6 +158,24 @@ export interface TableUICommands {
   readonly setCellVerticalAlign: (align: CellVerticalAlign | null) => Command
   /** How the table at the selection is laid out, for the ticks; a reader. */
   readonly tableLayoutAt: (state: EditorState) => TableLayout | null
+  /** Word's table formula, `SUM(ABOVE)` and the like, in an optional number format. */
+  readonly insertFormula: (expression: string, format: string | null) => Command
+  /** The formula at the caret, for the dialog to change, or the one Word would suggest; a reader. */
+  readonly formulaAt: (state: EditorState) => { expression: string; format: string | null }
+  /** What the selection's columns hold: text, numbers, money, percentages, dates or checkboxes. */
+  readonly setColumnType: (type: ColumnType) => Command
+  readonly columnTypeAt: (state: EditorState) => ColumnType | null
+  /** Hide the body rows that do not pass a filter; Show all rows brings them back. */
+  readonly filterRows: (filter: RowFilter) => Command
+  readonly showAllRows: Command
+  readonly hideColumn: Command
+  readonly showAllColumns: Command
+  /** The table's columns by header, for a filter to be picked by; a reader. */
+  readonly tableColumnLabels: (state: EditorState) => string[]
+  /** What is hidden in the table at the selection; a reader. */
+  readonly hiddenAt: (state: EditorState) => { rows: boolean; columns: boolean } | null
+  /** A chart of the table's data, as a Mermaid diagram after it. */
+  readonly insertChart: (kind: ChartKind) => Command
 }
 
 export interface TableUICommandsOptions {
@@ -177,7 +210,7 @@ export function tableUICommands(options: TableUICommandsOptions = {}): TableUICo
     deleteColumn,
     mergeCells,
     splitCell,
-    splitCellInto: (columns) => splitCellInto(columns, { measure }),
+    splitCellInto: (columns, rows) => splitCellInto(columns, { measure, rows }),
     toggleHeaderRow,
     deleteTable,
     moveRowUp: moveRow('up'),
@@ -220,5 +253,16 @@ export function tableUICommands(options: TableUICommandsOptions = {}): TableUICo
     setCellPadding,
     setCellVerticalAlign,
     tableLayoutAt,
+    insertFormula: (expression, format) => insertFormula(expression, format),
+    formulaAt: (state) => formulaAt(state) ?? { expression: suggestedFormula(state), format: null },
+    setColumnType: (type) => setColumnType(type),
+    columnTypeAt,
+    filterRows: (filter) => filterRows(filter),
+    showAllRows,
+    hideColumn,
+    showAllColumns,
+    tableColumnLabels,
+    hiddenAt,
+    insertChart: (kind) => insertTableChart(kind),
   }
 }

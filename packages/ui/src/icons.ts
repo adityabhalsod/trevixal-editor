@@ -378,6 +378,8 @@ const PATHS: Readonly<Record<string, string>> = {
     'M12 3.2a8.8 8.8 0 0 0 0 17.6c1.1 0 1.6-.8 1.6-1.6 0-1.3 1-2.3 2.3-2.3h1.3a3 3 0 0 0 3-3c0-5-3.7-10.7-8.2-10.7zM7.6 10.2h.01M10.4 7.2h.01M14.4 7.6h.01',
   // A glyph plus a plus sign: add a typeface.
   fontAdd: 'M3.5 17 8 6l4.5 11M5.4 13.5h5.2M15.5 14.5h6M18.5 11.5v6',
+  globe:
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.5 9h17M3.5 15h17M12 3c2.4 2.6 3.6 5.6 3.6 9s-1.2 6.4-3.6 9c-2.4-2.6-3.6-5.6-3.6-9S9.6 5.6 12 3z',
   // Quick insert: the plain "+" every editor puts on the button that adds things.
   quickInsert: 'M12 5v14M5 12h14',
   // A picture frame over the line of text that names it.
@@ -406,6 +408,35 @@ const PATHS: Readonly<Record<string, string>> = {
   // The block menu's entries.
   turnInto: 'M4 8h13l-3-3m3 3-3 3M20 16H7l3-3m-3 3 3 3',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  // Table data: a formula's sigma, a column's type, a filter's funnel, and
+  // showing and hiding.
+  formula: 'M17 5H7l6 7-6 7h10',
+  columnType: 'M9 4 7 20M17 4l-2 16M4 9h16M3 15h16',
+  filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
+  eyeOff:
+    'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6C3.8 8.3 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.4-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  chartBar: 'M4 4v16h16M8 16v-4M12 16V8M16 16v-6',
+  chartLine: 'M4 4v16h16M7 15l4-5 3 3 5-6',
+  chartPie: 'M12 3v9h9A9 9 0 1 1 12 3zM15 3.5A9 9 0 0 1 20.5 9H15z',
+  // Media: a gallery's grid, a camera, a screenshot's frame, a pen's line,
+  // a microphone and a chapter list.
+  gallery: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 10.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z',
+  screenshot: 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M9 10h6v4H9z',
+  drawing: 'M4 20c3-1 4-5 7-5s3 3 5 3 3-2 4-3M14.5 4.5l5 5L11 18H6v-5z',
+  microphone: 'M9 5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6',
+  chapters: 'M4 6h2M4 12h2M4 18h2M9 6h11M9 12h11M9 18h11',
+  // ---- developer -------------------------------------------------------------
+  // A triangle pointing on: run.
+  play: 'M8 5v14l11-7z',
+  // A prompt and a cursor in a window.
+  terminal: 'M3 5h18v14H3zM7 10l3 2-3 2M12 15h5',
+  // A plus over a minus: what changed.
+  codeDiff: 'M12 4v8M8 8h8M8 17h8',
+  // Braces around a dot: a snippet of code.
+  codeSnippet:
+    'M9 4H8a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M15 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1',
 }
 
 export type IconName = keyof typeof PATHS | (string & {})

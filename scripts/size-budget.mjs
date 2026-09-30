@@ -24,17 +24,26 @@ const TARGETS = [
     // Raised from the brief's 45 kB with the list tools' schema: a task's due
     // date and assignee, folded items, and multilevel schemes of the writer's
     // own with the stylesheet that draws them. The measured 45.8 kB plus about 10%.
-    budgetKb: 50,
+    // Then from 50 kB with the FEATURE.md work (rowspan's table map, front
+    // matter and MDX, style marks on paste, the page setup): the measured
+    // 49.1 kB plus about 10%.
+    budgetKb: 54,
   },
   // Raised from 80 kB with the formatting features (named styles and the
   // Styles pane, borders and shading, drop caps, tab stops, text columns):
-  // the measured 84.9 kB plus about 10%.
-  { name: '@trevixal/ui', entry: 'packages/ui/dist/index.js', budgetKb: 94 },
+  // the measured 84.9 kB plus about 10%. Then from 94 kB with the FEATURE.md
+  // work (the page layout engine, compare, go to, snippets, macros, multiple
+  // carets, speech, the web clipper, link tools, the document theme): the
+  // measured 124.1 kB plus about 10%.
+  { name: '@trevixal/ui', entry: 'packages/ui/dist/index.js', budgetKb: 137 },
   // Raised from 14 kB with heading numbering, captions, the index, line
   // numbers and the block menu: the measured 14.3 kB plus about 10%. Then
   // from 16 kB with the list and table tools (task chips and counts, folds,
   // frozen header rows, the scheme dialog): the measured 16.2 kB plus about 10%.
-  { name: '@trevixal/ui styles.css', entry: 'packages/ui/dist/styles.css', budgetKb: 18 },
+  // Then from 18 kB with the FEATURE.md work (page marks, form fields,
+  // comments, reading settings, the phone toolbar): the measured 21.1 kB plus
+  // about 10%.
+  { name: '@trevixal/ui styles.css', entry: 'packages/ui/dist/styles.css', budgetKb: 23 },
   {
     // The assembled editor pulls every extension in with it, so this is not a
     // package's own size but the whole thing as a consuming app receives it.
@@ -42,8 +51,11 @@ const TARGETS = [
     name: '@trevixal/editor-kit',
     entry: 'packages/editor-kit/dist/index.js',
     // Raised from 230 kB with the list and table tools: the measured 232.9 kB
-    // plus about 10%.
-    budgetKb: 256,
+    // plus about 10%. Then from 256 kB with the FEATURE.md work: comments,
+    // forms and mail merge, signatures, the new writers and readers (ODT,
+    // EPUB, LaTeX, PPTX, PDF text), media and the whiteboard, data tables:
+    // the measured 338.3 kB plus about 10%.
+    budgetKb: 372,
     note: 'every extension included',
   },
   {
@@ -60,8 +72,10 @@ const TARGETS = [
     // Raised from 200 kB with the document-structure features (heading
     // numbering, captions, cross-references, the index, line numbers, RTL):
     // the measured 210.8 kB plus about 10%. Then from 232 kB with the list
-    // and table tools: the measured 233.1 kB plus about 10%.
-    budgetKb: 256,
+    // and table tools: the measured 233.1 kB plus about 10%. Then from 256 kB
+    // with the FEATURE.md work, as the kit above: the measured 339.2 kB plus
+    // about 10%.
+    budgetKb: 373,
     note: 'already minified',
   },
   {
@@ -69,8 +83,9 @@ const TARGETS = [
     entry: 'packages/web-component/dist/trevixal-editor.iife.js',
     // Raised from 32 kB: it inlines the core, which the formatting features
     // (named styles, paragraph formatting, AutoFormat) grew. The measured
-    // 33.7 kB plus about 10%.
-    budgetKb: 37,
+    // 33.7 kB plus about 10%. Then from 37 kB, the core having grown with the
+    // FEATURE.md work: the measured 36.7 kB plus about 10%.
+    budgetKb: 40,
     note: 'already minified',
   },
 ]

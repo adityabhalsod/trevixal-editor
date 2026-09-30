@@ -9,8 +9,9 @@ import {
 } from '@trevixal/core'
 import { NO_LIST_NUMBERING, defaultListNumberings } from './controls'
 import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
-import { MENU_KEY, type Messages, type Translator, createTranslator } from './i18n'
+import { MENU_KEY, type Messages, createTranslator } from './i18n'
 import { type IconName, createIcon } from './icons'
+import { UI_LANGUAGES, languageItemName } from './languages'
 import { sortList, toggleListItemFold } from './list-tools'
 import { type ShortcutLabels, formatShortcut, parseShortcut } from './shortcuts'
 import {
@@ -83,8 +84,16 @@ export interface Menubar {
   readonly element: HTMLElement
   /** Re-print every shortcut; call it when the manager reports a rebind. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
+  /** Relabel every menu and entry from another catalogue, in place: a new UI language. */
+  setMessages(messages: Messages | undefined): void
   destroy(): void
 }
+
+/**
+ * Write a menu key's text into an element, its text or one attribute, and
+ * remember where, so a new catalogue can write it again.
+ */
+type Labeller = (element: HTMLElement, name: string, fallback: string, attribute?: string) => void
 
 const separator = (name: string): MenuItem => ({ name, label: '', separator: true })
 
@@ -133,23 +142,38 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           icon: 'download',
           items: [
             { name: 'downloadHtml', label: 'Web page (.html)', icon: 'htmlMode' },
+            { name: 'downloadHtmlSingle', label: 'Web page, one file (.html)', icon: 'htmlMode' },
             { name: 'downloadMarkdown', label: 'Markdown (.md)', icon: 'markdownMode' },
+            { name: 'downloadMdx', label: 'MDX (.mdx)', icon: 'markdownMode' },
             { name: 'downloadText', label: 'Plain text (.txt)', icon: 'langPlain' },
             { name: 'downloadJson', label: 'Trevixal JSON (.json)', icon: 'formatJson' },
             { name: 'downloadDocx', label: 'Word document (.docx)', icon: 'fileWord' },
             { name: 'downloadRtf', label: 'Rich text (.rtf)', icon: 'fileRich' },
+            { name: 'downloadOdt', label: 'OpenDocument text (.odt)', icon: 'fileRich' },
+            { name: 'downloadEpub', label: 'EPUB book (.epub)', icon: 'fileRich' },
+            { name: 'downloadLatex', label: 'LaTeX (.tex)', icon: 'formula' },
+            { name: 'downloadPptx', label: 'PowerPoint (.pptx)', icon: 'fileRich' },
+            { name: 'downloadPdfForm', label: 'Fillable PDF form (.pdf)', icon: 'print' },
             { name: 'downloadPdf', label: 'PDF (via print)', icon: 'print' },
             { name: 'downloadEncrypted', label: 'Encrypted document (.tvx)', icon: 'key' },
           ],
         },
         { name: 'exportSelection', label: 'Download selection…', icon: 'copy' },
+        { name: 'frontMatter', label: 'Front matter…', icon: 'markdownMode' },
         { name: 'importDocument', label: 'Import a file…', icon: 'csvImport' },
+        { name: 'importFromUrl', label: 'Import from a web address…', icon: 'link' },
         separator('file-sep-history'),
+        { name: 'exportFolder', label: 'Download a workspace folder…', icon: 'download' },
+        { name: 'saveVersion', label: 'Save version…', icon: 'save' },
         { name: 'documentBackups', label: 'Local backups…', icon: 'undo' },
         separator('file-sep-security'),
         { name: 'protectDocument', label: 'Protect with password…', icon: 'lock' },
         { name: 'documentRestrictions', label: 'Restrictions…', icon: 'shield' },
+        { name: 'lockNow', label: 'Lock now', icon: 'lock' },
+        { name: 'addPasskey', label: 'Unlock with a passkey…', icon: 'key' },
+        { name: 'signDocument', label: 'Sign document…', icon: 'edit' },
         separator('file-sep-print'),
+        { name: 'pageSetup', label: 'Page setup…', icon: 'pageBreak' },
         { name: 'printPreview', label: 'Print preview…', icon: 'print' },
         { name: 'print', label: 'Print…', icon: 'print' },
       ],
@@ -180,6 +204,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'copy', label: 'Copy', icon: 'copy', shortcut: 'Ctrl+C' },
         { name: 'paste', label: 'Paste', icon: 'paste', shortcut: 'Ctrl+V' },
         { name: 'pastePlain', label: 'Paste without formatting', icon: 'paste' },
+        { name: 'pasteSpecial', label: 'Paste special…', icon: 'paste' },
         separator('edit-sep-case'),
         {
           name: 'changeCase',
@@ -211,6 +236,8 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         },
         separator('edit-sep-find'),
         { name: 'findReplace', label: 'Find and replace…', icon: 'search' },
+        { name: 'goTo', label: 'Go to…', icon: 'target' },
+        { name: 'addNextMatch', label: 'Add caret at next match', icon: 'selectAll' },
         {
           name: 'selectAll',
           icon: 'selectAll',
@@ -225,6 +252,10 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
       label: 'Insert',
       items: [
         { name: 'insertImage', label: 'Image…', icon: 'image' },
+        { name: 'insertGallery', label: 'Image gallery…', icon: 'gallery' },
+        { name: 'capturePhoto', label: 'Camera photo…', icon: 'camera' },
+        { name: 'captureScreen', label: 'Screenshot…', icon: 'screenshot' },
+        { name: 'insertDrawing', label: 'Drawing…', icon: 'drawing' },
         { name: 'insertLink', label: 'Link…', icon: 'link' },
         {
           name: 'removeLink',
@@ -247,6 +278,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           run: (editor) => editor.commands.insertHardBreak(),
         },
         { name: 'insertSpecialChar', label: 'Special character…', icon: 'specialChar' },
+        { name: 'insertSnippet', label: 'Snippet…', icon: 'codeSnippet' },
         {
           // Tab types one only in a paragraph with tab stops; this puts one anywhere.
           name: 'insertTab',
@@ -258,13 +290,29 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         separator('insert-sep-media'),
         { name: 'insertVideo', label: 'Video…', icon: 'image' },
         { name: 'insertAudio', label: 'Audio…', icon: 'image' },
+        { name: 'recordAudio', label: 'Record audio…', icon: 'microphone' },
+        { name: 'videoChapters', label: 'Video chapters…', icon: 'chapters' },
         { name: 'insertEmbed', label: 'Embed a link…', icon: 'link' },
         { name: 'insertLinkCard', label: 'Link preview card…', icon: 'linkNewTab' },
         { name: 'insertAttachment', label: 'File attachment…', icon: 'csvImport' },
+        { name: 'insertTransclusion', label: 'Include from workspace…', icon: 'copy' },
         separator('insert-sep-science'),
         { name: 'insertMath', label: 'Equation…', icon: 'specialChar' },
         { name: 'insertMathBlock', label: 'Display equation…', icon: 'specialChar' },
         { name: 'insertDiagram', label: 'Diagram', icon: 'columns' },
+        { name: 'insertGraphviz', label: 'Graphviz diagram', icon: 'columns' },
+        { name: 'insertPlantUML', label: 'PlantUML diagram', icon: 'columns' },
+        {
+          name: 'insertCode',
+          label: 'Code',
+          icon: 'codeSnippet',
+          items: [
+            { name: 'insertTerminal', label: 'Terminal session', icon: 'terminal' },
+            { name: 'insertCodeDiff', label: 'Diff of two versions…', icon: 'codeDiff' },
+            { name: 'insertRunnableJs', label: 'JavaScript to run', icon: 'play' },
+            { name: 'insertRunnableHtml', label: 'HTML to run', icon: 'play' },
+          ],
+        },
         separator('insert-sep-blocks'),
         {
           name: 'insertCallout',
@@ -301,15 +349,44 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           ],
         },
         { name: 'insertAccordion', label: 'Accordion', icon: 'toggleBlock' },
+        { name: 'insertMarginNote', label: 'Margin note', icon: 'callout' },
+        { name: 'insertPoll', label: 'Poll…', icon: 'chartBar' },
+        { name: 'insertMap', label: 'Map…', icon: 'target' },
+        { name: 'insertConditional', label: 'Show only when…', icon: 'eye' },
         separator('insert-sep-inline'),
         { name: 'insertBadge', label: 'Badge…', icon: 'badge' },
         { name: 'insertButton', label: 'Button…', icon: 'buttonBlock' },
         { name: 'insertAnchor', label: 'Anchor…', icon: 'anchor' },
         { name: 'insertFootnote', label: 'Footnote', icon: 'footnote' },
         { name: 'insertEndnote', label: 'Endnote', icon: 'footnote' },
+        { name: 'insertComment', label: 'Comment…', icon: 'suggesting', shortcut: 'Ctrl+Alt+M' },
+        {
+          name: 'formFieldMenu',
+          label: 'Form field',
+          icon: 'buttonBlock',
+          items: [
+            { name: 'formText', label: 'Text box…', icon: 'buttonBlock' },
+            { name: 'formCheckbox', label: 'Tick box…', icon: 'check' },
+            { name: 'formDropdown', label: 'Drop-down list…', icon: 'chevronDown' },
+            { name: 'formDate', label: 'Date…', icon: 'buttonBlock' },
+            { name: 'formSignature', label: 'Signature…', icon: 'edit' },
+          ],
+        },
         { name: 'insertCitation', label: 'Citation…', icon: 'footnote' },
         { name: 'insertReferenceList', label: 'References list', icon: 'footnote' },
         { name: 'renumberCitations', label: 'Renumber citations', icon: 'restartNumbering' },
+        { name: 'importSources', label: 'Import sources…', icon: 'csvImport' },
+        {
+          name: 'citationStyle',
+          label: 'Citation style',
+          icon: 'footnote',
+          items: [
+            { name: 'citationStyle-apa', label: 'APA', icon: 'footnote' },
+            { name: 'citationStyle-mla', label: 'MLA', icon: 'footnote' },
+            { name: 'citationStyle-chicago', label: 'Chicago', icon: 'footnote' },
+            { name: 'citationStyle-ieee', label: 'IEEE', icon: 'footnote' },
+          ],
+        },
         separator('insert-sep-references'),
         { name: 'insertCaption', label: 'Caption…', icon: 'caption' },
         { name: 'insertCrossReference', label: 'Cross-reference…', icon: 'crossReference' },
@@ -332,6 +409,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'insertDocumentIndex', label: 'Index', icon: 'documentIndex' },
         separator('insert-sep-break'),
         { name: 'insertPageBreak', label: 'Page break', icon: 'pageBreak' },
+        { name: 'insertSectionBreak', label: 'Section break…', icon: 'pageBreak' },
       ],
     },
     {
@@ -414,6 +492,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         separator('format-sep-styles'),
         // Word's Styles pane: every style, applied, changed and made there.
         { name: 'stylesPane', label: 'Styles pane', icon: 'styles' },
+        { name: 'documentFonts', label: 'Document fonts…', icon: 'fontAdd' },
         {
           name: 'paragraphStyles',
           label: 'Paragraph styles',
@@ -891,13 +970,60 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
             { name: 'writingPassive', label: 'Passive voice', icon: 'check' },
             { name: 'writingRepeated', label: 'Repeated words', icon: 'check' },
             { name: 'writingLong', label: 'Long sentences', icon: 'check' },
+            { name: 'writingInclusive', label: 'Inclusive language', icon: 'check' },
+            { name: 'writingTone', label: 'Tone', icon: 'check' },
+            { name: 'writingCliches', label: 'Clichés and jargon', icon: 'check' },
+            { name: 'readingHeatmap', label: 'Reading heat map', icon: 'statistics' },
           ],
         },
         { name: 'spellcheck', label: 'Spell check', icon: 'check' },
+        {
+          name: 'assistMenu',
+          label: 'Writing assistant',
+          icon: 'edit',
+          items: [
+            { name: 'assistRewrite', label: 'Rewrite selection…', icon: 'edit' },
+            { name: 'assistSummarise', label: 'Summarise selection…', icon: 'outline' },
+            { name: 'assistTranslate', label: 'Translate selection…', icon: 'globe' },
+            { name: 'assistContinue', label: 'Continue writing…', icon: 'edit' },
+          ],
+        },
+        { name: 'dictation', label: 'Dictate', icon: 'microphone' },
+        { name: 'readAloud', label: 'Read aloud', icon: 'play' },
+        { name: 'accessibilityCheck', label: 'Accessibility check…', icon: 'eye' },
+        { name: 'findDuplicates', label: 'Find duplicate text…', icon: 'copy' },
+        { name: 'auditLog', label: 'Audit log…', icon: 'undo' },
+        { name: 'mailMerge', label: 'Mail merge…', icon: 'csvImport' },
         separator('tools-sep-autoformat'),
         { name: 'smartTypography', label: 'Smart quotes and symbols', icon: 'quote' },
         { name: 'autocorrect', label: 'AutoCorrect as you type', icon: 'check' },
         { name: 'autocorrectOptions', label: 'AutoCorrect options…', icon: 'autocorrect' },
+        { name: 'checkLinks', label: 'Check links…', icon: 'link' },
+        { name: 'compareDocuments', label: 'Compare with a file…', icon: 'codeDiff' },
+        { name: 'manageSnippets', label: 'Snippets…', icon: 'codeSnippet' },
+        { name: 'templateVariables', label: 'Template variables…', icon: 'sliders' },
+        { name: 'redactSelection', label: 'Redact selection', icon: 'eyeOff' },
+        { name: 'lockSection', label: 'Lock selected blocks', icon: 'lock' },
+        { name: 'lockedSections', label: 'Locked sections…', icon: 'lock' },
+        {
+          name: 'macro',
+          label: 'Macro',
+          icon: 'play',
+          items: [
+            { name: 'macroRecord', label: 'Record macro', icon: 'microphone' },
+            { name: 'macroPlay', label: 'Play macro', icon: 'play' },
+          ],
+        },
+        {
+          name: 'keyBindings',
+          label: 'Key bindings',
+          icon: 'keyboard',
+          items: [
+            { name: 'keysStandard', label: 'Standard', icon: 'keyboard' },
+            { name: 'keysEmacs', label: 'Emacs', icon: 'keyboard' },
+            { name: 'keysVim', label: 'Vim', icon: 'keyboard' },
+          ],
+        },
         separator('tools-sep-count'),
         { name: 'wordCount', icon: 'wordCount', label: 'Word count' },
       ],
@@ -1007,6 +1133,36 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
             { name: 'sortDescending', label: 'Descending', icon: 'tableSort' },
           ],
         },
+        separator('table-sep-data'),
+        // A table as data: Word's formulas, typed columns, filters and charts.
+        { name: 'tableFormula', icon: 'formula', label: 'Formula…' },
+        {
+          name: 'columnType',
+          icon: 'columnType',
+          label: 'Column type',
+          items: [
+            { name: 'columnTypeText', label: 'Text', icon: 'columnType' },
+            { name: 'columnTypeNumber', label: 'Number', icon: 'columnType' },
+            { name: 'columnTypeCurrency', label: 'Currency', icon: 'columnType' },
+            { name: 'columnTypePercentage', label: 'Percentage', icon: 'columnType' },
+            { name: 'columnTypeDate', label: 'Date', icon: 'columnType' },
+            { name: 'columnTypeCheckbox', label: 'Checkbox', icon: 'taskList' },
+          ],
+        },
+        { name: 'filterRows', icon: 'filter', label: 'Filter rows…' },
+        { name: 'showAllRows', icon: 'eye', label: 'Show all rows' },
+        { name: 'hideColumn', icon: 'eyeOff', label: 'Hide column' },
+        { name: 'showAllColumns', icon: 'eye', label: 'Show hidden columns' },
+        {
+          name: 'tableChart',
+          icon: 'chartBar',
+          label: 'Insert chart',
+          items: [
+            { name: 'chartBar', label: 'Bar chart', icon: 'chartBar' },
+            { name: 'chartLine', label: 'Line chart', icon: 'chartLine' },
+            { name: 'chartPie', label: 'Pie chart', icon: 'chartPie' },
+          ],
+        },
         separator('table-sep-convert'),
         { name: 'convertTextToTable', icon: 'convertTextTable', label: 'Convert text to table' },
         { name: 'convertTableToText', icon: 'convertTextTable', label: 'Convert table to text' },
@@ -1049,18 +1205,45 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
             { name: 'themeMidnight', label: 'Midnight', icon: 'themeMidnight' },
             { name: 'customTheme', label: 'Custom theme…', icon: 'palette' },
             { name: 'customCss', label: 'Custom CSS…', icon: 'htmlMode' },
+            { name: 'importTheme', label: 'Import theme…', icon: 'folderOpen' },
+            { name: 'exportTheme', label: 'Export theme…', icon: 'download' },
+            { name: 'documentTheme', label: 'Save theme with document', icon: 'save' },
           ],
         },
         { name: 'manageFonts', label: 'Add a font…', icon: 'fontAdd' },
+        {
+          name: 'languageMenu',
+          label: 'Language',
+          icon: 'globe',
+          // Each language by its own name, which is how a reader finds theirs.
+          items: UI_LANGUAGES.map((language) => ({
+            name: languageItemName(language.code),
+            label: language.name,
+            icon: 'globe',
+          })),
+        },
+        {
+          name: 'toolbarPresets',
+          label: 'Toolbar',
+          icon: 'sliders',
+          items: [
+            { name: 'toolbarMinimal', label: 'Minimal', icon: 'sliders' },
+            { name: 'toolbarWriting', label: 'Writing', icon: 'sliders' },
+            { name: 'toolbarDeveloper', label: 'Developer', icon: 'sliders' },
+            { name: 'toolbarFull', label: 'Full', icon: 'sliders' },
+          ],
+        },
         separator('view-sep-modes'),
         { name: 'focusMode', label: 'Focus mode', icon: 'focusMode' },
         { name: 'typewriterMode', label: 'Typewriter scrolling', icon: 'focusMode' },
         { name: 'fullscreen', label: 'Fullscreen', icon: 'fullscreen' },
         { name: 'pageMode', label: 'Page view', icon: 'pageBreak' },
+        { name: 'present', label: 'Present', icon: 'play' },
         separator('view-sep-panels'),
         { name: 'tableOfContents', label: 'Table of contents', icon: 'tableOfContents' },
         { name: 'documentOutline', label: 'Document outline', icon: 'outline' },
         { name: 'historyPanel', label: 'History', icon: 'undo' },
+        { name: 'commentsPanel', label: 'Comments', icon: 'suggesting' },
         { name: 'workspacePanel', label: 'Documents', icon: 'save' },
         { name: 'splitPreview', label: 'Side-by-side preview', icon: 'columns2' },
         { name: 'splitEditor', label: 'Split editor', icon: 'columns2' },
@@ -1072,6 +1255,9 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         separator('view-sep-access'),
         { name: 'readOnly', label: 'Read-only mode', icon: 'lock' },
         { name: 'trackChanges', label: 'Suggesting mode', icon: 'suggesting' },
+        separator('view-sep-reading'),
+        { name: 'reducedMotion', label: 'Reduce motion', icon: 'focusMode' },
+        { name: 'dyslexiaFont', label: 'Dyslexia-friendly font', icon: 'fontAdd' },
       ],
     },
     {
@@ -1098,7 +1284,18 @@ export function createMenubar(
 ): Menubar {
   const document = container.ownerDocument
   const menus = options.menus ?? defaultMenus()
-  const translate = createTranslator(options.messages)
+  let translate = createTranslator(options.messages)
+  const labels: { element: HTMLElement; name: string; fallback: string; attribute?: string }[] = []
+  const write = (slot: (typeof labels)[number]): void => {
+    const text = translate(`${MENU_KEY}${slot.name}`, slot.fallback)
+    if (slot.attribute) slot.element.setAttribute(slot.attribute, text)
+    else slot.element.textContent = text
+  }
+  const label: Labeller = (element, name, fallback, attribute) => {
+    const slot = { element, name, fallback, attribute }
+    labels.push(slot)
+    write(slot)
+  }
   const root = document.createElement('div')
   root.className = 'trevixal-menubar'
   root.setAttribute('role', 'menubar')
@@ -1143,7 +1340,7 @@ export function createMenubar(
       // assigned yet while render runs.
       render: (panel, self) => {
         panel.setAttribute('role', 'menu')
-        panel.setAttribute('aria-label', translate(`${MENU_KEY}${menu.name}`, menu.label))
+        label(panel, menu.name, menu.label, 'aria-label')
         for (const item of menu.items) {
           renderMenuItem(
             document,
@@ -1154,7 +1351,7 @@ export function createMenubar(
             refreshers,
             shortcutSlots,
             refresh,
-            translate,
+            label,
           )
         }
         disposers.push(bindListNavigation(panel))
@@ -1162,7 +1359,7 @@ export function createMenubar(
     })
     dropdown.trigger.classList.add('trevixal-menubar__trigger')
     dropdown.trigger.setAttribute('role', 'menuitem')
-    dropdown.trigger.textContent = translate(`${MENU_KEY}${menu.name}`, menu.label)
+    label(dropdown.trigger, menu.name, menu.label)
     dropdown.trigger.dataset.trevixalMenu = menu.name
     // Hovering while another menu is open switches menus, as menubars do.
     dropdown.trigger.addEventListener('mouseenter', () => {
@@ -1181,9 +1378,13 @@ export function createMenubar(
   container.appendChild(root)
   return {
     element: root,
-    setShortcutLabels(labels) {
-      shortcutLabels = labels
+    setShortcutLabels(next) {
+      shortcutLabels = next
       printShortcuts()
+    },
+    setMessages(messages) {
+      translate = createTranslator(messages)
+      for (const slot of labels) write(slot)
     },
     destroy() {
       for (const dispose of disposers) dispose()
@@ -1208,7 +1409,7 @@ function renderMenuItem(
   refreshers: ((snapshot: EditorSnapshot) => void)[],
   shortcutSlots: Map<string, ShortcutSlot[]>,
   refresh: () => void,
-  translate: Translator,
+  label: Labeller,
 ): void {
   if (item.separator) {
     const rule = document.createElement('div')
@@ -1223,7 +1424,7 @@ function renderMenuItem(
     group.className = 'trevixal-menu__group'
     const heading = document.createElement('div')
     heading.className = 'trevixal-menu__heading'
-    heading.textContent = translate(`${MENU_KEY}${item.name}`, item.label)
+    label(heading, item.name, item.label)
     group.appendChild(heading)
     for (const child of item.items) {
       renderMenuItem(
@@ -1235,7 +1436,7 @@ function renderMenuItem(
         refreshers,
         shortcutSlots,
         refresh,
-        translate,
+        label,
       )
     }
     panel.appendChild(group)
@@ -1255,10 +1456,10 @@ function renderMenuItem(
   const glyph = document.createElement('span')
   glyph.className = 'trevixal-menu__icon'
   if (icon) glyph.appendChild(icon)
-  const label = document.createElement('span')
-  label.className = 'trevixal-menu__label'
-  label.textContent = translate(`${MENU_KEY}${item.name}`, item.label)
-  button.append(glyph, label)
+  const text = document.createElement('span')
+  text.className = 'trevixal-menu__label'
+  label(text, item.name, item.label)
+  button.append(glyph, text)
   // Every item gets a slot, so a binding added later by the shortcut manager
   // has somewhere to print; `printShortcuts` hides the empty ones.
   const shortcut = document.createElement('span')

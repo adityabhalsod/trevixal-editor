@@ -172,15 +172,16 @@ export const initialContent = {
         {
           type: 'text',
           text:
-            '// Twelve languages ship with the highlighter.\n' +
+            '// Fourteen languages ship with the highlighter.\n' +
             'const editor = createEditor({ schema, content })\n' +
             'editor.commands.toggleMark("bold")',
         },
       ],
     },
     {
+      // The code bar's options: numbered lines, one picked out, and a title.
       type: 'codeBlock',
-      attrs: { language: 'sql' },
+      attrs: { language: 'sql', lineNumbers: true, highlightLines: '3', title: 'report.sql' },
       content: [
         {
           type: 'text',
@@ -203,6 +204,23 @@ export const initialContent = {
         },
       ],
     },
+    paragraph(
+      'The options on a code block’s bar number its lines, pick lines out, wrap, fold and title it. Insert ▸ Code adds a terminal, a diff, or code to run.',
+    ),
+    paragraph('Copy a terminal session and only its commands go, without the prompts:'),
+    {
+      type: 'codeBlock',
+      attrs: { language: 'console' },
+      content: [
+        {
+          type: 'text',
+          text: '$ pnpm add @trevixal/editor-kit\nPackages: +1\n$ pnpm dev',
+        },
+      ],
+    },
+    paragraph(
+      'Tools ▸ Key bindings swaps in Emacs’s or Vim’s keys. File ▸ Front matter keeps a Markdown file’s YAML, and MDX downloads too.',
+    ),
     { type: 'horizontalRule' },
     paragraph('Select formatted text and use the brush to copy its styling elsewhere.'),
 
@@ -326,10 +344,22 @@ export const initialContent = {
       content: [
         { type: 'text', text: 'Equations sit inline: ' },
         { type: 'math', attrs: { latex: 'e^{i\\pi} + 1 = 0' } },
-        { type: 'text', text: ', and on their own line:' },
+        { type: 'text', text: ', chemistry too: ' },
+        { type: 'math', attrs: { latex: '\\ce{2H2 + O2 -> 2H2O}' } },
+        { type: 'text', text: '. On their own line they can be numbered:' },
       ],
     },
-    { type: 'mathBlock', attrs: { latex: '\\int_0^1 x^2 \\, dx = \\frac{1}{3}' } },
+    {
+      type: 'mathBlock',
+      // Numbered, with the number and id the field updater gives it.
+      attrs: {
+        latex: '\\int_0^1 x^2 \\, dx = \\frac{1}{3}',
+        numbered: true,
+        number: '1',
+        id: 'eq-1',
+      },
+    },
+    paragraph('Double-click an equation to edit it with a palette of symbols and a preview.'),
     {
       type: 'iframeEmbed',
       attrs: {
@@ -350,8 +380,127 @@ export const initialContent = {
         siteName: 'MDN Web Docs',
       },
     },
+    paragraph(
+      'Insert ▸ Link can point at any block, not only a heading. Tools ▸ Check links lists the links that go nowhere.',
+    ),
+    paragraph(
+      'In a workspace document, type [[ to link to another one. The Backlinks list shows which documents link to the one open.',
+    ),
+    paragraph(
+      'Insert ▸ Include from workspace shows another document here, kept in step as it changes. File ▸ Import from a web address clips a page’s article in.',
+    ),
+    paragraph(
+      'File ▸ Save version keeps a named checkpoint. Local backups compares any two, and Tools ▸ Compare with a file compares with another file.',
+    ),
+    paragraph(
+      'View ▸ Suggesting mode records edits as suggestions. The review bar accepts or rejects them all, or one reviewer’s.',
+    ),
+    paragraph(
+      'Select words and press Ctrl+Alt+M to comment on them. View ▸ Comments holds the replies, @mentions and Resolve.',
+    ),
+    paragraph(
+      'Alt+click adds a caret, and Ctrl+D the next match; typing goes to each. Ctrl+G goes to a line, a heading or a bookmark.',
+    ),
+    paragraph(
+      'Tools ▸ Snippets keeps text under an abbreviation that expands as you type it. Tools ▸ Macro records what you do, and F8 plays it.',
+    ),
+    paragraph(
+      'File ▸ Download as writes OpenDocument, EPUB, LaTeX, or a web page in one file. File ▸ Open reads a PDF’s text and Notion or Google Docs exports.',
+    ),
+    paragraph(
+      'View ▸ Present shows each top-level heading as a slide, note callouts as speaker notes, and File ▸ Download as writes it to PowerPoint.',
+    ),
+    {
+      type: 'paragraph',
+      content: [
+        text('Insert ▸ Form field adds a box to fill in, like this one: '),
+        { type: 'formField', attrs: { kind: 'text', name: 'your_name', label: 'Your name' } },
+        text(
+          '. File ▸ Download as writes a Fillable PDF form, and Tools ▸ Mail merge makes a copy for each row of a CSV file.',
+        ),
+      ],
+    },
+    paragraph(
+      'File ▸ Page setup sets the paper, the margins, a header and footer with page numbers, and a watermark. Insert ▸ Section break turns the pages after it. File ▸ Print preview shows the pages as they print.',
+    ),
+    paragraph(
+      'Insert ▸ Margin note, Poll and Map add a sticky note, a vote and a map. Insert ▸ Show only when hides blocks until a template variable is set.',
+    ),
+    paragraph(
+      'Tools ▸ Redact selection blacks out words, and a download, a print or a copy carries only a stand-in. Tools ▸ Lock selected blocks keeps a section as it is.',
+    ),
+    paragraph(
+      'A password-protected document locks itself when left alone, or at once from File ▸ Lock now. It prints under a watermark.',
+    ),
+    paragraph(
+      'File ▸ Sign document signs it, and the status line shows any later change. Tools ▸ Audit log lists who changed what.',
+    ),
+    paragraph(
+      'An app that ships the catalogues gets View ▸ Language: the menus in eight more languages, Arabic right to left. View ▸ Toolbar offers four toolbars.',
+    ),
+    paragraph(
+      'View ▸ Theme imports and exports themes, and saves one with the document. Format ▸ Document fonts saves its fonts too.',
+    ),
+    paragraph(
+      'View ▸ Reduce motion stops animations, and View ▸ Dyslexia-friendly font widens the spacing.',
+    ),
+    paragraph(
+      'Tools ▸ Check writing flags wording that leaves people out, and on request tone and clichés. Its Reading heat map tints hard sentences.',
+    ),
+    paragraph(
+      'Right-click a word for synonyms. Tools ▸ Accessibility check lists missing alt text, skipped headings and vague links.',
+    ),
+    paragraph(
+      'Tools ▸ Writing assistant rewrites or summarises the selection, through whichever provider the app plugs in.',
+    ),
+    paragraph(
+      'Tools ▸ Read aloud reads from the caret, the caret following the voice. Tools ▸ Dictate types what the microphone hears.',
+    ),
+    paragraph(
+      'Insert ▸ Import sources reads BibTeX or CSL, and Insert ▸ Citation style sets APA, MLA, Chicago or IEEE.',
+    ),
+    paragraph(
+      'Insert ▸ Image gallery lays photos out in a grid. Double-click any image to see it full size.',
+    ),
+    paragraph(
+      'Insert ▸ Camera photo, Screenshot and Record audio capture straight into the document. New images ask for their alt text.',
+    ),
+    paragraph(
+      'Paste a link to a post on X, a CodePen, a map or a Spotify track, and it plays in place. Insert ▸ Video chapters lists a video’s chapters.',
+    ),
+    paragraph(
+      'Insert ▸ Drawing opens a whiteboard for a pen, boxes and arrows. Double-click this one to draw on it:',
+    ),
+    {
+      type: 'drawing',
+      attrs: {
+        data: JSON.stringify({
+          width: 640,
+          height: 200,
+          shapes: [
+            { kind: 'rect', color: '#2563eb', width: 3, x1: 40, y1: 60, x2: 200, y2: 140 },
+            { kind: 'arrow', color: '#1f2937', width: 3, x1: 210, y1: 100, x2: 420, y2: 100 },
+            { kind: 'ellipse', color: '#16a34a', width: 3, x1: 430, y1: 50, x2: 600, y2: 150 },
+            {
+              kind: 'pen',
+              color: '#dc2626',
+              width: 3,
+              points: [
+                [60, 170],
+                [110, 185],
+                [160, 172],
+                [210, 186],
+              ],
+            },
+          ],
+        }),
+      },
+    },
 
     { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Diagrams' }] },
+    paragraph(
+      'Insert ▸ Graphviz diagram and PlantUML diagram draw those languages beside Mermaid.',
+    ),
     {
       type: 'codeBlock',
       attrs: { language: 'mermaid' },
@@ -615,11 +764,56 @@ export const initialContent = {
         row([cell('Banners and programmes'), cell('483.00')]),
         row([cell('Photographer'), cell('600.00')]),
         row([cell('Insurance'), cell('140.00')]),
+        row([
+          cell('Total'),
+          {
+            // Table ▸ Formula: Word's =SUM(ABOVE), kept up to date as the costs change.
+            type: 'tableCell',
+            attrs: { header: false, valueType: 'number' },
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'tableFormula',
+                    attrs: { expression: 'SUM(ABOVE)', format: '#,##0.00', result: '5,843.00' },
+                  },
+                ],
+              },
+            ],
+          },
+        ]),
       ],
     },
     paragraph(
       'Its header row stays at the top of the window while the table scrolls by (Table ▸ Freeze header row). Table ▸ Freeze first column keeps the first column in view as a wide table scrolls sideways. In a print, the header row heads every page the table runs onto. Table ▸ Cell padding and Table ▸ Cell alignment set the room in its cells and where their content sits.',
     ),
+    paragraph(
+      'The total is a formula: change a cost and it adds up again (Table ▸ Formula). Table ▸ Column type lines numbers, money and dates up on the right.',
+    ),
+    paragraph(
+      'Table ▸ Filter rows hides the rows you do not need without deleting them, and Table ▸ Insert chart draws the table as a chart.',
+    ),
+    paragraph(
+      'Cells merge down a column as well as along a row, from Table ▸ Merge cells. Table ▸ Split cells cuts one into rows or columns:',
+    ),
+    {
+      type: 'table',
+      content: [
+        row([cell('Day', true), cell('Session', true)]),
+        row([
+          // One day over two sessions: a cell merged down a column.
+          {
+            type: 'tableCell',
+            attrs: { header: false, rowspan: 2 },
+            content: [paragraph('Friday')],
+          },
+          cell('Rehearsal'),
+        ]),
+        row([cell('Sound check')]),
+        row([cell('Saturday'), cell('Launch')]),
+      ],
+    },
 
     {
       type: 'paragraph',

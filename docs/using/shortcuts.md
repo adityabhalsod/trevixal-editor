@@ -33,7 +33,8 @@ These come from the engine's base keymap and work in any editor built on
 | `Mod+O` | Open a file | | `Mod+P` | Print |
 | `Mod+Alt+P` | Protect with password | | `Mod+Shift+F` | Focus mode |
 | `Mod+Shift+Enter` | Fullscreen | | `Mod+Alt+S` | Split editor |
-| `Mod+.` | Writing suggestions for the word under the caret | | | |
+| `Mod+.` | Writing suggestions for the word under the caret | | `Mod+G` | Go to a line, heading or bookmark |
+| `Mod+D` | Add a caret at the next match | | `F8` | Play the recorded macro |
 
 On a Mac the paragraph styles are `⌘⌥0` to `6` alone: `⌘⇧3`, `4` and `5` are
 the Mac's screenshot keys.
@@ -72,6 +73,34 @@ a new one. The search box narrows the list by name or by keys.
 | Slash or emoji popup | Arrow keys, `Enter` or `Tab`, `Escape` | Move, pick, close |
 | Toolbar grip | `Space`, arrow keys, `Enter`, `Escape` | Pick a group up, move it, drop it, put it back (announced to screen readers) |
 | Menubar and toolbar | Arrow keys, `Escape` | WAI-ARIA menubar and toolbar patterns, roving tabindex |
+
+## More than one caret
+
+`Alt+click` puts another caret where you click, and `Mod+D` selects the word
+at the caret, then each next place it occurs. Typing, `Backspace` and
+`Delete` then happen at every caret at once, in one undo step. `Escape`, or a
+plain click, goes back to one caret.
+
+## Snippets
+
+*Tools > Snippets...* keeps pieces of text under an abbreviation, as Word's
+Quick Parts do: select something and give it an abbreviation to keep it,
+formatting and all, or type the text in. Type the abbreviation and a space,
+`Enter` or `Tab` to put the snippet in its place; `Tab` adds nothing after
+it. *Insert > Snippet...* picks one from a list instead.
+
+## Macros
+
+*Tools > Macro > Record macro* starts recording what you do: the typing, the
+keys that move the caret, and the commands you run from the menus and
+shortcuts. Choose it again to stop. `F8`, or *Play macro*, plays it back
+wherever the caret is.
+
+## Keys from other editors
+
+*Tools > Key bindings* offers Emacs's keys and Vim's in place of the
+standard ones; [Code, diagrams and equations](./code#keys-from-other-editors)
+lists them.
 
 ## Typing shortcuts
 

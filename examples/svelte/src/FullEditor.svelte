@@ -1,5 +1,6 @@
 <script lang="ts">
 import { type FullEditor, mountFullEditor } from '@trevixal/editor-kit'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 
 /**
  * The whole editor, mounted from a Svelte effect.
@@ -15,6 +16,7 @@ $effect(() => {
   const editor: FullEditor = mountFullEditor({
     element: host,
     namespace: 'trevixal:svelte',
+    languages: uiLanguageLoaders,
     aboutRows: [{ term: 'Framework', description: 'Svelte 5, mounted from an effect' }],
   })
   return () => editor.destroy()

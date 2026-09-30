@@ -264,31 +264,29 @@ test.describe('the document-structure features of the built demo', () => {
       expect(placement?.right).toBeLessThanOrEqual(placement?.left ?? 0)
 
       // The print numbers its own lines, laid out at the printed width: each
-      // number inside the printed area, in the gutter, level with its line.
+      // number in its page's margin, on the paper, level with its line.
       await runMenuItem(page, 'file', 'print')
       const frame = page.frameLocator('.trevixal-print-frame')
       await expect(frame.locator('.trevixal-line-number').first()).toHaveText('1')
-      const printed = await frame.locator('body').evaluate(() => {
-        const numbers = [...document.querySelectorAll('.trevixal-line-number')]
-        const content = document.querySelector('.trevixal-content > [data-trevixal-document]')
-        if (!content) return null
-        const text = content.getBoundingClientRect()
-        const padding = Number.parseFloat(getComputedStyle(content).paddingLeft)
-        return numbers.map((number) => {
+      await expect(frame.locator('.trevixal-page').first()).toBeAttached()
+      const printed = await frame.locator('body').evaluate(() =>
+        [...document.querySelectorAll('.trevixal-line-number')].map((number) => {
           const drawn = number.getBoundingClientRect()
+          const text = number.closest('.trevixal-page__body')?.getBoundingClientRect()
+          const paper = number.closest('.trevixal-page')?.getBoundingClientRect()
           // The anchor the number hangs on is its line's first character.
           const line = number.parentElement?.getBoundingClientRect()
           return {
-            inGutter: drawn.left >= text.left && drawn.right <= text.left + padding,
+            inMargin: !!text && !!paper && drawn.left >= paper.left && drawn.right <= text.left,
             level: line
               ? Math.abs(drawn.top + drawn.height / 2 - (line.top + line.height / 2))
               : 99,
           }
-        })
-      })
-      expect(printed?.length).toBeGreaterThan(5)
-      for (const number of printed ?? []) {
-        expect(number.inGutter).toBe(true)
+        }),
+      )
+      expect(printed.length).toBeGreaterThan(5)
+      for (const number of printed) {
+        expect(number.inMargin).toBe(true)
         expect(number.level).toBeLessThan(4)
       }
     } finally {

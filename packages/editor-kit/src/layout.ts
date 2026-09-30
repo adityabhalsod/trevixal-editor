@@ -41,6 +41,8 @@ export interface FullEditorLayout {
   readonly workspace: HTMLElement
   /** Word's Styles pane: every named style, applied and changed there. */
   readonly styles: HTMLElement
+  /** The comment threads beside the document. */
+  readonly comments: HTMLElement
   readonly editor: HTMLElement
   readonly split: HTMLElement
   readonly mirror: HTMLElement
@@ -48,6 +50,8 @@ export interface FullEditorLayout {
   readonly goal: HTMLElement
   readonly security: HTMLElement
   readonly offline: HTMLElement
+  /** Vim's mode, shown while Vim's keys are on. */
+  readonly keyMode: HTMLElement
   readonly uploadStatus: HTMLElement
   /** The serialized-HTML readout, or null when `showSerializedHTML` is off. */
   readonly output: HTMLElement | null
@@ -118,6 +122,7 @@ const PANEL_TITLES: readonly (readonly [string, string])[] = [
   ['history', 'History'],
   ['workspace', 'Documents'],
   ['styles', 'Styles'],
+  ['comments', 'Comments'],
 ]
 
 /** Build the whole skeleton inside `host` and hand back every part of it. */
@@ -188,7 +193,11 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
   security.hidden = true
   const offline = make('span', 'offline')
   offline.hidden = true
-  statusline.append(saveStatus, goal, security, offline)
+  // Vim's mode, while Vim's keys are on.
+  const keyMode = make('span', 'key-mode')
+  keyMode.hidden = true
+  keyMode.setAttribute('aria-live', 'polite')
+  statusline.append(saveStatus, goal, security, offline, keyMode)
   host.append(statusline)
 
   const uploadStatus = make('p', 'upload-status')
@@ -204,7 +213,8 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
     host.append(label, output)
   }
 
-  const [toc, outlinePanel, historyPanel, workspacePanel, stylesPanel] = panels as [
+  const [toc, outlinePanel, historyPanel, workspacePanel, stylesPanel, commentsPanel] = panels as [
+    HTMLElement,
     HTMLElement,
     HTMLElement,
     HTMLElement,
@@ -224,6 +234,7 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
     history: historyPanel,
     workspace: workspacePanel,
     styles: stylesPanel,
+    comments: commentsPanel,
     editor,
     split,
     mirror,
@@ -231,6 +242,7 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
     goal,
     security,
     offline,
+    keyMode,
     uploadStatus,
     output,
     panels,

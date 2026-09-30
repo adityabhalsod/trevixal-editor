@@ -139,9 +139,13 @@ $on-accent: #fff;
   }
 
   // ---- Table Style Options ----
+  // A row's first and last cells are its first and last columns, until a
+  // cell spans down: then the editor marks each cell with the grid column it
+  // really stands in (`data-grid-column`), and the marks decide instead.
   &[data-first-column] {
     @include rows {
-      > :first-child {
+      > :first-child:not([data-grid-column]),
+      > [data-grid-column='0'] {
         font-weight: 600;
       }
     }
@@ -149,7 +153,8 @@ $on-accent: #fff;
 
   &[data-last-column] {
     @include rows {
-      > :last-child {
+      > :last-child:not([data-grid-column]),
+      > [data-grid-last] {
         font-weight: 600;
       }
     }
@@ -172,7 +177,8 @@ $on-accent: #fff;
   // start with the first row of the body, as Word's do.
   &[data-banded-columns] {
     @include rows {
-      > td:nth-child(odd) {
+      > td:nth-child(odd):not([data-grid-column]),
+      > td[data-grid-band] {
         --tvx-cell-band: var(--tvx-table-band);
       }
     }
@@ -674,6 +680,88 @@ $on-accent: #fff;
 .trevixal-content table,
 .trevixal-tabledesign__preview {
   @include table-look;
+}
+
+// ---- data in tables ----------------------------------------------------------------
+// A typed column's values line up on the right, digit under digit, as a
+// spreadsheet's do; a cell's own alignment (inline) still wins.
+.trevixal-content {
+  :is(td, th):is(
+      [data-value-type='number'],
+      [data-value-type='currency'],
+      [data-value-type='percentage'],
+      [data-value-type='date']
+    ) {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // A checkbox cell's box, drawn at the start of the cell where a click on
+  // it ticks it (`enableCellCheckboxes`), as a task item's is.
+  :is(td, th)[data-value-type='checkbox'] {
+    --tvx-cell-box: 1.05em;
+    position: relative;
+    padding-inline-start: calc(var(--tvx-cell-box) + 0.9em);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: calc(0.5em + (1lh - var(--tvx-cell-box)) / 2);
+      inset-inline-start: 0.45em;
+      width: var(--tvx-cell-box);
+      height: var(--tvx-cell-box);
+      box-sizing: border-box;
+      border: 1.5px solid t.token('color-border');
+      border-radius: t.token('radius-sm');
+      background: t.token('color-bg');
+      cursor: pointer;
+    }
+
+    &:hover::before {
+      border-color: t.token('color-accent');
+    }
+
+    // The tick, a rotated two-sided border, as a task item's is drawn.
+    &::after {
+      content: '';
+      position: absolute;
+      top: calc(0.5em + (1lh - var(--tvx-cell-box)) / 2 + 0.21em);
+      inset-inline-start: calc(0.45em + 0.36em);
+      width: 0.3em;
+      height: 0.55em;
+      box-sizing: border-box;
+      border: solid transparent;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+      cursor: pointer;
+    }
+
+    &[data-checked] {
+      &::before {
+        border-color: t.token('color-accent');
+        background: t.token('color-accent');
+      }
+
+      &::after {
+        border-color: t.token('color-accent-contrast');
+      }
+    }
+  }
+
+  // A row a filter hid and a column Hide column hid: out of sight, not
+  // deleted, until Show all brings them back.
+  tr[data-hidden],
+  :is(td, th)[data-hidden] {
+    display: none;
+  }
+
+  // A formula's result, shaded as Word shades a field, so it reads as
+  // worked out rather than typed.
+  .trevixal-formula {
+    border-radius: t.token('radius-sm');
+    background: color-mix(in srgb, #{t.token('color-accent')} 10%, transparent);
+    padding: 0 0.15em;
+  }
 }
 
 // ---- table style gallery previews -------------------------------------------------

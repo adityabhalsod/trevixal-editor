@@ -6,22 +6,44 @@ import {
   Fragment,
   ReplaceNodesStep,
   SetNodeAttrsStep,
+  TextSelection,
   attrsEq,
+  cleanPastedHTML,
+  frontMatterOf,
   insertBlockAfter,
+  insertContent,
   insertEmailLink,
   isEmailAddress,
+  nodeAtPath,
   parseHTML,
+  parseMarkdown,
+  pos,
   safeHref,
   serializeToMarkdown,
+  setDocumentAttrs,
   setLinkTarget,
+  templateVariables,
 } from '@trevixal/core'
 import { collectDocumentCSS } from './collect-css'
-import { type DialogField, openCharacterPicker, openDialog } from './dialog'
-import { printDocument } from './documents'
+import { type DialogField, openCharacterPicker, openDialog, openInfoDialog } from './dialog'
+import { pickFile, printDocument, readFileText } from './documents'
+import { bindEquationEditing, openEquationDialog } from './equation-dialog'
 import { type FindReplace, createFindReplace } from './find-replace'
+import { openGoToDialog } from './go-to'
 import type { Messages } from './i18n'
+import { typeText } from './key-presets'
+import { languageItemName } from './languages'
+import {
+  type LinkStatus,
+  blockTargets,
+  checkLinks,
+  ensureBlockId,
+  openLinkReport,
+} from './link-tools'
 import { listDialogEntries } from './list-dialogs'
 import { bindListFolding, highlightOverdueTasks } from './list-tools'
+import { enableLongDocumentMode } from './long-document'
+import { type Macros, createMacros } from './macros'
 import {
   CELL_PADDING_ENTRIES,
   type Menu,
@@ -30,10 +52,19 @@ import {
   createMenubar,
   defaultMenus,
 } from './menubar'
+import { trackVirtualKeyboard } from './mobile'
+import { type MultipleCarets, enableMultipleCarets } from './multi-caret'
 import { createNamedStyleSheet } from './named-style-sheet'
+import { openPageSetupDialog, openSectionBreakDialog } from './page-setup-dialog'
 import { paragraphFormatEntries } from './paragraph-dialogs'
 import { referenceEntries } from './reference-dialogs'
 import type { ShortcutLabels } from './shortcuts'
+import {
+  type SnippetStore,
+  enableSnippetExpansion,
+  insertSnippet,
+  openSnippetsDialog,
+} from './snippets'
 import { parseMarkdownSource } from './source-mode'
 import { type StatusBar, createStatusBar } from './status-bar'
 import {
@@ -54,6 +85,7 @@ import {
   type CodeFormatCommands,
   type Toolbar,
   type ToolbarOptions,
+  type ToolbarPreset,
   createToolbar,
 } from './toolbar'
 
@@ -73,7 +105,7 @@ export interface TableCommands {
   readonly mergeCells?: Command
   readonly splitCell?: Command
   /** Word's Split Cells; when present, Table ▸ Split asks how many columns. */
-  readonly splitCellInto?: (columns: number) => Command
+  readonly splitCellInto?: (columns: number, rows?: number) => Command
   readonly toggleHeaderRow?: Command
   readonly deleteTable?: Command
   // Data-shaping commands, from `tableUICommands()`. Menu entries for the
@@ -126,6 +158,38 @@ export interface TableCommands {
   readonly setCellVerticalAlign?: (align: 'top' | 'middle' | 'bottom' | null) => Command
   /** How the table at the selection is laid out, for the ticks; a reader. */
   readonly tableLayoutAt?: (state: EditorState) => TableLayoutState | null
+  // A table as data, from `tableUICommands()`.
+  /** Word's table formula, `SUM(ABOVE)` and the like, in an optional number format. */
+  readonly insertFormula?: (expression: string, format: string | null) => Command
+  /** The formula the dialog starts from: the one at the caret, or the one Word suggests; a reader. */
+  readonly formulaAt?: (state: EditorState) => { expression: string; format: string | null }
+  readonly setColumnType?: (type: TableColumnType) => Command
+  /** The caret's column's type, for the ticks; a reader. */
+  readonly columnTypeAt?: (state: EditorState) => TableColumnType | null
+  readonly filterRows?: (filter: TableRowFilter) => Command
+  readonly showAllRows?: Command
+  readonly hideColumn?: Command
+  readonly showAllColumns?: Command
+  /** The table's columns by header, for the filter dialog to offer; a reader. */
+  readonly tableColumnLabels?: (state: EditorState) => readonly string[]
+  readonly insertChart?: (kind: 'bar' | 'line' | 'pie') => Command
+}
+
+/** What a table column holds, as `setColumnType` takes it. */
+export type TableColumnType = 'text' | 'number' | 'currency' | 'percentage' | 'date' | 'checkbox'
+
+/** A row filter, as `filterRows` takes it. */
+export interface TableRowFilter {
+  readonly column: number
+  readonly condition:
+    | 'contains'
+    | 'notContains'
+    | 'equals'
+    | 'greater'
+    | 'less'
+    | 'empty'
+    | 'notEmpty'
+  readonly value?: string
 }
 
 /** What {@link TableCommands.tableLayoutAt} reads off the table at the selection. */
@@ -146,17 +210,54 @@ export interface EmbedCommands {
   readonly insertLinkCard?: (attrs: { href: string; title?: string }) => Command
   /** Opens a file picker; attachments upload rather than being typed in. */
   readonly pickAttachment?: () => void
+  /** Record from the microphone and insert the recording with its waveform. */
+  readonly recordAudio?: () => void
+  /** The selected video's chapters, one a line (`1:30 Setting up`); empty text takes them off. */
+  readonly setVideoChapters?: (text: string | null) => Command
+  /** The selected video's chapters, for the dialog; null without a video selected. A reader. */
+  readonly videoChaptersAt?: (state: EditorState) => string | null
 }
 
 /** Equation commands, from `@trevixal/extension-math`. */
 export interface MathCommands {
   readonly insertMath?: (latex: string) => Command
-  readonly insertMathBlock?: (latex: string) => Command
+  /** A display equation, numbered when asked. */
+  readonly insertMathBlock?: (latex: string, numbered?: boolean) => Command
+  /** With these, a double-click on an equation edits it. */
+  readonly setMathLatex?: (latex: string) => Command
+  readonly setMathNumbered?: (numbered: boolean) => Command
+  /** Draw LaTeX as the document does, for the equation dialog's preview. */
+  readonly render?: (latex: string, display: boolean) => string
 }
 
 /** Diagram commands, from `@trevixal/extension-diagram`. */
 export interface DiagramCommands {
   readonly insertDiagram?: (code?: string) => Command
+  /** A Graphviz (DOT) diagram, and a PlantUML one, beside Mermaid's. */
+  readonly insertGraphviz?: () => Command
+  readonly insertPlantUML?: () => Command
+}
+
+/** Code block commands, from `@trevixal/extension-code-highlight`. */
+export interface CodeCommands {
+  /** A terminal session, a prompt ready for the first command. */
+  readonly insertTerminal?: () => Command
+  /** Two versions of some code as one diff, the changes coloured. */
+  readonly insertCodeDiff?: (before: string, after: string, title?: string) => Command
+  /** A block of JavaScript or HTML to run from the code bar. */
+  readonly insertRunnableCode?: (language: 'javascript' | 'html') => Command
+}
+
+/** Redaction, locked sections and the lock screen, from `@trevixal/extension-security`. */
+export interface SecurityCommands {
+  /** Black out the selected words, or bring back ones already blacked out. */
+  readonly toggleRedaction?: Command
+  /** Lock the selected blocks as one section no edit can change. */
+  readonly lockSection?: Command
+  /** List the locked sections, to unlock one. */
+  readonly manageLockedSections?: () => void
+  /** Hide the document behind the password now, as the inactivity timer would. */
+  readonly lockNow?: () => void
 }
 
 /**
@@ -183,14 +284,33 @@ export interface FileActions {
    */
   readonly exportPDF?: () => void
   readonly backups?: () => void
+  /** Keep the document as it is now under a name, to come back to or compare against. */
+  readonly saveVersion?: () => void
+  /** Compare the document with a file, side by side. */
+  readonly compareWithFile?: () => void
+  /** Clip a web page's article into the document. */
+  readonly importFromURL?: () => void
+  /** Download every document in a workspace folder at once, as one archive. */
+  readonly exportFolder?: () => void
   /** Set (or lift) a password and expiry; `@trevixal/extension-security` does the crypto. */
   readonly protectDocument?: () => void
   /** Choose which of copy, cut, paste, print, download and the context menu are blocked. */
   readonly documentRestrictions?: () => void
+  /** Sign the document with the author's key, so a change after it shows. */
+  readonly signDocument?: () => void
+  /** Register a passkey that unlocks a protected document beside its password. */
+  readonly addPasskey?: () => void
 }
 
 /** The checks `@trevixal/extension-writing` can run; the names match its `WritingIssueKind`. */
-export type WritingCheckKind = 'passive' | 'repeat' | 'grammar' | 'long'
+export type WritingCheckKind =
+  | 'passive'
+  | 'repeat'
+  | 'grammar'
+  | 'long'
+  | 'inclusive'
+  | 'tone'
+  | 'cliche'
 
 /** Image actions the UI drives; `@trevixal/extension-image` satisfies this. */
 export interface ImageActions {
@@ -198,11 +318,25 @@ export interface ImageActions {
   readonly pickFiles: () => void
   /** Insert an image that is already hosted somewhere. */
   readonly insertImage: (attrs: { src: string; alt?: string; title?: string }) => void
+  /** Pick several images and put them in as one gallery. */
+  readonly pickGallery?: () => void
+  /** Take a photo with the camera and insert it. */
+  readonly capturePhoto?: () => void
+  /** Take a screenshot of a screen, window or tab and insert it. */
+  readonly captureScreen?: () => void
+  /** Open the drawing board, and insert what is drawn on it. */
+  readonly insertDrawing?: () => void
 }
 
 export interface EditorUIOptions {
   /** Mount point. The menubar, toolbar and status bar are appended here. */
   readonly container: HTMLElement
+  /**
+   * Links: `checkURL` says whether an outside address answers, for Tools ▸
+   * Check links. Without it, outside links are only checked for being well
+   * formed; the host decides whether the editor reaches out at all.
+   */
+  readonly links?: { readonly checkURL?: (href: string) => Promise<LinkStatus> }
   readonly menus?: readonly Menu[]
   readonly toolbar?: ToolbarOptions
   /** Hide the menubar for a compact, toolbar-only editor. */
@@ -224,6 +358,20 @@ export interface EditorUIOptions {
   readonly mathCommands?: MathCommands
   /** Diagrams, from `@trevixal/extension-diagram`. */
   readonly diagramCommands?: DiagramCommands
+  /** Terminal, diff and runnable code blocks, from `@trevixal/extension-code-highlight`. */
+  readonly codeCommands?: CodeCommands
+  /** Redaction, locked sections and Lock now, from `@trevixal/extension-security`. */
+  readonly securityCommands?: SecurityCommands
+  /**
+   * Where snippets are kept. With it, Insert ▸ Snippet and Tools ▸ Snippets
+   * appear, and abbreviations expand as they are typed.
+   */
+  readonly snippets?: SnippetStore
+  /** What the document workspace offers the Insert menu. */
+  readonly workspaceCommands?: {
+    /** Include a document, or a block of one, kept in step with it. */
+    readonly includeDocument?: () => void
+  }
   /** Open, save, download, import and print. */
   readonly fileActions?: FileActions
   /** Host actions for chrome the UI does not own. */
@@ -239,6 +387,16 @@ export interface EditorUIOptions {
    * `toolbar.<name>`. Anything missing keeps its English, so a partial
    * catalogue is a working one. `defaultMessages()` lists every key.
    */
+  readonly messages?: Messages
+  /** The language `messages` is in, as `lang` takes it, with its direction; English by default. */
+  readonly language?: Omit<ChromeLanguage, 'messages'>
+}
+
+/** What {@link EditorUI.setLanguage} takes: a catalogue and the language it is in. */
+export interface ChromeLanguage {
+  /** BCP 47 code, set as the chrome's `lang`. */
+  readonly code: string
+  readonly direction?: 'ltr' | 'rtl'
   readonly messages?: Messages
 }
 
@@ -267,6 +425,13 @@ export type ViewToggle =
   | 'smartTypography'
   | 'autocorrect'
   | 'stylesPane'
+  | 'documentTheme'
+  | 'reducedMotion'
+  | 'dyslexiaFont'
+  | 'readingHeatmap'
+  | 'commentsPanel'
+  | 'dictation'
+  | 'readAloud'
 
 /** Every toggle {@link ViewActions.isViewToggleOn} can be asked about. */
 export const VIEW_TOGGLES: readonly ViewToggle[] = [
@@ -286,6 +451,13 @@ export const VIEW_TOGGLES: readonly ViewToggle[] = [
   'smartTypography',
   'autocorrect',
   'stylesPane',
+  'documentTheme',
+  'reducedMotion',
+  'dyslexiaFont',
+  'readingHeatmap',
+  'commentsPanel',
+  'dictation',
+  'readAloud',
 ]
 
 export interface ViewActions {
@@ -356,6 +528,61 @@ export interface ViewActions {
   readonly activeTheme?: () => string
   /** The source format on show, or null while the rich surface is up. */
   readonly activeSourceMode?: () => 'markdown' | 'html' | null
+  /** Standard keys, or Emacs's or Vim's for moving and editing. */
+  readonly setKeyPreset?: (preset: 'standard' | 'emacs' | 'vim') => void
+  /** The key preset in force, so its entry under Tools ▸ Key bindings shows the tick. */
+  readonly activeKeyPreset?: () => 'standard' | 'emacs' | 'vim'
+  /** Show the chrome in another language, by its code in `UI_LANGUAGES`. */
+  readonly setLanguage?: (code: string) => void
+  /** The codes `setLanguage` can switch to; entries for the rest are left out. */
+  readonly languages?: readonly string[]
+  /** The language in force, so its entry under View ▸ Language shows the tick. */
+  readonly activeLanguage?: () => string
+  /** Read a theme from a JSON file and apply it. */
+  readonly importTheme?: () => void
+  /** Download the theme in force as a JSON file. */
+  readonly exportTheme?: () => void
+  /** Keep the theme in force with the document, or stop keeping it. */
+  readonly toggleDocumentTheme?: () => void
+  /** Choose the document's body and heading fonts, saved in its styles. */
+  readonly documentFonts?: () => void
+  /** Show a preset's toolbar groups and hide the rest. */
+  readonly setToolbarPreset?: (preset: ToolbarPreset) => void
+  /** The preset the toolbar matches, if any, so its entry shows the tick. */
+  readonly activeToolbarPreset?: () => ToolbarPreset | null
+  /**
+   * Ask the host's writing assistant to rewrite, summarise or translate the
+   * selection, or to continue from the caret. Only the actions named in
+   * `assistActions` get an entry.
+   */
+  readonly assist?: (action: 'rewrite' | 'summarise' | 'translate' | 'continue') => void
+  readonly assistActions?: readonly ('rewrite' | 'summarise' | 'translate' | 'continue')[]
+  /** Type what the microphone hears at the caret, or stop. */
+  readonly toggleDictation?: () => void
+  /** Read the document aloud from the caret, the caret following the voice, or stop. */
+  readonly toggleReadAloud?: () => void
+  /** Who changed the document, when, and by how much, with a download of it. */
+  readonly showAuditLog?: () => void
+  /** Put a form field in at the caret: `@trevixal/extension-forms` holds it. */
+  readonly insertFormField?: (kind: 'text' | 'checkbox' | 'dropdown' | 'date' | 'signature') => void
+  /** One document per row of a CSV or JSON file, downloaded together. */
+  readonly mailMerge?: () => void
+  /** Show the document as slides, one top-level heading each. */
+  readonly present?: () => void
+  /** Comment on the selected text: `@trevixal/extension-comments` keeps the threads. */
+  readonly addComment?: () => void
+  /** Show or hide the comment threads beside the document. */
+  readonly toggleComments?: () => void
+  /** Tint each sentence by how hard it reads, or take the tint off. */
+  readonly toggleReadingHeatmap?: () => void
+  /** List what would trip up a reader with a screen reader or low vision. */
+  readonly checkAccessibility?: () => void
+  /** List the sentences other documents in the workspace also have. */
+  readonly findDuplicateText?: () => void
+  /** Transitions, animations and smooth scrolling off, or back on. */
+  readonly toggleReducedMotion?: () => void
+  /** A font and spacing easier to read with dyslexia, or the document's own. */
+  readonly toggleDyslexiaFont?: () => void
 }
 
 export interface EditorUI {
@@ -376,8 +603,19 @@ export interface EditorUI {
   readonly findReplace: FindReplace | null
   /** Re-print the menus' and the toolbar's shortcuts, e.g. after the user rebinds one. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
+  /**
+   * Show the chrome in another language: every menu and toolbar label from
+   * `messages`, `lang` set for it, and a right-to-left language mirroring it.
+   */
+  setLanguage(language: ChromeLanguage): void
   /** The link dialog the toolbar and Insert ▸ Link open; bind it to a shortcut. */
   openLinkDialog(): void
+  /** The macro recorder behind Tools ▸ Macro; bind its `play` to a key. */
+  readonly macros: Macros
+  /** The extra carets; bind `addNextMatch` to a key. */
+  readonly carets: MultipleCarets
+  /** Open the Go to dialog; bind it to a key. */
+  openGoTo(): void
   destroy(): void
 }
 
@@ -404,12 +642,17 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
     findReplace.open()
   }
 
-  const actions = createActions(editor, options, openFindReplace)
+  const macros = createMacros(editor)
+  const carets = enableMultipleCarets(editor)
+  const actions = createActions(editor, options, openFindReplace, { macros, carets })
   // Wired once and kept: the command palette is built from exactly what the
   // menus ended up offering, so the two can never drift apart.
-  const wiredMenus = withActions(
-    options.menus ?? defaultMenus({ tableStyles: options.tableCommands?.tableStyles }),
-    actions,
+  const wiredMenus = withRecording(
+    withActions(
+      options.menus ?? defaultMenus({ tableStyles: options.tableCommands?.tableStyles }),
+      actions,
+    ),
+    macros,
   )
   const menubar =
     options.showMenubar === false
@@ -435,12 +678,20 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
 
   // A right-to-left document mirrors the chrome with it: menus open from the
   // right, the toolbar runs right to left, as a right-to-left reader expects.
+  // So does a right-to-left language for the chrome, whatever the document.
+  let chromeDirection = options.language?.direction ?? 'ltr'
+  if (options.language) root.lang = options.language.code
   const syncDirection = (): void => {
-    if (editor.state.doc.attrs.direction === 'rtl') root.setAttribute('dir', 'rtl')
-    else root.removeAttribute('dir')
+    if (editor.state.doc.attrs.direction === 'rtl' || chromeDirection === 'rtl') {
+      root.setAttribute('dir', 'rtl')
+    } else root.removeAttribute('dir')
   }
   syncDirection()
   const stopSyncingDirection = editor.on('update', syncDirection)
+  // A long document leaves the blocks off screen to the browser to skip.
+  const stopLongDocument = enableLongDocumentMode(editor)
+  // On a phone the toolbar sits at the bottom, above the on-screen keyboard.
+  const stopKeyboard = trackVirtualKeyboard(root)
   // The document's named styles, drawn on this surface: a Normal it changed,
   // styles of its own, and the list schemes it defined.
   const namedStyles = createNamedStyleSheet(editor)
@@ -448,6 +699,20 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
   // one; a task past its date is marked for its chip to say so.
   const stopFolding = bindListFolding(editor)
   const stopOverdue = highlightOverdueTasks(editor)
+  // Abbreviations expand as they are typed, when the host keeps snippets.
+  const stopSnippets = options.snippets
+    ? enableSnippetExpansion(editor, options.snippets)
+    : () => {}
+  // A double-click on an equation opens it in the equation dialog.
+  const math = options.mathCommands
+  const setMathLatex = math?.setMathLatex
+  const stopEquationEditing = setMathLatex
+    ? bindEquationEditing(editor, {
+        setMathLatex,
+        setMathNumbered: math.setMathNumbered,
+        render: math.render,
+      })
+    : () => {}
 
   options.container.appendChild(root)
   return {
@@ -463,13 +728,31 @@ export function createEditorUI(editor: Editor, options: EditorUIOptions): Editor
       menubar?.setShortcutLabels(labels)
       toolbar.setShortcutLabels(labels)
     },
+    setLanguage(language) {
+      menubar?.setMessages(language.messages)
+      toolbar.setMessages(language.messages)
+      root.lang = language.code
+      chromeDirection = language.direction ?? 'ltr'
+      syncDirection()
+    },
     openLinkDialog() {
       actions.link(editor)
     },
+    macros,
+    carets,
+    openGoTo() {
+      openGoToDialog(document, editor)
+    },
     destroy() {
+      stopSnippets()
+      macros.destroy()
+      carets.destroy()
       stopSyncingDirection()
+      stopLongDocument()
+      stopKeyboard()
       stopFolding()
       stopOverdue()
+      stopEquationEditing()
       namedStyles.destroy()
       findReplace?.destroy()
       statusBar?.destroy()
@@ -494,6 +777,7 @@ function createActions(
   editor: Editor,
   options: EditorUIOptions,
   openFindReplace: (editor: Editor) => void,
+  tools: { readonly macros: Macros; readonly carets: MultipleCarets },
 ): WiredActions {
   const document = options.container.ownerDocument
   const byName = new Map<string, (editor: Editor) => void>()
@@ -503,11 +787,13 @@ function createActions(
     const existingHref = typeof attrs?.href === 'string' ? attrs.href : ''
     const existingTitle = typeof attrs?.title === 'string' ? attrs.title : ''
     const anchors = documentAnchors(target.state.doc)
+    const blocks = blockTargets(target.state.doc)
     const kind = linkKind(existingHref, anchors)
     const kinds = [
       { value: 'web', label: 'Web address' },
       { value: 'email', label: 'Email address' },
       ...(anchors.length > 0 ? [{ value: 'anchor', label: 'Heading in this document' }] : []),
+      ...(blocks.length > 0 ? [{ value: 'block', label: 'Any block in this document' }] : []),
     ]
     const fields: DialogField[] = [
       { name: 'kind', label: 'Link to', type: 'select', value: kind, options: kinds },
@@ -538,6 +824,14 @@ function createActions(
         options: anchors.map((entry) => ({ value: entry.id, label: entry.label })),
         value: kind === 'anchor' ? existingHref.slice(1) : anchors[0]?.id,
         visibleWhen: { field: 'kind', values: ['anchor'] },
+      },
+      {
+        name: 'block',
+        label: 'Block',
+        type: 'select',
+        options: blocks.map((entry) => ({ value: String(entry.index), label: entry.label })),
+        value: String(blocks[0]?.index ?? ''),
+        visibleWhen: { field: 'kind', values: ['block'] },
       },
       { name: 'title', label: 'Title (optional)', type: 'text', value: existingTitle },
       {
@@ -590,7 +884,92 @@ function createActions(
   const activeByName = new Map<string, () => boolean>()
   byName.set('findReplace', openFindReplace)
   byName.set('insertLink', link)
+  // Word's Go To, paste special, snippets, macros and more carets.
+  byName.set('goTo', (target) => openGoToDialog(document, target))
+  byName.set('pasteSpecial', (target) => openPasteSpecial(document, target))
+  byName.set('addNextMatch', () => void tools.carets.addNextMatch())
+  byName.set('macroRecord', () => {
+    if (tools.macros.recording) tools.macros.stop()
+    else tools.macros.record()
+  })
+  activeByName.set('macroRecord', () => tools.macros.recording)
+  byName.set('macroPlay', () => void tools.macros.play())
+  const snippets = options.snippets
+  if (snippets) {
+    byName.set('manageSnippets', (target) => void openSnippetsDialog(document, target, snippets))
+    byName.set('insertSnippet', (target) => {
+      const list = snippets.list()
+      if (list.length === 0) {
+        void openSnippetsDialog(document, target, snippets)
+        return
+      }
+      void openDialog({
+        document,
+        title: 'Insert snippet',
+        submitLabel: 'Insert',
+        fields: [
+          {
+            name: 'snippet',
+            label: 'Snippet',
+            type: 'select',
+            value: '0',
+            options: list.map((snippet, index) => ({
+              value: String(index),
+              label: `${snippet.name} (${snippet.abbreviation})`,
+            })),
+          },
+        ],
+      }).then((values) => {
+        const snippet = values ? list[Number(values.snippet)] : undefined
+        if (snippet) target.exec(insertSnippet(snippet))
+        target.view?.focus()
+      })
+    })
+  }
+
+  // The YAML a Markdown file keeps above its text, for a document that has a place for it.
+  byName.set('frontMatter', (target) => {
+    if (!target.schema.topType.spec.attrs?.frontMatter) return
+    void openDialog({
+      document,
+      title: 'Front matter',
+      submitLabel: 'Save',
+      body: 'The YAML a Markdown file keeps above its text, between two --- lines: a title, tags, a date. Markdown and MDX downloads carry it.',
+      fields: [
+        {
+          name: 'yaml',
+          label: 'YAML',
+          type: 'textarea',
+          value: frontMatterOf(target.state.doc.attrs.frontMatter) ?? '',
+          placeholder: 'title: My post\ntags: [notes]',
+        },
+      ],
+    }).then((values) => {
+      target.view?.focus()
+      if (!values) return
+      target.exec(setDocumentAttrs({ frontMatter: frontMatterOf(values.yaml) }))
+    })
+  })
+  // How the document is set on paper: the print, the page view and Word follow it.
+  byName.set('pageSetup', (target) => {
+    if (!target.schema.topType.spec.attrs?.pageSetup) return
+    void openPageSetupDialog(target, document)
+  })
+  byName.set('checkLinks', (target) => {
+    void checkLinks(target.state.doc, { checkURL: options.links?.checkURL }).then((reports) =>
+      openLinkReport(document, target, reports),
+    )
+  })
   byName.set('insertImage', image)
+  // The rest of the image entries are the host's: they need its storage.
+  for (const [name, action] of [
+    ['insertGallery', options.images?.pickGallery],
+    ['capturePhoto', options.images?.capturePhoto],
+    ['captureScreen', options.images?.captureScreen],
+    ['insertDrawing', options.images?.insertDrawing],
+  ] as const) {
+    if (action) byName.set(name, () => action())
+  }
   byName.set('insertTable', (target) => table(target, 3, 3))
   byName.set('insertSpecialChar', (target) => {
     void openCharacterPicker(document).then((character) => {
@@ -707,6 +1086,122 @@ function createActions(
     for (const [name, command] of simple) {
       if (command) byName.set(name, (target) => target.exec(command))
     }
+    const sectionBreak = blocks.insertSectionBreak
+    if (sectionBreak) {
+      byName.set('insertSectionBreak', (target) => {
+        void openSectionBreakDialog(target, document, sectionBreak)
+      })
+    }
+    const marginNote = blocks.insertMarginNote
+    if (marginNote) byName.set('insertMarginNote', (target) => target.exec(marginNote('yellow')))
+    const poll = blocks.insertPoll
+    if (poll) {
+      byName.set('insertPoll', (target) => {
+        void openDialog({
+          document,
+          title: 'Insert poll',
+          submitLabel: 'Insert',
+          fields: [
+            { name: 'question', label: 'Question', type: 'text', required: true },
+            {
+              name: 'options',
+              label: 'Choices, one a line',
+              type: 'textarea',
+              required: true,
+              placeholder: 'Tuesday\nThursday',
+            },
+          ],
+        }).then((values) => {
+          target.view?.focus()
+          const choices = (values?.options ?? '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+          if (values?.question && choices.length >= 2) target.exec(poll(values.question, choices))
+        })
+      })
+    }
+    const map = blocks.insertMap
+    if (map) {
+      byName.set('insertMap', (target) => {
+        void openDialog({
+          document,
+          title: 'Insert map',
+          submitLabel: 'Insert',
+          fields: [
+            {
+              name: 'place',
+              label: 'Latitude, longitude',
+              type: 'text',
+              required: true,
+              placeholder: '51.5074, -0.1278',
+            },
+            { name: 'label', label: 'Name the place (optional)', type: 'text' },
+            { name: 'zoom', label: 'Zoom, 1 to 18', type: 'number', value: '13' },
+          ],
+        }).then((values) => {
+          target.view?.focus()
+          if (!values?.place) return
+          target.exec(map(values.place, values.label?.trim() ?? '', Number(values.zoom) || 13))
+        })
+      })
+    }
+    const conditional = blocks.wrapInConditional
+    if (conditional) {
+      byName.set('insertConditional', (target) => {
+        void openDialog({
+          document,
+          title: 'Show only when',
+          submitLabel: 'Apply',
+          body: 'The selected blocks show in a download only while this template variable is set, or set to the value given. Tools ▸ Template variables sets them.',
+          fields: [
+            {
+              name: 'variable',
+              label: 'Variable',
+              type: 'text',
+              required: true,
+              placeholder: 'plan',
+            },
+            { name: 'equals', label: 'Equal to (optional)', type: 'text', placeholder: 'pro' },
+          ],
+        }).then((values) => {
+          target.view?.focus()
+          if (values?.variable) target.exec(conditional(values.variable, values.equals || null))
+        })
+      })
+    }
+    const setVariables = blocks.setTemplateVariables
+    if (setVariables) {
+      byName.set('templateVariables', (target) => {
+        const current = templateVariables(target.state.doc.attrs.variables)
+        void openDialog({
+          document,
+          title: 'Template variables',
+          submitLabel: 'Save',
+          body: 'One a line, name = value. Content shown only when a variable is set follows these.',
+          fields: [
+            {
+              name: 'variables',
+              label: 'Variables',
+              type: 'textarea',
+              value: Object.entries(current)
+                .map(([name, value]) => `${name} = ${value}`)
+                .join('\n'),
+              placeholder: 'plan = pro',
+            },
+          ],
+        }).then((values) => {
+          target.view?.focus()
+          if (!values) return
+          const next: Record<string, string> = {}
+          for (const line of (values.variables ?? '').split('\n')) {
+            const match = /^\s*([A-Za-z_][\w-]*)\s*=\s*(.*?)\s*$/.exec(line)
+            if (match) next[match[1] as string] = match[2] as string
+          }
+          target.exec(setVariables(next))
+        })
+      })
+    }
     const badge = blocks.insertBadge
     if (badge) {
       byName.set('insertBadge', (target) => {
@@ -744,16 +1239,75 @@ function createActions(
     const citation = blocks.insertCitation
     if (citation) {
       byName.set('insertCitation', (target) => {
+        // With sources in the list already, one of them can be cited again.
+        const choices = blocks.referenceChoices?.(target.state.doc) ?? []
+        const fields: DialogField[] =
+          choices.length === 0
+            ? [{ name: 'text', label: 'Reference', type: 'text', required: true }]
+            : [
+                {
+                  name: 'cite',
+                  label: 'Cite',
+                  type: 'select',
+                  value: '',
+                  options: [
+                    { value: '', label: 'A new reference' },
+                    ...choices.map((choice) => ({ value: choice.id, label: choice.label })),
+                  ],
+                },
+                {
+                  name: 'text',
+                  label: 'New reference',
+                  type: 'text',
+                  visibleWhen: { field: 'cite', values: [''] },
+                },
+              ]
         void openDialog({
           document,
           title: 'Insert citation',
           submitLabel: 'Insert',
           body: 'The reference is added to the list at the end of the document.',
-          fields: [{ name: 'text', label: 'Reference', type: 'text', required: true }],
+          fields,
         }).then((values) => {
           target.view?.focus()
-          if (values?.text) target.exec(citation(values.text))
+          if (values?.cite) target.exec(citation('', values.cite))
+          else if (values?.text) target.exec(citation(values.text))
         })
+      })
+    }
+    const setCitationStyle = blocks.setCitationStyle
+    if (setCitationStyle) {
+      for (const style of ['apa', 'mla', 'chicago', 'ieee']) {
+        const name = `citationStyle-${style}`
+        byName.set(name, (target) => {
+          const command = setCitationStyle(style)
+          if (command) target.exec(command)
+        })
+        const current = blocks.citationStyle
+        if (current) activeByName.set(name, () => current(editor.state.doc) === style)
+      }
+    }
+    const importSources = blocks.importSources
+    if (importSources) {
+      byName.set('importSources', (target) => {
+        void pickFile(document, '.bib,.json,application/json,application/x-bibtex,text/plain')
+          .then(async (file) => {
+            if (!file) return
+            target.exec(importSources(await readFileText(file)))
+            // The new entries take their places in the list's style.
+            const style = blocks.citationStyle?.(target.state.doc)
+            const restyle = style ? setCitationStyle?.(style) : null
+            if (restyle) target.exec(restyle)
+          })
+          .catch(async (error: unknown) => {
+            if ((error as Error | null)?.name !== 'SourceFileError') throw error
+            await openInfoDialog({
+              document,
+              title: 'No sources found',
+              body: `${(error as Error).message} Import a BibTeX (.bib) or CSL-JSON (.json) file.`,
+            })
+          })
+          .finally(() => target.view?.focus())
       })
     }
     const anchor = blocks.insertAnchor
@@ -837,6 +1391,67 @@ function createActions(
         })
       }
     }
+    const keyPresets = [
+      ['keysStandard', 'standard'],
+      ['keysEmacs', 'emacs'],
+      ['keysVim', 'vim'],
+    ] as const
+    const setKeyPreset = view.setKeyPreset
+    if (setKeyPreset) {
+      for (const [name, preset] of keyPresets) byName.set(name, () => setKeyPreset(preset))
+      const activeKeyPreset = view.activeKeyPreset
+      if (activeKeyPreset) {
+        for (const [name, preset] of keyPresets) {
+          activeByName.set(name, () => activeKeyPreset() === preset)
+        }
+      }
+    }
+    const setLanguage = view.setLanguage
+    if (setLanguage) {
+      for (const code of view.languages ?? []) {
+        const name = languageItemName(code)
+        byName.set(name, () => setLanguage(code))
+        const activeLanguage = view.activeLanguage
+        if (activeLanguage) activeByName.set(name, () => activeLanguage() === code)
+      }
+    }
+    const assist = view.assist
+    if (assist) {
+      const entries = [
+        ['assistRewrite', 'rewrite'],
+        ['assistSummarise', 'summarise'],
+        ['assistTranslate', 'translate'],
+        ['assistContinue', 'continue'],
+      ] as const
+      for (const [name, action] of entries) {
+        if (view.assistActions?.includes(action)) byName.set(name, () => assist(action))
+      }
+    }
+    const formField = view.insertFormField
+    if (formField) {
+      const kinds = [
+        ['formText', 'text'],
+        ['formCheckbox', 'checkbox'],
+        ['formDropdown', 'dropdown'],
+        ['formDate', 'date'],
+        ['formSignature', 'signature'],
+      ] as const
+      for (const [name, kind] of kinds) byName.set(name, () => formField(kind))
+    }
+    const toolbarPresets = [
+      ['toolbarMinimal', 'minimal'],
+      ['toolbarWriting', 'writing'],
+      ['toolbarDeveloper', 'developer'],
+      ['toolbarFull', 'full'],
+    ] as const
+    const setToolbarPreset = view.setToolbarPreset
+    if (setToolbarPreset) {
+      for (const [name, preset] of toolbarPresets) {
+        byName.set(name, () => setToolbarPreset(preset))
+        const activePreset = view.activeToolbarPreset
+        if (activePreset) activeByName.set(name, () => activePreset() === preset)
+      }
+    }
     const sourceMode = view.toggleSourceMode
     if (sourceMode) {
       byName.set('markdownMode', () => sourceMode('markdown'))
@@ -857,10 +1472,26 @@ function createActions(
       ['trackChanges', view.toggleTrackChanges],
       ['customTheme', view.customTheme],
       ['customCss', view.customCSS],
+      ['importTheme', view.importTheme],
+      ['exportTheme', view.exportTheme],
+      ['documentTheme', view.toggleDocumentTheme],
+      ['documentFonts', view.documentFonts],
+      ['reducedMotion', view.toggleReducedMotion],
+      ['dyslexiaFont', view.toggleDyslexiaFont],
       ['manageFonts', view.manageFonts],
       ['writingStats', view.showWritingStats],
       ['writingGoal', view.setWritingGoal],
       ['writingAssistant', view.toggleWritingAssistant],
+      ['readingHeatmap', view.toggleReadingHeatmap],
+      ['insertComment', view.addComment],
+      ['present', view.present],
+      ['auditLog', view.showAuditLog],
+      ['mailMerge', view.mailMerge],
+      ['dictation', view.toggleDictation],
+      ['readAloud', view.toggleReadAloud],
+      ['commentsPanel', view.toggleComments],
+      ['accessibilityCheck', view.checkAccessibility],
+      ['findDuplicates', view.findDuplicateText],
       ['spellcheck', view.toggleSpellcheck],
       ['smartTypography', view.toggleSmartTypography],
       ['autocorrect', view.toggleAutocorrect],
@@ -913,6 +1544,9 @@ function createActions(
         ['writingPassive', 'passive'],
         ['writingRepeated', 'repeat'],
         ['writingLong', 'long'],
+        ['writingInclusive', 'inclusive'],
+        ['writingTone', 'tone'],
+        ['writingCliches', 'cliche'],
       ]
       for (const [name, kind] of checks) {
         byName.set(name, () => toggleCheck(kind))
@@ -950,9 +1584,15 @@ function createActions(
       ['exportSelection', files.exportSelection],
       ['printPreview', files.printPreview],
       ['documentBackups', files.backups],
+      ['saveVersion', files.saveVersion],
+      ['compareDocuments', files.compareWithFile],
+      ['importFromUrl', files.importFromURL],
+      ['exportFolder', files.exportFolder],
       ['downloadPdf', files.exportPDF ?? files.printPreview],
       ['protectDocument', files.protectDocument],
       ['documentRestrictions', files.documentRestrictions],
+      ['signDocument', files.signDocument],
+      ['addPasskey', files.addPasskey],
     ]
     for (const [name, handler] of entries) {
       if (handler) byName.set(name, () => handler())
@@ -962,10 +1602,17 @@ function createActions(
       const formats: readonly [string, string][] = [
         ['downloadHtml', 'html'],
         ['downloadMarkdown', 'markdown'],
+        ['downloadMdx', 'mdx'],
         ['downloadText', 'text'],
         ['downloadJson', 'json'],
         ['downloadDocx', 'docx'],
         ['downloadRtf', 'rtf'],
+        ['downloadOdt', 'odt'],
+        ['downloadEpub', 'epub'],
+        ['downloadLatex', 'latex'],
+        ['downloadPptx', 'pptx'],
+        ['downloadPdfForm', 'pdfForm'],
+        ['downloadHtmlSingle', 'htmlSingle'],
       ]
       for (const [name, format] of formats) byName.set(name, () => download(format))
       // An encrypted download needs a password to encrypt under, so it only
@@ -1045,33 +1692,76 @@ function createActions(
     }
     const pick = embeds.pickAttachment
     if (pick) byName.set('insertAttachment', () => pick())
+    const record = embeds.recordAudio
+    if (record) byName.set('recordAudio', () => record())
+    const chapters = embeds.setVideoChapters
+    const chaptersAt = embeds.videoChaptersAt
+    if (chapters && chaptersAt) {
+      byName.set('videoChapters', (target) => {
+        const current = chaptersAt(target.state)
+        // The video is the one selected now; focus coming back after the
+        // dialog can turn that selection into a caret beside it.
+        const selection = target.state.selection
+        void openDialog({
+          document,
+          title: 'Video chapters',
+          submitLabel: 'Save',
+          body:
+            current === null
+              ? 'Select a video first: click it, then choose Video chapters again.'
+              : 'One chapter a line, its start then its title, as a video description lists them.',
+          fields:
+            current === null
+              ? []
+              : [
+                  {
+                    name: 'chapters',
+                    label: 'Chapters',
+                    type: 'textarea',
+                    value: current,
+                    placeholder: '0:00 Introduction\n1:30 Setting up',
+                  },
+                ],
+        }).then((values) => {
+          target.view?.focus()
+          if (!values || current === null) return
+          target.exec((state) => state.tr.setSelection(selection))
+          target.exec(chapters(values.chapters ?? ''))
+        })
+      })
+    }
   }
 
   const math = options.mathCommands
   if (math) {
-    const askLatex = (title: string, insert: (latex: string) => Command) => (target: Editor) => {
-      void openDialog({
-        document,
-        title,
-        submitLabel: 'Insert',
-        body: 'LaTeX, without the surrounding dollar signs.',
-        fields: [
-          {
-            name: 'latex',
-            label: 'LaTeX',
-            type: 'text',
-            required: true,
-            placeholder: 'a^2 + b^2 = c^2',
+    // The equation dialog: the LaTeX, a palette that writes it, and a preview.
+    const insertMath = math.insertMath
+    if (insertMath) {
+      byName.set('insertMath', (target) => {
+        void openEquationDialog({ document, title: 'Insert equation', render: math.render }).then(
+          (result) => {
+            if (result) target.exec(insertMath(result.latex))
+            target.view?.focus()
           },
-        ],
-      }).then((values) => {
-        target.view?.focus()
-        if (values?.latex) target.exec(insert(values.latex))
+        )
       })
     }
-    if (math.insertMath) byName.set('insertMath', askLatex('Insert equation', math.insertMath))
-    if (math.insertMathBlock) {
-      byName.set('insertMathBlock', askLatex('Insert display equation', math.insertMathBlock))
+    const insertMathBlock = math.insertMathBlock
+    if (insertMathBlock) {
+      byName.set('insertMathBlock', (target) => {
+        void openEquationDialog({
+          document,
+          title: 'Insert display equation',
+          render: math.render,
+          display: true,
+          numbered: false,
+        }).then((result) => {
+          // The new equation is selected, and the next insert goes after it.
+          // Focus afterwards, so the selection it hands the page is that one.
+          if (result) target.exec(insertMathBlock(result.latex, result.numbered))
+          target.view?.focus()
+        })
+      })
     }
   }
 
@@ -1080,6 +1770,52 @@ function createActions(
     const insert = diagrams.insertDiagram
     byName.set('insertDiagram', (target) => target.exec(insert()))
   }
+  const graphviz = diagrams?.insertGraphviz
+  if (graphviz) byName.set('insertGraphviz', (target) => target.exec(graphviz()))
+  const plantUML = diagrams?.insertPlantUML
+  if (plantUML) byName.set('insertPlantUML', (target) => target.exec(plantUML()))
+
+  const include = options.workspaceCommands?.includeDocument
+  if (include) byName.set('insertTransclusion', () => include())
+
+  const code = options.codeCommands
+  const terminal = code?.insertTerminal
+  if (terminal) byName.set('insertTerminal', (target) => target.exec(terminal()))
+  const runnable = code?.insertRunnableCode
+  if (runnable) {
+    byName.set('insertRunnableJs', (target) => target.exec(runnable('javascript')))
+    byName.set('insertRunnableHtml', (target) => target.exec(runnable('html')))
+  }
+  const codeDiff = code?.insertCodeDiff
+  if (codeDiff) {
+    byName.set('insertCodeDiff', (target) => {
+      void openDialog({
+        document,
+        title: 'Diff of two versions',
+        submitLabel: 'Insert',
+        fields: [
+          { name: 'before', label: 'Before', type: 'textarea' },
+          { name: 'after', label: 'After', type: 'textarea' },
+          { name: 'title', label: 'Title (optional)', type: 'text', placeholder: 'src/app.ts' },
+        ],
+      }).then((values) => {
+        target.view?.focus()
+        if (!values) return
+        const title = values.title?.trim() || undefined
+        target.exec(codeDiff(values.before ?? '', values.after ?? '', title))
+      })
+    })
+  }
+
+  const security = options.securityCommands
+  const redaction = security?.toggleRedaction
+  if (redaction) byName.set('redactSelection', (target) => target.exec(redaction))
+  const lockSection = security?.lockSection
+  if (lockSection) byName.set('lockSection', (target) => target.exec(lockSection))
+  const manageLocked = security?.manageLockedSections
+  if (manageLocked) byName.set('lockedSections', () => manageLocked())
+  const lockNow = security?.lockNow
+  if (lockNow) byName.set('lockNow', () => lockNow())
 
   // Table menu entries map straight onto the supplied commands.
   const commands = options.tableCommands
@@ -1127,13 +1863,13 @@ function createActions(
       }
     }
     wireTableDesign(editor, commands, byName, activeByName)
-    // Word's Split Cells asks how many columns; without it, Split un-merges.
+    // Word's Split Cells asks how many columns and rows; without it, Split un-merges.
     const splitInto = commands.splitCellInto
     if (splitInto) {
       byName.set('splitCell', (target) => {
-        void openSplitCellsDialog(document).then((columns) => {
+        void openSplitCellsDialog(document).then((choice) => {
           target.view?.focus()
-          if (columns !== null) target.exec(splitInto(columns))
+          if (choice !== null) target.exec(splitInto(choice.columns, choice.rows))
         })
       })
     }
@@ -1150,6 +1886,7 @@ function createActions(
       }
     }
     wireTableLayout(editor, commands, byName, activeByName)
+    wireTableData(editor, document, commands, byName, activeByName)
     const background = commands.setCellBackground
     if (background) {
       byName.set('cellBackground', (target) => {
@@ -1285,9 +2022,162 @@ function applyLink(target: Editor, values: Readonly<Record<string, string>>): vo
     if (target.commands.setLink(`mailto:${address}`, title)) target.exec(setLinkTarget(tab))
     return
   }
+  if (values.kind === 'block') {
+    // A block with no id yet is given one: its words, made into a name.
+    const index = Number(values.block)
+    const selection = target.state.selection
+    const ensured = Number.isInteger(index) ? ensureBlockId(target.state, index) : null
+    if (!ensured) return
+    if (ensured.tr) target.dispatch(ensured.tr.setSelection(selection))
+    if (target.commands.setLink(`#${ensured.id}`, title)) target.exec(setLinkTarget(tab))
+    return
+  }
   const href = values.kind === 'anchor' ? `#${values.anchor ?? ''}` : (values.href ?? '').trim()
   if (href === '#' || !safeHref(href)) return
   if (target.commands.setLink(href, title)) target.exec(setLinkTarget(tab))
+}
+
+/** The number formats the Formula dialog offers, Word's list. */
+const FORMULA_FORMATS: readonly { value: string; label: string }[] = [
+  { value: '', label: 'As worked out' },
+  { value: '0', label: '0' },
+  { value: '0.00', label: '0.00' },
+  { value: '#,##0', label: '#,##0' },
+  { value: '#,##0.00', label: '#,##0.00' },
+  { value: '0%', label: '0%' },
+  { value: '0.00%', label: '0.00%' },
+  { value: '$#,##0.00', label: '$#,##0.00' },
+  { value: '£#,##0.00', label: '£#,##0.00' },
+  { value: '€#,##0.00', label: '€#,##0.00' },
+]
+
+const COLUMN_TYPE_ENTRIES: readonly [string, TableColumnType][] = [
+  ['columnTypeText', 'text'],
+  ['columnTypeNumber', 'number'],
+  ['columnTypeCurrency', 'currency'],
+  ['columnTypePercentage', 'percentage'],
+  ['columnTypeDate', 'date'],
+  ['columnTypeCheckbox', 'checkbox'],
+]
+
+const FILTER_CONDITION_CHOICES: readonly { value: TableRowFilter['condition']; label: string }[] = [
+  { value: 'contains', label: 'Contains' },
+  { value: 'notContains', label: 'Does not contain' },
+  { value: 'equals', label: 'Equals' },
+  { value: 'greater', label: 'Is greater than' },
+  { value: 'less', label: 'Is less than' },
+  { value: 'empty', label: 'Is empty' },
+  { value: 'notEmpty', label: 'Is not empty' },
+]
+
+/** The Table menu's data entries: Formula…, Column type, Filter rows…, hiding and charts. */
+function wireTableData(
+  editor: Editor,
+  document: Document,
+  commands: TableCommands,
+  byName: Map<string, (editor: Editor) => void>,
+  activeByName: Map<string, () => boolean>,
+): void {
+  const insertFormula = commands.insertFormula
+  if (insertFormula) {
+    byName.set('tableFormula', (target) => {
+      const current = commands.formulaAt?.(target.state) ?? {
+        expression: 'SUM(ABOVE)',
+        format: null,
+      }
+      void openDialog({
+        document,
+        title: 'Formula',
+        submitLabel: 'Insert',
+        fields: [
+          {
+            name: 'expression',
+            label: 'Formula',
+            value: `=${current.expression}`,
+            required: true,
+            hint: 'SUM, AVERAGE, COUNT, MIN, MAX or PRODUCT of ABOVE, BELOW, LEFT, RIGHT, or cells such as B2:B5.',
+          },
+          {
+            name: 'format',
+            label: 'Number format',
+            type: 'select',
+            value: current.format ?? '',
+            options: FORMULA_FORMATS,
+          },
+        ],
+      }).then((values) => {
+        target.view?.focus()
+        if (values) target.exec(insertFormula(values.expression ?? '', values.format || null))
+      })
+    })
+  }
+  const setType = commands.setColumnType
+  if (setType) {
+    for (const [name, type] of COLUMN_TYPE_ENTRIES) {
+      byName.set(name, (target) => target.exec(setType(type)))
+      const read = commands.columnTypeAt
+      if (read) activeByName.set(name, () => read(editor.state) === type)
+    }
+  }
+  const filter = commands.filterRows
+  if (filter) {
+    byName.set('filterRows', (target) => {
+      const labels = commands.tableColumnLabels?.(target.state) ?? []
+      if (labels.length === 0) return
+      void openDialog({
+        document,
+        title: 'Filter rows',
+        submitLabel: 'Filter',
+        body: 'Rows that do not match are hidden, not deleted. Show all rows brings them back.',
+        fields: [
+          {
+            name: 'column',
+            label: 'Column',
+            type: 'select',
+            value: '0',
+            options: labels.map((label, index) => ({ value: String(index), label })),
+          },
+          {
+            name: 'condition',
+            label: 'Show rows where the cell',
+            type: 'select',
+            value: 'contains',
+            options: FILTER_CONDITION_CHOICES,
+          },
+          {
+            name: 'value',
+            label: 'Value',
+            visibleWhen: {
+              field: 'condition',
+              values: ['contains', 'notContains', 'equals', 'greater', 'less'],
+            },
+          },
+        ],
+      }).then((values) => {
+        target.view?.focus()
+        if (!values) return
+        const condition = (values.condition ?? 'contains') as TableRowFilter['condition']
+        target.exec(filter({ column: Number(values.column), condition, value: values.value ?? '' }))
+      })
+    })
+  }
+  for (const [name, command] of [
+    ['showAllRows', commands.showAllRows],
+    ['hideColumn', commands.hideColumn],
+    ['showAllColumns', commands.showAllColumns],
+  ] as const) {
+    if (command) byName.set(name, (target) => target.exec(command))
+  }
+  const chart = commands.insertChart
+  if (chart) {
+    for (const [name, kind] of [
+      ['chartBar', 'bar'],
+      ['chartLine', 'line'],
+      ['chartPie', 'pie'],
+    ] as const) {
+      byName.set(name, (target) => target.exec(chart(kind)))
+    }
+  }
 }
 
 /**
@@ -1471,6 +2361,107 @@ function withActions(menus: readonly Menu[], actions: WiredActions): readonly Me
       ),
     }))
     .filter((menu) => hasAction(menu.items))
+}
+
+/** The menu entries that start, stop and play a macro, which a macro does not record. */
+const MACRO_ENTRIES = new Set(['macroRecord', 'macroPlay'])
+
+/** Every entry's run noted by the macro recorder as it runs, so a macro can play it back. */
+function withRecording(menus: readonly Menu[], macros: Macros): readonly Menu[] {
+  const wrap = (item: MenuItem): MenuItem => {
+    if (item.items) return { ...item, items: item.items.map(wrap) }
+    const run = item.run
+    if (!run || MACRO_ENTRIES.has(item.name)) return item
+    return {
+      ...item,
+      run: (target) => {
+        macros.note(item.name, run)
+        run(target)
+      },
+    }
+  }
+  return menus.map((menu) => ({ ...menu, items: menu.items.map(wrap) }))
+}
+
+/**
+ * Paste special: what is on the clipboard, as text in the style around the
+ * caret, as Markdown, as a code block, or with its own formatting.
+ */
+function openPasteSpecial(document: Document, target: Editor): void {
+  const clipboard = document.defaultView?.navigator.clipboard
+  void openDialog({
+    document,
+    title: 'Paste special',
+    submitLabel: 'Paste',
+    body: 'What is on the clipboard, put in the way you choose.',
+    fields: [
+      {
+        name: 'as',
+        label: 'Paste as',
+        type: 'select',
+        value: 'text',
+        options: [
+          { value: 'text', label: 'Text only, in the style around it' },
+          { value: 'markdown', label: 'Markdown, turned into formatting' },
+          { value: 'code', label: 'A code block' },
+          { value: 'formatted', label: 'With its own formatting' },
+        ],
+      },
+    ],
+  }).then(async (values) => {
+    target.view?.focus()
+    if (!values || !clipboard) return
+    try {
+      if (values.as === 'formatted' && typeof clipboard.read === 'function') {
+        const html = await clipboardHTML(clipboard)
+        if (html) {
+          const parsed = parseHTML(target.schema, cleanPastedHTML(html), document)
+          target.exec(insertContent(parsed.content.children))
+          return
+        }
+      }
+      const text = await clipboard.readText()
+      if (!text) return
+      if (values.as === 'markdown') {
+        target.exec(insertContent(parseMarkdown(text, target.schema).content.children))
+      } else if (values.as === 'code') {
+        target.exec(insertCodeBlockAfter(text.replace(/\r\n?/g, '\n')))
+      } else {
+        typeText(target, text.replace(/\r\n?/g, '\n'))
+      }
+    } catch {
+      // Reading the clipboard needs permission; refused, nothing is pasted.
+    }
+  })
+}
+
+/** The HTML on the clipboard, when it holds some. */
+async function clipboardHTML(clipboard: Clipboard): Promise<string | null> {
+  for (const item of await clipboard.read()) {
+    if (item.types.includes('text/html')) return (await item.getType('text/html')).text()
+  }
+  return null
+}
+
+/** A code block of `text` in place of an empty paragraph at the caret, or after the block there. */
+function insertCodeBlockAfter(text: string): Command {
+  return (state) => {
+    const type = state.schema.nodes.codeBlock
+    const path = state.selection.to.path
+    if (!type || path.length === 0) return null
+    const parentPath = path.slice(0, -1)
+    const index = path[path.length - 1] as number
+    const block = nodeAtPath(state.doc, path)
+    const waiting = block?.type.name === 'paragraph' && block.content.childCount === 0
+    const at = waiting ? index : index + 1
+    const code = type.create(
+      undefined,
+      text ? Fragment.of(state.schema.text(text)) : Fragment.empty,
+    )
+    return state.tr
+      .step(new ReplaceNodesStep(parentPath, at, waiting ? index + 1 : at, Fragment.of(code)))
+      .setSelection(new TextSelection(pos([...parentPath, at], text.length)))
+  }
 }
 
 /** Whether a list holds anything the user can actually pick. */

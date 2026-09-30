@@ -112,10 +112,14 @@ createToolbar(editor, container, {
 | Files | `builtinExporters({ scripts? })` (html, markdown, text, json), `builtinImporters()`, `exportDocument`, `importFile`, `importerFor`, `acceptFor`, `pickFile`, `readFileText`, `downloadFile`, `suggestFileName`, `documentTitle`, `selectionDocument`, `textToDocument`, `printDocument`, `openPrintPreview`, `printableHTML`, `editorTheme` |
 | Source modes | `createSourceMode(editor, { format: 'markdown' \| 'html' })` |
 | Persistence | `createAutosave(editor, { storage, key?, delayMs?, backups?: { intervalMs?, keep? } \| false, onState? })`, `createAutosaveIndicator`, `offerDraftRecovery`, `openBackupsDialog`, `createWebStorage`, `createMemoryStorage`, `formatSavedAt` |
-| Theming | `createThemeController(document, { targets?, mode?, preset?, presets?, onChange? })`, `defaultThemePresets`, `buildCustomTheme` + `CUSTOM_THEME_TOKENS`, `readThemeSnapshot`, `createFontManager` + `googleFontURL`, `createCustomStyles` + `scopeCSS`, `createPageView` + `PAGE_SIZES`, `parseColor`, `isDarkColor`, `mixColors` |
+| Theming | `createThemeController(document, { targets?, mode?, preset?, presets?, onChange? })`, `defaultThemePresets`, `buildCustomTheme` + `CUSTOM_THEME_TOKENS`, `readThemeSnapshot`, `createFontManager` + `googleFontURL`, `createCustomStyles` + `scopeCSS`, `createPageView` + `PAGE_SIZES` (a view's `setPage(setup)` sets the sheet as a page setup says) + `followPageSetup(editor, view)`, `parseColor`, `isDarkColor`, `mixColors` |
 | Quick tools | `createQuickInsertControl`, `quickInsertItemsFromMenus`, `createRecentToolsControl`, `createToolUsageTracker`, `openCustomizeToolbarDialog`, `applyGroupOrder`, `bindGroupReorder`, `groupOrder`; the toolbar's `quickAccess: { insertItems?, tracker? }` puts the first two in a Quick access group (`QUICK_ACCESS_GROUP`), and `toolbar.groups` + `toolbar.setVisibleGroups(names)` hide and show groups without a rebuild |
 | Export support | `collectDocumentCSS`, `captureRenderedBlocks`, `rasterizeDiagrams`, `renderedNodeHTML`, `documentBehaviourScript` |
-| Translation | `defaultMessages()`, the `messages` option |
+| Translation | `defaultMessages()`, the `messages` and `language` options, `ui.setLanguage()`, `UI_LANGUAGES`, the `@trevixal/ui/locales/*` catalogues |
+| The document's look | `bindDocumentTheme`, `documentTheme`, `setDocumentTheme`, `documentFonts`, `setDocumentFonts`; theme files through `serializeTheme`, `parseTheme` (`ThemeFileError`) and `currentTheme` |
+| Reading settings | `MOTION_ATTRIBUTE`, `scrollBehavior`; toolbar presets through `TOOLBAR_PRESETS` and `toolbarPresetGroups` |
+| Phones | `trackVirtualKeyboard(root)` keeps `--tvx-keyboard-inset` at the height the on-screen keyboard covers, which the phone toolbar rides on |
+| Speech | `createSpeech(editor, { lang?, onChange? })`: `toggleDictation()`, `toggleReadAloud()`, `canDictate`, `canReadAloud`, over the browser's Web Speech API |
 
 ## Translation
 
@@ -131,11 +135,38 @@ createEditorUI(editor, {
 
 Anything you leave out keeps its English, so a partial catalogue is a working
 one. `defaultMessages()` returns every key with the text it would otherwise
-show (268 keys); print it to see what there is to translate. It is derived
+show; print it to see what there is to translate. It is derived
 from the menus and toolbar rather than written out beside them, so the key
 list is complete by construction. Keying on names rather than English is the
 point: a catalogue keyed on the words breaks the day somebody rewords a label,
 and breaks silently.
+
+### Shipped catalogues
+
+German, French, Spanish, Portuguese, Hindi, Japanese, Chinese (simplified) and
+Arabic ship as `@trevixal/ui/locales/<code>`, one module each, so a page loads
+only the language it shows. File names, format names such as `LaTeX (.tex)`,
+and the language names themselves stay as they are.
+
+```ts
+import ar from '@trevixal/ui/locales/ar'
+
+const ui = createEditorUI(editor, {
+  container,
+  messages: ar,
+  language: { code: 'ar', direction: 'rtl' },
+})
+
+// Or switch while the editor is open: every label is rewritten in place.
+const de = (await import('@trevixal/ui/locales/de')).default
+ui.setLanguage({ code: 'de', messages: de })
+```
+
+The chrome takes the language's `lang`, and a right-to-left language mirrors
+it: the menus open from the right and the toolbar runs right to left. The
+document keeps its own direction. With `viewActions.setLanguage`,
+`languages` and `activeLanguage`, View > Language lists the languages by
+their own names (`UI_LANGUAGES`), with a tick beside the one in force.
 
 ## Accessibility
 

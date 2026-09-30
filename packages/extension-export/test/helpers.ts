@@ -44,6 +44,10 @@ export function extraNodes(): Record<string, NodeSpec> {
       attrs: {
         header: { default: false },
         colspan: { default: 1 },
+        rowspan: { default: 1 },
+        valueType: { default: null },
+        checked: { default: false },
+        hidden: { default: false },
         align: { default: null },
         width: { default: null },
         background: { default: null },
@@ -62,6 +66,11 @@ export function extraNodes(): Record<string, NodeSpec> {
         height: { default: null },
         align: { default: 'none' },
       },
+      toHTML: (node) => ({
+        tag: 'img',
+        attrs: { src: String(node.attrs.src ?? ''), alt: String(node.attrs.alt ?? '') },
+        isVoid: true,
+      }),
     },
     figure: { content: 'block+', group: 'block' },
     caption: { content: 'inline*', group: 'block' },

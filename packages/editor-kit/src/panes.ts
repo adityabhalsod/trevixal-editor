@@ -9,8 +9,9 @@
  */
 import type { Editor } from '@trevixal/core'
 import { blockBindings, installFieldUpdater } from '@trevixal/extension-blocks'
-import { type Highlighter, codeHighlight } from '@trevixal/extension-code-highlight'
-import { diagram } from '@trevixal/extension-diagram'
+import { type Highlighter, codeBlockLines, codeHighlight } from '@trevixal/extension-code-highlight'
+import { EVERY_DIAGRAM_LANGUAGE, diagram } from '@trevixal/extension-diagram'
+import { installFormulaUpdater } from '@trevixal/extension-table'
 import { createSplitView } from '@trevixal/extension-workspace'
 import {
   captureRenderedBlocks,
@@ -66,16 +67,20 @@ export function createSplitPanes(context: SplitPanesContext): SplitPanes {
    */
   function dressPane(pane: Editor): () => void {
     const offHighlight = codeHighlight(pane, highlighter)
+    const offLines = codeBlockLines(pane)
     const offBindings = blockBindings(pane)
-    const diagrams = diagram(pane, { render })
+    const diagrams = diagram(pane, { render, languages: EVERY_DIAGRAM_LANGUAGE })
     const offFields = installFieldUpdater(pane)
+    const offFormulas = installFormulaUpdater(pane)
     // Its own scope for the document's named styles, as the editor's surface has.
     const namedStyles = createNamedStyleSheet(pane)
     return () => {
       offHighlight()
+      offLines()
       offBindings()
       diagrams.destroy()
       offFields()
+      offFormulas()
       namedStyles.destroy()
     }
   }

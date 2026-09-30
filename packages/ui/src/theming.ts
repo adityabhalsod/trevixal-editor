@@ -1,3 +1,12 @@
+import {
+  type Editor,
+  PAPER_SIZES,
+  type PageSetup,
+  fillPageTemplate,
+  pageDimensions,
+  pageSetupOf,
+} from '@trevixal/core'
+
 /**
  * Presentation the document does not own: colour themes, the fonts the
  * toolbar offers, host CSS, and the page-versus-continuous view.
@@ -264,6 +273,66 @@ export function createThemeController(
       }
     },
   }
+}
+
+// ------------------------------------------------------------ theme files
+
+/** The `format` a theme file declares itself with. */
+export const THEME_FILE_FORMAT = 'trevixal-theme'
+
+/** A file that is not a theme, or names no palette to build on. */
+export class ThemeFileError extends Error {
+  override readonly name = 'ThemeFileError'
+}
+
+/** The theme in force as a preset: the named one, or the plain palette with no tokens of its own. */
+export function currentTheme(theme: ThemeController): ThemePreset {
+  const preset = theme.presets.find((entry) => entry.name === theme.preset)
+  if (preset) return preset
+  const base = theme.isDark() ? 'dark' : 'light'
+  return { name: base, label: base === 'dark' ? 'Dark' : 'Light', base, tokens: {} }
+}
+
+/** A theme as a file: JSON another editor imports with {@link parseTheme}. */
+export function serializeTheme(preset: ThemePreset): string {
+  const { name, label, base, tokens } = preset
+  return JSON.stringify(
+    { format: THEME_FILE_FORMAT, version: 1, name, label, base, tokens },
+    null,
+    2,
+  )
+}
+
+/**
+ * Read a theme file. It comes from anywhere, so a token that could break out
+ * of its declaration is dropped, as the controller would drop it, and a file
+ * that is not a theme at all throws {@link ThemeFileError} rather than
+ * applying half a palette.
+ */
+export function parseTheme(text: string): ThemePreset {
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    throw new ThemeFileError('This file is not JSON.')
+  }
+  if (typeof data !== 'object' || data === null) throw new ThemeFileError('This is not a theme.')
+  const file = data as Record<string, unknown>
+  if (file.format !== THEME_FILE_FORMAT) throw new ThemeFileError('This is not a Trevixal theme.')
+  if (file.base !== 'light' && file.base !== 'dark') {
+    throw new ThemeFileError('The theme names no light or dark palette to build on.')
+  }
+  const tokens: Record<string, string> = {}
+  if (typeof file.tokens === 'object' && file.tokens !== null) {
+    for (const [token, value] of Object.entries(file.tokens)) {
+      if (typeof value !== 'string') continue
+      if (SAFE_TOKEN_NAME.test(token) && !UNSAFE_IN_VALUE.test(value)) tokens[token] = value
+    }
+  }
+  const label = typeof file.label === 'string' ? file.label.trim().slice(0, 60) : ''
+  const name =
+    typeof file.name === 'string' && /^[a-z0-9-]{1,40}$/i.test(file.name) ? file.name : ''
+  return { name: name || 'imported', label: label || 'Imported', base: file.base, tokens }
 }
 
 /** The palette an export carries: what the tokens resolve to right now. */
@@ -694,14 +763,14 @@ export function scopeCSS(css: string, scope: string): string {
 
 export type PageMode = 'continuous' | 'paged'
 
-/** Page sizes the page view offers, in millimetres. */
+/** Page sizes the page view offers, in millimetres: the paper the print is set on. */
 export const PAGE_SIZES: Readonly<
   Record<string, { width: number; height: number; label: string }>
 > = {
-  a4: { width: 210, height: 297, label: 'A4' },
-  letter: { width: 216, height: 279, label: 'US Letter' },
-  legal: { width: 216, height: 356, label: 'US Legal' },
-  a5: { width: 148, height: 210, label: 'A5' },
+  a4: { ...PAPER_SIZES.a4, label: 'A4' },
+  letter: { ...PAPER_SIZES.letter, label: 'US Letter' },
+  legal: { ...PAPER_SIZES.legal, label: 'US Legal' },
+  a5: { ...PAPER_SIZES.a5, label: 'A5' },
 }
 
 export interface PageViewOptions {
@@ -720,36 +789,107 @@ export interface PageView {
   setMode(mode: PageMode): void
   setSize(size: string): void
   setMargin(mm: number): void
+  /** Set the sheet as a document's page setup says: its paper, margins, header, footer and watermark. */
+  setPage(setup: PageSetup): void
   toggle(): void
   destroy(): void
 }
 
+/** CSS pixels to a millimetre: the ratio every browser lays pages out at. */
+const PX_PER_MM = 96 / 25.4
+
 /**
  * The paginated look of a word processor: the surface becomes a sheet of a
- * chosen size on a grey desk, with a rule where each page break falls.
+ * chosen size on a grey desk, with a rule where each page break falls, and
+ * the page setup's header, footer and watermark on each sheet.
  *
- * It is presentation only: the model has no pages, and the browser decides
- * where content actually breaks when printing. The rules are a guide, drawn
- * with a repeating background at the page height.
+ * It is presentation only: the model has no pages, and the print lays out
+ * its own (page-layout.ts). The rules here are a guide, drawn with a
+ * repeating background at the page height.
  */
 export function createPageView(options: PageViewOptions): PageView {
   const target = options.target
+  const document = target.ownerDocument
   let mode: PageMode = options.mode ?? 'continuous'
   let size = options.size ?? 'a4'
   let margin = options.margin ?? 20
+  let setup: PageSetup | null = null
+  let marks: HTMLElement | null = null
+  let frame = 0
+
+  const content = (): HTMLElement | null => target.querySelector<HTMLElement>('.trevixal-content')
+
+  /** The header, footer and watermark drawn on each sheet, over the text and out of its way. */
+  const drawMarks = (): void => {
+    marks?.remove()
+    marks = null
+    const surface = content()
+    if (mode !== 'paged' || !setup || !surface) return
+    if (!setup.header && !setup.footer && !setup.watermark) return
+    const { top, bottom } = setup.margins
+    const pageHeight = pageDimensions(setup.size, setup.orientation).height * PX_PER_MM
+    const pages = Math.max(1, Math.ceil(surface.scrollHeight / pageHeight - 0.01))
+    const layer = document.createElement('div')
+    layer.className = 'trevixal-page-marks'
+    layer.setAttribute('aria-hidden', 'true')
+    layer.style.top = `${surface.offsetTop}px`
+    layer.style.left = `${surface.offsetLeft}px`
+    layer.style.width = `${surface.offsetWidth}px`
+    for (let index = 0; index < pages; index++) {
+      const at = index * pageHeight
+      const mark = (name: string, text: string, y: number, height: number): void => {
+        if (!text) return
+        const element = document.createElement('div')
+        element.className = `trevixal-page-marks__${name}`
+        element.textContent = fillPageTemplate(text, index + 1, pages)
+        element.style.top = `${y}px`
+        element.style.height = `${height}px`
+        layer.appendChild(element)
+      }
+      mark('header', setup.header, at, top * PX_PER_MM)
+      mark('footer', setup.footer, at + pageHeight - bottom * PX_PER_MM, bottom * PX_PER_MM)
+      mark('watermark', setup.watermark, at, pageHeight)
+    }
+    // Beside the surface, so both are placed against the same box.
+    surface.after(layer)
+    marks = layer
+  }
+
+  // The marks move with the text: a page more, a narrower window.
+  const observer =
+    typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(() => {
+          cancelAnimationFrame(frame)
+          frame = requestAnimationFrame(drawMarks)
+        })
 
   const apply = (): void => {
     const page = PAGE_SIZES[size]
+    const turned = setup?.orientation === 'landscape'
     target.classList.toggle('trevixal-paged', mode === 'paged')
+    if (mode === 'paged' && page) {
+      target.style.setProperty('--tvx-page-width', `${turned ? page.height : page.width}mm`)
+      target.style.setProperty('--tvx-page-height', `${turned ? page.width : page.height}mm`)
+    } else if (mode === 'paged') {
+      target.style.setProperty('--tvx-page-width', size)
+      target.style.setProperty('--tvx-page-height', 'auto')
+    }
     if (mode === 'paged') {
-      target.style.setProperty('--tvx-page-width', page ? `${page.width}mm` : size)
-      target.style.setProperty('--tvx-page-height', page ? `${page.height}mm` : 'auto')
-      target.style.setProperty('--tvx-page-margin', `${margin}mm`)
+      const sides = setup?.margins
+      target.style.setProperty(
+        '--tvx-page-margin',
+        sides ? `${sides.top}mm ${sides.right}mm ${sides.bottom}mm ${sides.left}mm` : `${margin}mm`,
+      )
+      const surface = content()
+      if (surface) observer?.observe(surface)
     } else {
       target.style.removeProperty('--tvx-page-width')
       target.style.removeProperty('--tvx-page-height')
       target.style.removeProperty('--tvx-page-margin')
+      observer?.disconnect()
     }
+    drawMarks()
     options.onChange?.(mode)
   }
   apply()
@@ -773,17 +913,36 @@ export function createPageView(options: PageViewOptions): PageView {
       margin = mm
       apply()
     },
+    setPage(next) {
+      setup = next
+      size = next.size
+      apply()
+    },
     toggle() {
       mode = mode === 'paged' ? 'continuous' : 'paged'
       apply()
     },
     destroy() {
+      observer?.disconnect()
+      cancelAnimationFrame(frame)
+      marks?.remove()
       target.classList.remove('trevixal-paged')
       target.style.removeProperty('--tvx-page-width')
       target.style.removeProperty('--tvx-page-height')
       target.style.removeProperty('--tvx-page-margin')
     },
   }
+}
+
+/** Keep a page view set as the document's page setup says, as it changes. Returns a disposer. */
+export function followPageSetup(editor: Editor, view: PageView): () => void {
+  let stored: unknown = editor.state.doc.attrs.pageSetup
+  view.setPage(pageSetupOf(stored))
+  return editor.onTransaction(({ state }) => {
+    if (state.doc.attrs.pageSetup === stored) return
+    stored = state.doc.attrs.pageSetup
+    view.setPage(pageSetupOf(stored))
+  })
 }
 
 /**

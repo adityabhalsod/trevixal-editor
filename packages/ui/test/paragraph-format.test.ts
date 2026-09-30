@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import {
+  DEFAULT_PAGE_SETUP,
   type Editor,
   type EditorNode,
   Fragment,
@@ -11,6 +12,8 @@ import {
   dropCapOf,
   paragraphBorderOf,
   pos,
+  setDocumentAttrs,
+  storedPageSetup,
   tabStopsOf,
 } from '@trevixal/core'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -214,12 +217,20 @@ describe('Format ▸ Tabs…', () => {
     editor.destroy()
   })
 
-  it('prints a document with tabs at the width they are measured at, and leaves any other to the page', () => {
+  it('prints a document with tabs at the width they are measured at: its page’s text width', () => {
     const tabbed = mount(p('Results\t12'))
     expect(printableHTML(tabbed)).toContain('width: 170mm')
+    // US Letter less 25 mm a side is what a Letter page with those margins measures at.
+    tabbed.exec(
+      setDocumentAttrs({
+        pageSetup: storedPageSetup({
+          ...DEFAULT_PAGE_SETUP,
+          size: 'letter',
+          margins: { top: 25, right: 25, bottom: 25, left: 25 },
+        }),
+      }),
+    )
+    expect(printableHTML(tabbed)).toContain('width: 165.9mm')
     tabbed.destroy()
-    const plain = mount(p('Results'))
-    expect(printableHTML(plain)).not.toContain('170mm')
-    plain.destroy()
   })
 })

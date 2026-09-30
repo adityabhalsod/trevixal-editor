@@ -1,4 +1,11 @@
-import type { Attrs, EditorNode, Mark } from '@trevixal/core'
+import {
+  type Attrs,
+  type EditorNode,
+  Fragment,
+  type Mark,
+  TableMap,
+  type TableMapCell,
+} from '@trevixal/core'
 import { lengthToTwips, parseLineHeight } from './units'
 
 /** Node names both writers look up; a schema may lack any of them. */
@@ -118,9 +125,60 @@ export function cellSpan(cell: EditorNode): number {
 }
 
 export function tableColumns(table: EditorNode): number {
-  let columns = 1
-  for (const row of table.content.children) columns = Math.max(columns, rowSpan(row))
-  return columns
+  return Math.max(1, TableMap.of(table).width)
+}
+
+/**
+ * One cell of a row as a word processor writes it. Word and RTF have no
+ * `rowspan`: a merged cell appears in every row it spans, marked as the
+ * start of a vertical merge in the first and as its continuation, empty, in
+ * the rest.
+ */
+export interface WordCell {
+  /** The cell as the grid places it; a continuation is the cell it continues. */
+  readonly placed: TableMapCell
+  readonly merge: 'restart' | 'continue' | null
+}
+
+/** The table's rows as a word processor writes them, continuations included. */
+export function wordRows(table: EditorNode): WordCell[][] {
+  const map = TableMap.of(table)
+  return table.content.children.map((_, row) => {
+    const cells: WordCell[] = []
+    let previous: TableMapCell | null = null
+    for (let column = 0; column < map.width; column++) {
+      const placed = map.at(row, column)
+      if (!placed || placed === previous) continue
+      previous = placed
+      const merge = placed.height === 1 ? null : placed.top === row ? 'restart' : 'continue'
+      cells.push({ placed, merge })
+    }
+    return cells
+  })
+}
+
+/**
+ * A checkbox cell as a word processor shows it: its box as a character, ☑
+ * or ☐, at the start of its first paragraph. Any other cell is returned as
+ * it is.
+ */
+export function withCheckbox(cell: EditorNode): EditorNode {
+  if (cell.attrs.valueType !== 'checkbox') return cell
+  const first = cell.content.maybeChild(0)
+  if (!first?.isTextblock) return cell
+  const box = cell.type.schema.text(cell.attrs.checked === true ? '☑ ' : '☐ ')
+  const lead = first.withContent(Fragment.of(box).append(first.content))
+  return cell.withContent(cell.content.replaceChild(0, lead))
+}
+
+/**
+ * A table formula's field instruction, as Word writes one: `= SUM(ABOVE)`,
+ * with the number format as a picture switch when it has one.
+ */
+export function formulaInstruction(node: EditorNode): string {
+  const expression = attrString(node.attrs, 'expression') ?? ''
+  const format = attrString(node.attrs, 'format')
+  return format ? `= ${expression} \\# "${format}"` : `= ${expression}`
 }
 
 /** A side of a table cell, as the table's `hiddenBorders` attribute names it. */
@@ -148,35 +206,50 @@ export function hiddenCellSides(
   rowIndex: number,
   cellIndex: number,
 ): Set<CellSide> {
-  const row = table.child(rowIndex)
-  const cell = row.child(cellIndex)
-  const hidden = erasedSides(cell)
-  const before = row.content.maybeChild(cellIndex - 1)
-  if (before && erasedSides(before).has('right')) hidden.add('left')
-  const after = row.content.maybeChild(cellIndex + 1)
-  if (after && erasedSides(after).has('left')) hidden.add('right')
-  let start = 0
-  for (let index = 0; index < cellIndex; index++) start += cellSpan(row.child(index))
-  const end = start + cellSpan(cell)
-  if (erasedAcross(table.content.maybeChild(rowIndex - 1), start, end, 'bottom')) hidden.add('top')
-  if (erasedAcross(table.content.maybeChild(rowIndex + 1), start, end, 'top')) hidden.add('bottom')
-  return hidden
-}
-
-/** Whether every cell of `row` over the columns `start` to `end` has `side` erased. */
-function erasedAcross(row: EditorNode | null, start: number, end: number, side: CellSide): boolean {
-  if (!row) return false
-  let column = 0
-  let facing = 0
-  for (const cell of row.content.children) {
-    const next = column + cellSpan(cell)
-    if (next > start && column < end) {
-      if (!erasedSides(cell).has(side)) return false
-      facing++
+  const map = TableMap.of(table)
+  const cell = map.cellAt(rowIndex, cellIndex)
+  if (!cell) return new Set()
+  const hidden = erasedSides(cell.node)
+  const rows = Array.from({ length: cell.height }, (_, offset) => cell.top + offset)
+  const columns = Array.from({ length: cell.width }, (_, offset) => cell.left + offset)
+  const across = (spots: [number, number][], side: CellSide): boolean => {
+    const facing = new Set<TableMapCell>()
+    for (const [row, column] of spots) {
+      const found = map.at(row, column)
+      if (found) facing.add(found)
     }
-    column = next
+    return facing.size > 0 && [...facing].every((found) => erasedSides(found.node).has(side))
   }
-  return facing > 0
+  if (
+    across(
+      rows.map((row) => [row, cell.left - 1]),
+      'right',
+    )
+  )
+    hidden.add('left')
+  if (
+    across(
+      rows.map((row) => [row, cell.left + cell.width]),
+      'left',
+    )
+  )
+    hidden.add('right')
+  if (
+    across(
+      columns.map((column) => [cell.top - 1, column]),
+      'bottom',
+    )
+  )
+    hidden.add('top')
+  if (
+    across(
+      columns.map((column) => [cell.top + cell.height, column]),
+      'top',
+    )
+  ) {
+    hidden.add('bottom')
+  }
+  return hidden
 }
 
 export interface DataURL {

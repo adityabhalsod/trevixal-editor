@@ -13,12 +13,15 @@ import {
   type AutosaveIndicator,
   type AutosaveState,
   type CustomStyles,
+  DOCUMENT_THEME,
   type FontManager,
   type HistoryPanel,
   type KeyValueStorage,
   type PageView,
+  type Snippet,
   type SourceMode,
   type ThemeController,
+  type ThemePreset,
   type ToolUsageTracker,
   buildCustomTheme,
   createAutosave,
@@ -31,11 +34,14 @@ import {
   createThemeController,
   createToolUsageTracker,
   createWebStorage,
+  defaultThemePresets,
+  followPageSetup,
   googleFontURL,
   offerDraftRecovery,
   openBackupsDialog,
   openDialog,
   openInfoDialog,
+  parseTheme,
 } from '@trevixal/ui'
 
 /** Where this demo keeps its preferences, so a reload finds them again. */
@@ -57,6 +63,18 @@ export interface Preferences {
   autocorrect?: boolean
   /** The AutoCorrect list once edited, in place of the built-in one. */
   autocorrectWords?: Readonly<Record<string, string>>
+  /** Standard keys, or Emacs's or Vim's for moving and editing. */
+  keyPreset?: 'standard' | 'emacs' | 'vim'
+  /** Quick Parts: the snippets and their abbreviations. */
+  snippets?: readonly Snippet[]
+  /** The chrome's language, by its code; English when absent. */
+  language?: string
+  /** A custom or imported theme, as a theme file, so it outlives the page. */
+  customTheme?: string
+  /** Transitions, animations and smooth scrolling off. */
+  reducedMotion?: boolean
+  /** The dyslexia-friendly face and spacing. */
+  dyslexiaFont?: boolean
 }
 
 const DEFAULTS: Preferences = { theme: 'system', preset: null }
@@ -138,9 +156,15 @@ export function createChrome(
     // the whole page: mounted inside a framework's own shell it is one box
     // among several, and only the box gets the tokens unless it is named.
     targets: [document.documentElement, document.body, root],
+    // A custom or imported theme comes back with the page, so the preset
+    // saved as chosen still names something.
+    presets: [...defaultThemePresets(), ...savedCustomTheme(preferences)],
     mode: preferences.theme,
     preset: preferences.preset,
-    onChange: (state) => onChange({ theme: state.mode, preset: state.preset }),
+    // A document's own theme is the document's, not the reader's choice.
+    onChange: (state) => {
+      if (state.preset !== DOCUMENT_THEME) onChange({ theme: state.mode, preset: state.preset })
+    },
   })
 
   const fonts = createFontManager(document, {
@@ -158,6 +182,8 @@ export function createChrome(
   if (preferences.customCSS) styles.set(preferences.customCSS)
 
   const page = createPageView({ target: shell, size: 'a4', margin: 20 })
+  // The sheet is set as the document's page setup says (File ▸ Page setup).
+  followPageSetup(editor, page)
   const source = createSourceMode(editor, { format: 'markdown' })
   return { theme, fonts, styles, page, source }
 }
@@ -235,7 +261,7 @@ export function createSaving(
       await offerDraftRecovery(editor, autosave, { container: bannerHost })
     },
     openBackups: async () => {
-      await openBackupsDialog(autosave, { document })
+      await openBackupsDialog(autosave, { document, editor })
     },
     protect: async (password) => {
       // Read every entry through the store that wrote it, swap the store, then
@@ -259,8 +285,26 @@ export function createSaving(
   }
 }
 
+/** The one slot a custom or an imported theme takes. */
+export const CUSTOM_THEME = 'custom'
+
+/** The custom theme the preferences keep, if they keep one that still reads. */
+function savedCustomTheme(preferences: Preferences): readonly ThemePreset[] {
+  if (!preferences.customTheme) return []
+  try {
+    return [{ ...parseTheme(preferences.customTheme), name: CUSTOM_THEME }]
+  } catch {
+    // A preference written by another version that no longer reads: the
+    // plain palette, rather than a page that will not mount.
+    return []
+  }
+}
+
 /** The custom-theme dialog: five colours become a full palette. */
-export async function askCustomTheme(theme: ThemeController): Promise<void> {
+export async function askCustomTheme(
+  theme: ThemeController,
+  onSaved: (preset: ThemePreset) => void,
+): Promise<void> {
   const values = await openDialog({
     document,
     title: 'Custom theme',
@@ -275,20 +319,20 @@ export async function askCustomTheme(theme: ThemeController): Promise<void> {
     ],
   })
   if (!values) return
-  theme.register(
-    buildCustomTheme({
-      name: 'custom',
-      label: 'Custom',
-      tokens: {
-        'color-bg': values.bg,
-        'color-surface': values.surface,
-        'color-text': values.text,
-        'color-border': values.border,
-        'color-accent': values.accent,
-      },
-    }),
-  )
-  theme.setPreset('custom')
+  const preset = buildCustomTheme({
+    name: CUSTOM_THEME,
+    label: 'Custom',
+    tokens: {
+      'color-bg': values.bg,
+      'color-surface': values.surface,
+      'color-text': values.text,
+      'color-border': values.border,
+      'color-accent': values.accent,
+    },
+  })
+  theme.register(preset)
+  theme.setPreset(CUSTOM_THEME)
+  onSaved(preset)
 }
 
 /** The custom-CSS dialog. Rules are scoped to the editing surface. */

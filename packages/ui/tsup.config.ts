@@ -1,7 +1,14 @@
 import { defineConfig } from 'tsup'
 
+/** The UI catalogues, each its own entry so a page loads only the one it shows. */
+const LOCALES = ['de', 'fr', 'es', 'pt', 'hi', 'ja', 'zh', 'ar']
+
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: {
+    index: 'src/index.ts',
+    'locales/index': 'src/locales/index.ts',
+    ...Object.fromEntries(LOCALES.map((code) => [`locales/${code}`, `src/locales/${code}.ts`])),
+  },
   format: ['esm', 'cjs'],
   dts: true,
   sourcemap: true,

@@ -1,5 +1,6 @@
 import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
+import { codeBlockTitle, normalizeLineRanges } from './code-block'
 import { safeColor, safeFontFamily } from './css-values'
 import { type TextDirection, documentAttrs, textDirection } from './document-settings'
 import { isCustomNumberingId, isStoredNumbering } from './list-numbering'
@@ -434,15 +435,48 @@ export function defaultNodes(): Record<string, NodeSpec> {
       content: 'text*',
       group: 'block',
       marks: '',
-      attrs: { language: { default: null } },
+      // `id` is a link target, as a paragraph's is. The rest say how the code
+      // is shown: its lines numbered, some picked out ("1,3-5"), long lines
+      // wrapped, a title or file name above it, and a long block folded.
+      attrs: {
+        language: { default: null },
+        id: { default: null },
+        lineNumbers: { default: false },
+        highlightLines: { default: null },
+        wrap: { default: false },
+        title: { default: null },
+        collapsed: { default: false },
+      },
       preserveWhitespace: true,
       toHTML: (node) => {
         const language = safeLanguageName(node.attrs.language)
         const attrs: Record<string, string> = {}
         if (language) attrs['data-language'] = language
+        const id = safeElementId(node.attrs.id)
+        if (id) attrs.id = id
+        if (node.attrs.lineNumbers === true) attrs['data-line-numbers'] = 'true'
+        const highlight = normalizeLineRanges(node.attrs.highlightLines)
+        if (highlight) attrs['data-highlight-lines'] = highlight
+        if (node.attrs.wrap === true) attrs['data-wrap'] = 'true'
+        const title = codeBlockTitle(node.attrs.title)
+        if (title) attrs['data-title'] = title
+        if (node.attrs.collapsed === true) attrs['data-collapsed'] = 'true'
         return { tag: 'pre', attrs, childTag: 'code' }
       },
-      parseHTML: [{ tag: 'pre', getAttrs: (element) => ({ language: languageOf(element) }) }],
+      parseHTML: [
+        {
+          tag: 'pre',
+          getAttrs: (element) => ({
+            language: languageOf(element),
+            id: safeElementId(element.getAttribute('id')),
+            lineNumbers: element.getAttribute('data-line-numbers') === 'true',
+            highlightLines: normalizeLineRanges(element.getAttribute('data-highlight-lines')),
+            wrap: element.getAttribute('data-wrap') === 'true',
+            title: codeBlockTitle(element.getAttribute('data-title')),
+            collapsed: element.getAttribute('data-collapsed') === 'true',
+          }),
+        },
+      ],
     },
     horizontalRule: {
       group: 'block',

@@ -5,14 +5,13 @@ import {
   Fragment,
   MoveNodeStep,
   ReplaceNodesStep,
-  SetNodeAttrsStep,
   TextSelection,
   inlineLength,
   pos,
-  safeElementId,
 } from '@trevixal/core'
 import { bindListNavigation, focusFirstItem } from './dropdown'
 import { type IconName, createIcon } from './icons'
+import { ensureBlockId, linkableBlock } from './link-tools'
 
 /**
  * The block menu: what the grip beside a block offers when it is clicked
@@ -132,52 +131,12 @@ function turnInto(editor: Editor, index: number, kind: Kind): void {
   kind.apply(editor)
 }
 
-/** Every id the document holds, so a new one can be told apart from them. */
-function idsIn(doc: EditorNode): Set<string> {
-  const ids = new Set<string>()
-  const walk = (node: EditorNode): void => {
-    const id = safeElementId(node.attrs.id)
-    if (id) ids.add(id)
-    for (const child of node.content.children) walk(child)
-  }
-  walk(doc)
-  return ids
-}
-
 /** A copy for "Duplicate": the same content, without the ids that name one block. */
 function withoutIds(node: EditorNode): EditorNode {
   if (node.isText) return node
   const content = Fragment.from(node.content.children.map(withoutIds))
   const ownsId = node.type.spec.attrs?.id?.default === null && node.attrs.id !== null
   return (ownsId ? node.withAttrs({ ...node.attrs, id: null }) : node).withContent(content)
-}
-
-/** The block, or the first text inside it, that can carry the id a link names. */
-function linkable(doc: EditorNode, index: number): { path: number[]; node: EditorNode } | null {
-  const visit = (node: EditorNode, path: number[]): { path: number[]; node: EditorNode } | null => {
-    if (node.type.spec.attrs?.id?.default === null) return { path, node }
-    for (let i = 0; i < node.childCount; i++) {
-      const found = visit(node.child(i), [...path, i])
-      if (found) return found
-    }
-    return null
-  }
-  const block = doc.content.maybeChild(index)
-  return block ? visit(block, [index]) : null
-}
-
-/** An id from a block's words: `the-plan`, starting with a letter as an HTML id must. */
-function slugFor(text: string, taken: ReadonlySet<string>): string {
-  const slug = text
-    .toLocaleLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48)
-  const base = /^[a-z]/.test(slug) && !slug.startsWith('tvx-') ? slug : `block-${slug || 'link'}`
-  let id = base
-  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
-  return id
 }
 
 export interface BlockMenuOptions {
@@ -295,21 +254,16 @@ export function createBlockMenu(editor: Editor, options: BlockMenuOptions): Bloc
         'Copy link to block',
         'link',
         () => {
-          const target = linkable(editor.state.doc, index)
+          const target = ensureBlockId(editor.state, index)
           if (!target) return
-          let id = safeElementId(target.node.attrs.id)
-          if (!id) {
-            id = slugFor(target.node.textContent, idsIn(editor.state.doc))
-            editor.dispatch(
-              editor.state.tr.step(new SetNodeAttrsStep(target.path, { ...target.node.attrs, id })),
-            )
-          }
+          if (target.tr) editor.dispatch(target.tr)
+          const id = target.id
           const location = document.defaultView?.location
           const href = `${location ? location.href.split('#')[0] : ''}#${id}`
           void document.defaultView?.navigator.clipboard?.writeText(href).catch(() => undefined)
           announcer.announce('Link to the block copied')
         },
-        linkable(doc, index) === null,
+        linkableBlock(doc, index) === null,
       ),
       item('Delete', 'trash', () => {
         const tr = editor.state.tr

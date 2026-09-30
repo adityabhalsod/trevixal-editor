@@ -4,6 +4,29 @@ The [callout tutorial](./callout) builds a block type end to end. This page is
 the checklist for the other kinds of addition, each with the trap it exists to
 avoid.
 
+## A whole extension
+
+`create-trevixal-extension` makes a package to start from, laid out as the
+shipped extensions are:
+
+```sh
+npm create trevixal-extension @acme/trevixal-extension-sticky-note
+cd trevixal-extension-sticky-note
+npm install
+npm test
+```
+
+| File | What it holds |
+| --- | --- |
+| `src/schema.ts` | A node type named after the package (`stickyNote`): a box holding blocks, with a label attribute read back through a sanitiser |
+| `src/commands.ts` | `insertStickyNote(label)`, which puts the selected blocks in one |
+| `src/menu.ts` | `withStickyNoteMenu(menus)`: the entry at the end of Insert, to pass as `createEditorUI`'s `menus` |
+| `test/` | The four tests the tutorial below asks for: the round trip, hostile markup, Enter leaving the box, and the menu entry running |
+| `package.json`, `tsup.config.ts`, `tsconfig.json`, `vitest.config.ts` | Builds ESM and CommonJS with types, `@trevixal/core` and `@trevixal/ui` as peers |
+
+Its tests pass and it typechecks as it is made; change the node from there.
+A second argument names the directory to make it in.
+
 ## A node or mark type
 
 Write a `NodeSpec` or `MarkSpec`: a content expression, `toHTML`, and

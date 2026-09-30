@@ -2,12 +2,14 @@ import {
   type Command,
   type EditorNode,
   Fragment,
+  type PageSection,
   type Path,
   ReplaceNodesStep,
   SetNodeAttrsStep,
   TextSelection,
   insertInlineNode,
   nodeAtPath,
+  pageSectionOf,
   pos,
   safeHref,
 } from '@trevixal/core'
@@ -191,6 +193,18 @@ export const insertPageBreak: Command = (state) => {
   const pageBreak = state.schema.nodeType('pageBreak').create()
   const inserted = insertBlockHere(state, pageBreak, false)
   return inserted ? inserted.tr : null
+}
+
+/**
+ * Insert a section break after the current block: what follows, to the next
+ * one, is set on its own pages, turned, in columns or with other margins.
+ */
+export function insertSectionBreak(section: PageSection): Command {
+  return (state) => {
+    const node = state.schema.nodeType('sectionBreak').create({ ...pageSectionOf({ ...section }) })
+    const inserted = insertBlockHere(state, node, false)
+    return inserted ? inserted.tr : null
+  }
 }
 
 /** Insert an inline badge at the cursor. */

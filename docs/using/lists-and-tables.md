@@ -3,8 +3,10 @@
 List and table tools beyond making a list or inserting a table: a task's due
 date and assignee, a count of what is done, folding an item, sorting a list,
 multilevel lists of your own, a table's header row and first column held in
-view, cell padding and vertical alignment, tables inside tables, captions
-from the Table menu, and header rows that repeat on every printed page. The
+view, cell padding and vertical alignment, tables inside tables, cells merged
+across rows as well as columns, formulas, typed columns, filters and charts,
+captions from the Table menu, and header rows that repeat on every printed
+page. The
 [screenshot gallery](./screenshots#lists-and-tables) shows each of them.
 
 ## Tasks: due dates, assignees and a done count
@@ -102,6 +104,78 @@ cell to cell of the table the caret is in, and every Table menu command acts
 on that table. A `.docx` keeps the table inside its cell, and so does RTF,
 as its nested table. Markdown has no way to write a table inside a table, so
 the inner table's text goes into its cell.
+
+## Merging cells across rows and columns
+
+Select cells by double-clicking one and dragging to another, then choose
+*Table > Merge cells*. The cells can be side by side, one above the other, or
+any rectangle of them. A merged cell that reaches outside the selection is
+taken in whole, because part of a cell cannot be merged. The text of every
+cell goes into the merged one, in reading order. Merging two whole rows
+leaves one row, as in Word.
+
+*Table > Split cells...* asks for a number of columns and a number of rows.
+Each selected cell is split into that many, side by side and one above the
+other. A merged cell shares out the columns and rows it already covers. If it
+needs more, they are added to the table, and the cells beside it span them,
+so the rest of the table looks the same.
+
+The other table commands work with merged cells too:
+
+- A row or column inserted inside a merged cell makes it bigger. Deleting a
+  row or column makes it smaller.
+- Moving a row or a column moves the rows or columns that a merged cell joins,
+  all together. Sorting moves them together too.
+- Drawing a line across a table with *Draw table* splits only the cells under
+  the line. The cells beside it span both halves.
+
+A merged cell is `rowspan` and `colspan` in HTML. In a `.docx` it is Word's
+vertical merge, which Word opens as one cell, and a `.docx` from Word brings
+its vertical merges back. RTF keeps the merge too. A Markdown table has no
+merged cells, so the text goes in the first cell and the others are empty,
+and every row keeps its columns.
+
+## Tables as data: formulas, column types, filters and charts
+
+*Table > Formula...* puts one of Word's table formulas in the cell at the
+caret. `=SUM(ABOVE)` adds up the numbers above it, and `LEFT`, `RIGHT` and
+`BELOW` work the same way in the other directions. `AVERAGE`, `COUNT`, `MIN`,
+`MAX` and `PRODUCT` are there too. A formula can name cells as a spreadsheet
+does, such as `=B2*1.2` or `=SUM(B2:B5)`, where `A1` is the top-left cell. Pick
+a number format, such as `#,##0.00` or `0%`, to show the result in it. The
+result is worked out again whenever the table changes. A formula that cannot
+be worked out shows `!Syntax Error`, as in Word. With the caret beside a
+formula, *Formula...* changes it. In a `.docx` a formula is Word's own `=`
+field, so Word works it out as well.
+
+*Table > Column type* says what the selected columns hold:
+
+- **Number**, **Currency**, **Percentage** and **Date** line their values up
+  on the right and rewrite them to show as that type. For example, `1234.5`
+  becomes `1,234.5` as a number and `$1,234.50` as money. A column that
+  already uses a currency sign keeps it. `0.25` becomes `25%`, and a date
+  becomes `2026-10-01`.
+- **Checkbox** draws a box in each cell. The box is ticked where the cell said
+  `yes`, `x` or `true`. Click a box to tick it.
+- **Text** takes the type off again.
+
+Header cells keep their text.
+
+*Table > Filter rows...* hides the rows that do not match a condition, such as
+"Cost is greater than 1000". They are hidden, not deleted, both on screen and
+in print. The header row always shows. *Table > Show all rows* brings them
+back. *Table > Hide column* hides the caret's column, and *Show hidden
+columns* brings it back.
+
+*Table > Insert chart* draws the table as a bar, line or pie chart, using a
+Mermaid diagram after the table. The first column labels the points. Each
+other column with numbers in it becomes a series, named by its header. The
+chart does not update when the table changes, as a Word chart made from a
+table does not. Draw it again after a change.
+
+Pasting a table from Excel or Google Sheets keeps what its cells hold.
+Numbers, money, percentages, dates and true or false values arrive as typed
+columns.
 
 ## Captions
 

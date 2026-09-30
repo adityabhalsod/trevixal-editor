@@ -5,7 +5,9 @@ export {
   insertMath,
   insertMathBlock,
   setMathLatex,
+  setMathNumbered,
 } from './commands'
+export { chemistryToLatex } from './chemistry'
 export { mathInputRules } from './input-rules'
 export {
   type LatexToMathMLOptions,

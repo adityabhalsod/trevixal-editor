@@ -21,6 +21,17 @@ so it can be read once and mounted from any framework. The
 SvelteKit, Angular and Solid; what changes between them is the lifecycle hook,
 and nothing else.
 
+## Installable, and offline
+
+The built page is an installable app. `public/manifest.webmanifest` names it,
+and the build writes `sw.js`, a service worker that caches the page and every
+file the build made, the language catalogues and the export worker included.
+After one visit with a network, the editor opens and works with none, and the
+browser offers to install it. [`service-worker.ts`](service-worker.ts) holds
+its source, and the plugin in [`vite.config.ts`](vite.config.ts) writes the
+build's own file list into it, so each build is a new worker. The dev server
+registers no worker, since its modules are no app shell.
+
 ## Run it
 
 ```sh

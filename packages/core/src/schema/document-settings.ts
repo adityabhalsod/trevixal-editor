@@ -2,6 +2,7 @@ import type { EditorNode } from '../model/node'
 import { headingNumberingScheme } from './heading-numbering'
 import { parseListSchemes, storedListSchemesAttr } from './list-numbering'
 import { parseStoredStyles, storedStylesAttr } from './named-styles'
+import { columnCount, pageSetupAttr } from './page-setup'
 
 /**
  * Settings that belong to the whole document rather than to any one block,
@@ -28,14 +29,9 @@ export function textDirection(value: unknown): TextDirection | null {
   return value === 'ltr' || value === 'rtl' ? value : null
 }
 
-/** Most text columns a document takes, as Word's Columns gallery offers them. */
-export const MAX_COLUMNS = 3
-
-/** A column count, clamped to 1 (the default) to {@link MAX_COLUMNS}. */
-export function columnCount(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 1
-  return Math.min(MAX_COLUMNS, Math.max(1, Math.round(value)))
-}
+// Columns are page layout, so they are defined with it; they are exported
+// here too, where the document settings have always offered them.
+export { MAX_COLUMNS, columnCount } from './page-setup'
 
 /** The doc node's attributes. Every default is "as documents always were". */
 export function documentAttrs(): Record<string, { default?: unknown }> {
@@ -61,7 +57,55 @@ export function documentAttrs(): Record<string, { default?: unknown }> {
     // Multilevel list schemes the writer defined, as JSON (see
     // list-numbering.ts); the gallery offers them beside the built-in ones.
     listSchemes: { default: null },
+    // A Markdown file's front matter, the YAML between its `---` lines, kept
+    // as written so it goes back out the same.
+    frontMatter: { default: null },
+    // Template variables, as JSON: `{"plan": "pro"}`. A block shown only when
+    // one is set reads them (see extension-blocks).
+    variables: { default: null },
+    // The theme saved with the document, as a theme file's JSON; the UI
+    // checks it before it paints anything with it.
+    theme: { default: null },
+    // Comment threads, as JSON; the text each is on carries a `comment` mark
+    // with its id (see extension-comments).
+    comments: { default: null },
+    // A digital signature over the rest of the document, as JSON (see
+    // extension-security); it signs everything but itself.
+    signature: { default: null },
+    // The paper, margins, header, footer and watermark, as JSON (see
+    // page-setup.ts). Null is A4 with 20 mm margins.
+    pageSetup: { default: null },
   }
+}
+
+/** The longest stored signature kept: a key and a signature are a few hundred bytes. */
+const DOCUMENT_SIGNATURE_MAX = 4000
+
+/** A document's stored signature as JSON, or null for none. */
+export function documentSignatureOf(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' && value.length <= DOCUMENT_SIGNATURE_MAX
+    ? value
+    : null
+}
+
+/** The longest stored comment data kept, generous for a long review. */
+const DOCUMENT_COMMENTS_MAX = 500_000
+
+/** A document's stored comment threads as JSON, or null for none. */
+export function documentCommentsOf(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' && value.length <= DOCUMENT_COMMENTS_MAX
+    ? value
+    : null
+}
+
+/** The longest saved theme kept: a full palette is well under it. */
+const DOCUMENT_THEME_MAX = 8000
+
+/** A document's saved theme as stored, or null for none, or one too long to be a theme. */
+export function documentThemeOf(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' && value.length <= DOCUMENT_THEME_MAX
+    ? value
+    : null
 }
 
 /** The HTML attributes a document's settings are written as; none when it has none. */
@@ -80,6 +124,18 @@ export function documentSettingsAttrs(doc: EditorNode): Record<string, string> {
   if (styles) attrs['data-styles'] = styles
   const schemes = storedListSchemesAttr(parseListSchemes(doc.attrs.listSchemes))
   if (schemes) attrs['data-list-schemes'] = schemes
+  const frontMatter = frontMatterOf(doc.attrs.frontMatter)
+  if (frontMatter) attrs['data-front-matter'] = frontMatter
+  const variables = storedVariables(templateVariables(doc.attrs.variables))
+  if (variables) attrs['data-variables'] = variables
+  const theme = documentThemeOf(doc.attrs.theme)
+  if (theme) attrs['data-document-theme'] = theme
+  const comments = documentCommentsOf(doc.attrs.comments)
+  if (comments) attrs['data-comments'] = comments
+  const signature = documentSignatureOf(doc.attrs.signature)
+  if (signature) attrs['data-signature'] = signature
+  const pageSetup = pageSetupAttr(doc.attrs.pageSetup)
+  if (pageSetup) attrs['data-page-setup'] = pageSetup
   if (Object.keys(attrs).length > 0) attrs[DOCUMENT_ATTRIBUTE] = ''
   return attrs
 }
@@ -100,7 +156,62 @@ export function parseDocumentSettings(element: Element): Record<string, unknown>
   if (styles) attrs.styles = styles
   const schemes = storedListSchemesAttr(parseListSchemes(element.getAttribute('data-list-schemes')))
   if (schemes) attrs.listSchemes = schemes
+  const frontMatter = frontMatterOf(element.getAttribute('data-front-matter'))
+  if (frontMatter) attrs.frontMatter = frontMatter
+  const variables = storedVariables(templateVariables(element.getAttribute('data-variables')))
+  if (variables) attrs.variables = variables
+  const theme = documentThemeOf(element.getAttribute('data-document-theme'))
+  if (theme) attrs.theme = theme
+  const comments = documentCommentsOf(element.getAttribute('data-comments'))
+  if (comments) attrs.comments = comments
+  const signature = documentSignatureOf(element.getAttribute('data-signature'))
+  if (signature) attrs.signature = signature
+  const pageSetup = pageSetupAttr(element.getAttribute('data-page-setup'))
+  if (pageSetup) attrs.pageSetup = pageSetup
   return attrs
+}
+
+/** The longest name and value a template variable keeps. */
+const VARIABLE_NAME = /^[A-Za-z_][\w-]{0,39}$/
+const VARIABLE_VALUE_MAX = 200
+
+/**
+ * A document's template variables as a map, from its stored JSON: names are
+ * identifiers, values text, and anything else is dropped.
+ */
+export function templateVariables(value: unknown): Record<string, string> {
+  if (typeof value !== 'string' || !value) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return {}
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  const out: Record<string, string> = {}
+  for (const [name, entry] of Object.entries(parsed as Record<string, unknown>)) {
+    if (VARIABLE_NAME.test(name) && typeof entry === 'string')
+      out[name] = entry.slice(0, VARIABLE_VALUE_MAX)
+  }
+  return out
+}
+
+/** Template variables as the document stores them; null for none. */
+export function storedVariables(variables: Readonly<Record<string, string>>): string | null {
+  const names = Object.keys(variables)
+    .filter((name) => VARIABLE_NAME.test(name))
+    .sort()
+  if (names.length === 0) return null
+  const sorted: Record<string, string> = {}
+  for (const name of names) sorted[name] = (variables[name] ?? '').slice(0, VARIABLE_VALUE_MAX)
+  return JSON.stringify(sorted)
+}
+
+/** Front matter as a document keeps it: the text between the fences, or null for none. */
+export function frontMatterOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.replace(/\r\n?/g, '\n').replace(/^\n+|\s+$/g, '')
+  return text.length > 0 ? text : null
 }
 
 /**

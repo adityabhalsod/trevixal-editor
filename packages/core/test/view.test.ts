@@ -2,6 +2,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { type Editor, createEditor } from '../src/editor/editor'
 import { pos } from '../src/model/position'
+import { Schema } from '../src/model/schema'
+import { defaultMarks, defaultNodes } from '../src/schema/basic'
 import { TextSelection } from '../src/state/selection'
 import { domPointFromPosition, positionFromDOMPoint } from '../src/view/dom-point'
 import type { EditorView } from '../src/view/editor-view'
@@ -84,6 +86,47 @@ describe('DOM ↔ model position mapping', () => {
         expect(back).toEqual({ path, offset })
       }
     }
+  })
+
+  it('maps a point inside an inline atom to beside it, not to nowhere', () => {
+    // Chromium and Firefox put the caret inside an atom that ends a line
+    // (End, a click past it); the model has no offsets inside one.
+    const schema = new Schema({
+      nodes: {
+        ...defaultNodes(),
+        chip: {
+          inline: true,
+          group: 'inline',
+          atom: true,
+          toHTML: () => ({ tag: 'span', text: 'chip' }),
+        },
+      },
+      marks: defaultMarks(),
+    })
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const editor = createEditor({
+      schema,
+      element: host,
+      doc: schema.node('doc', {}, [
+        schema.node('paragraph', {}, [schema.text('ab'), schema.node('chip')]),
+      ]),
+    })
+    const view = editor.view as EditorView
+    const chipText = view.dom.querySelector('p span')?.firstChild as globalThis.Node
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 0)).toEqual(pos([0], 2))
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 2)).toEqual(pos([0], 3))
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 4)).toEqual(pos([0], 3))
+
+    // And the caret is moved out, beside it: Firefox will not break a line,
+    // or delete, from inside an element that is not editable.
+    view.focus()
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 3))))
+    document.getSelection()?.setBaseAndExtent(chipText, 4, chipText, 4)
+    view.syncSelectionFromDOM()
+    expect(document.getSelection()?.anchorNode).not.toBe(chipText)
+    expect(editor.state.selection.from).toEqual(pos([0], 3))
+    editor.destroy()
   })
 })
 

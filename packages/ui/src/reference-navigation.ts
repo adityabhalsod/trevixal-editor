@@ -1,4 +1,5 @@
 import { type Editor, TextSelection, positionFromDOMPoint } from '@trevixal/core'
+import { scrollBehavior } from './motion'
 
 /**
  * Following a reference inside the document: a cross-reference, an entry in
@@ -37,7 +38,7 @@ export function referenceTarget(root: ParentNode, hash: string): HTMLElement | n
 function goTo(editor: Editor, target: HTMLElement): void {
   const view = editor.view
   if (!view) return
-  target.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  target.scrollIntoView?.({ block: 'center', behavior: scrollBehavior(target) })
   const position = positionFromDOMPoint(view.dom, view.renderer, target, 0)
   if (!position) return
   editor.dispatch(editor.state.tr.setSelection(new TextSelection(position)))

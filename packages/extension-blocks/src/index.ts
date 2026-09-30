@@ -12,13 +12,34 @@ export {
 export { blockBindings } from './bindings'
 export {
   citationAt,
+  citationStyleOf,
+  importSources,
   insertCitation,
   insertReferenceList,
   type ReferenceMatch,
+  referenceChoices,
   referenceFor,
   renumberCitations,
+  setCitationStyle,
   splitReferenceItem,
 } from './citations'
+export {
+  CITATION_STYLES,
+  type CitationAuthor,
+  type CitationSource,
+  type CitationStyle,
+  citationLabel,
+  DEFAULT_CITATION_STYLE,
+  formatReference,
+  type ImportedSource,
+  isCitationStyle,
+  parseBibTeX,
+  parseCSLJSON,
+  parseSource,
+  parseSources,
+  referenceSortKey,
+  SourceFileError,
+} from './citation-styles'
 export {
   activateTab,
   activateTabAt,
@@ -39,6 +60,7 @@ export {
   insertColumns,
   insertFootnote,
   insertPageBreak,
+  insertSectionBreak,
   insertTimeline,
   insertTimelineItem,
   insertToggleBlock,
@@ -104,3 +126,24 @@ export {
   safeAnchorId,
 } from './schema'
 export { type BlockUICommands, blockUICommands } from './ui'
+export {
+  type AdvancedBlocksOptions,
+  type MapNodeOptions,
+  NOTE_COLORS,
+  type NoteColor,
+  OSM_ATTRIBUTION,
+  OSM_TILES,
+  type PollOption,
+  advancedBlockNodes,
+  conditionMet,
+  enableAdvancedBlocks,
+  insertMap,
+  insertMarginNote,
+  insertPoll,
+  parseCoordinates,
+  pollOptions,
+  resolveConditionals,
+  setTemplateVariables,
+  tileOf,
+  wrapInConditional,
+} from './advanced'

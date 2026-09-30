@@ -13,8 +13,11 @@ import type { Editor } from '@trevixal/core'
 import {
   BUNDLED_LANGUAGES,
   copyToClipboard,
+  copyableCode,
   detectLanguage,
+  enableCodeRunner,
   languageDisplayName,
+  runnableLanguage,
 } from '@trevixal/extension-code-highlight'
 import {
   type ImageController,
@@ -44,6 +47,8 @@ export function createFloatingControls(
   container: HTMLElement,
   images: ImageController,
 ): FloatingControls {
+  // JavaScript and HTML blocks run in a sandboxed frame, from the bar's Run.
+  const runner = enableCodeRunner(editor)
   const languageSelect = createCodeLanguageSelect(editor, {
     container,
     languages: BUNDLED_LANGUAGES.map((language) => ({
@@ -51,7 +56,11 @@ export function createFloatingControls(
       label: languageDisplayName(language),
     })),
     detect: (code) => detectLanguage(code)?.language.name ?? null,
-    onCopy: (code) => copyToClipboard(document, code),
+    // A terminal session copies as its commands, without the prompts.
+    onCopy: (code, language) => copyToClipboard(document, copyableCode(code, language)),
+    blockOptions: true,
+    onRun: () => void runner.run(),
+    canRun: (language) => runnableLanguage(language) !== null,
   })
 
   const tableToolbar = createTableToolbar(editor, {
@@ -82,6 +91,7 @@ export function createFloatingControls(
       // reason the mount writes out its own list: one left off here is a
       // listener that outlives the page.
       for (const part of [
+        runner,
         languageSelect,
         tableToolbar,
         tableHandles,

@@ -124,3 +124,42 @@ Click the grip beside a block, rather than dragging it, for the block menu:
 
 From the keyboard, focus the grip and press `Shift+F10` or the menu key.
 `Space` still picks the block up to move it with the arrow keys.
+
+## Links
+
+A link can point at any block, not only a heading. Select the words, choose
+*Insert > Link...*, and pick *Any block in this document* under *Link to*.
+The list names each block by what it is and how it starts. A block with no
+id is given one from its words when the link is made, so the link lasts as
+long as the block.
+
+*Tools > Check links...* reads every link in the document. A link to a place
+that is not there, an email address that is not one, and an address with a
+space in it are listed as broken, each with a *Go to* button that selects it.
+The assembled editor also asks each web address whether it answers. The
+browser only tells a page whether anything answered, so a link to a page
+that answers with an error still counts as working.
+
+Downloading a document that has a link to a missing place asks first:
+*Export anyway*, or *Review links* for the same list.
+
+A host can give pasted links their page's title. Paste an address on its own
+and it goes in as the address; once the host's `fetchLinkTitle` answers, the
+linked words become the page's title. The link still points at the address.
+
+## Margin notes, polls, maps and conditional content
+
+- **Margin note.** *Insert > Margin note* puts a sticky note beside the
+  paragraph at the caret, floated to the right; on a phone it sits in the
+  text instead.
+- **Poll.** *Insert > Poll...* asks a question with the choices you give it.
+  A click on a choice votes for it; a second choice moves your vote.
+- **Map.** *Insert > Map...* takes a latitude and longitude, `51.5074,
+  -0.1278`, and shows the place with a pin. `+` and `−` zoom; a double-click
+  changes the place. The tiles are OpenStreetMap's unless the host names its
+  own.
+- **Show only when.** Select blocks and choose *Insert > Show only when...*
+  with a template variable, `plan`, and a value if you like, `pro`. *Tools >
+  Template variables...* sets the variables, one a line, `plan = pro`. The
+  editor frames the blocks and dims them while the condition fails; a
+  download leaves them out, or keeps them without the frame when it holds.

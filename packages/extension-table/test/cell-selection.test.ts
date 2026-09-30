@@ -214,16 +214,18 @@ describe('the selection the gesture makes', () => {
     editor.destroy()
   })
 
-  it('declines to merge cells from different rows', () => {
+  it('merges cells from different rows into one spanning them', () => {
     const { host, editor } = mount()
     const dispose = enableCellSelection(editor)
 
     mouse(cellElement(host, 'a'), 'mousedown', 2)
     mouse(cellElement(host, 'c'), 'mousemove', 0)
+    expect(editor.exec(mergeCells)).toBe(true)
 
-    // Vertical merging is not in the schema; the command says no rather than
-    // producing a table that cannot be rendered.
-    expect(editor.exec(mergeCells)).toBe(false)
+    const table = editor.state.doc.child(0)
+    expect(table.child(0).child(0).attrs.rowspan).toBe(2)
+    expect(table.child(0).child(0).textContent).toBe('ac')
+    expect(table.child(1).childCount).toBe(1)
 
     dispose()
     editor.destroy()

@@ -90,7 +90,8 @@ test('keeps the table looking as it did, the new cells sharing the old one’s w
 
 test('holds the count to what it can make before splitting anything', async ({ page }) => {
   await openSplit(page, 'e')
-  await columns(page).fill('1')
+  // One column is a count (split into rows only); none is not.
+  await columns(page).fill('0')
   await page.getByRole('button', { name: 'Split', exact: true }).click()
   // The browser refused the submit: the dialog is still up, the table as it was.
   await expect(page.getByRole('dialog', { name: 'Split cells' })).toBeVisible()

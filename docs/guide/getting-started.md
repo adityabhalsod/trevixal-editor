@@ -80,7 +80,8 @@ browser.
 - **[Concepts](../concepts/state)**: what a document, a transaction and a
   decoration actually are. Worth twenty minutes before you write an extension.
 - **[Write a callout extension](../extending/callout)**, a new block type,
-  end to end, in about eighty lines.
+  end to end, in about eighty lines. `npm create trevixal-extension` starts
+  a package of your own laid out the same way.
 - **[Using the editor](../using/)**: every menu, key and file format, from the
   reader's side of the screen.
 - **[Extensions](../extensions/)**: one page per package, with the decisions

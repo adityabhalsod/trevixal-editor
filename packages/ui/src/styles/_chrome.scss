@@ -721,6 +721,241 @@
 
 // ----------------------------------------------------------------- dialogs
 
+// The media dialogs are wider than a form: a drawing board, an image to
+// mark up, a camera's picture.
+.trevixal-dialog:is(.trevixal-drawing-editor, .trevixal-markup, .trevixal-capture) {
+  width: min(52rem, 100%);
+  max-height: 92vh;
+}
+
+.trevixal-drawing-editor__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: t.token('space-1');
+  align-items: center;
+}
+
+.trevixal-drawing-editor__tool {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: t.token('color-bg');
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    border-color: t.token('color-accent');
+    background: t.token('color-selection');
+  }
+}
+
+.trevixal-drawing-editor__swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid t.token('color-border');
+  border-radius: 50%;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    outline: 2px solid t.token('color-accent');
+    outline-offset: 2px;
+  }
+}
+
+.trevixal-drawing-editor__board,
+.trevixal-markup__stage {
+  position: relative;
+  width: 100%;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.trevixal-markup__stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.trevixal-markup__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.trevixal-capture__live,
+.trevixal-capture__still {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  background: #000;
+  border-radius: t.token('radius-sm');
+}
+
+.trevixal-recorder__meter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 3rem;
+
+  > span {
+    flex: 1;
+    min-height: 6%;
+    border-radius: 1px;
+    background: t.token('color-accent');
+  }
+}
+
+.trevixal-recorder__time {
+  margin: 0;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+// The link report: each broken link, why, and a button to go to it.
+.trevixal-link-report__list {
+  margin: 0 0 t.token('space-3');
+  padding: 0;
+  list-style: none;
+
+  > li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 t.token('space-2');
+    align-items: center;
+    padding: t.token('space-1') 0;
+    border-bottom: 1px solid t.token('color-border');
+  }
+
+  .trevixal-dialog__hint {
+    grid-column: 1;
+  }
+
+  .trevixal-dialog__button {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+}
+
+.trevixal-link-report__text {
+  overflow-wrap: anywhere;
+}
+
+// The backlinks under the folders: the documents that link here.
+.trevixal-backlinks {
+  padding: t.token('space-2') 0;
+  border-top: 1px solid t.token('color-border');
+
+  &__title {
+    margin: 0 0 t.token('space-1');
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: t.token('color-text-muted');
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    width: 100%;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: t.token('color-selection');
+    }
+  }
+
+  &__empty {
+    margin: 0;
+    font-size: 0.85rem;
+    color: t.token('color-text-muted');
+  }
+}
+
+// The lightbox: an image full size over a dark page, the arrows either side.
+.trevixal-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: t.token('space-2');
+  padding: t.token('space-4');
+  background: rgba(8, 8, 16, 0.88);
+  color: #fff;
+
+  &__image {
+    max-width: 92vw;
+    max-height: 82vh;
+    object-fit: contain;
+  }
+
+  &__caption {
+    margin: 0;
+    max-width: 60ch;
+    text-align: center;
+  }
+
+  &__button {
+    position: absolute;
+    border: 0;
+    border-radius: 50%;
+    width: 2.75rem;
+    height: 2.75rem;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    &--previous {
+      inset-inline-start: t.token('space-3');
+      top: 50%;
+    }
+
+    &--next {
+      inset-inline-end: t.token('space-3');
+      top: 50%;
+    }
+
+    &--close {
+      inset-inline-end: t.token('space-3');
+      top: t.token('space-3');
+    }
+  }
+}
+
 .trevixal-dialog-overlay {
   position: fixed;
   inset: 0;
@@ -1280,9 +1515,10 @@ $line-number-gap: calc(#{$blockgrip-width} + 12px);
   }
 }
 
-// The copy button: the same pill as the picker's trigger, so the bar reads as
-// one control strip.
-.trevixal-codelang__copy {
+// The copy and run buttons: the same pill as the picker's trigger, so the bar
+// reads as one control strip.
+.trevixal-codelang__copy,
+.trevixal-codelang__run {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -1322,6 +1558,22 @@ $line-number-gap: calc(#{$blockgrip-width} + 12px);
     color: var(--tvx-color-danger);
     border-color: var(--tvx-color-danger);
   }
+}
+
+// Run reads as the block's action: the accent, not the muted chrome.
+.trevixal-codelang__run {
+  color: var(--tvx-color-accent);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// The options trigger is its glyph alone; the panel's rows say what it holds.
+.trevixal-codelang__options-trigger > svg:last-child {
+  width: 14px;
+  height: 14px;
+  opacity: 1;
 }
 
 // What Enter does inside the block, and how to leave it. Muted: it is a
@@ -1600,4 +1852,98 @@ $line-number-gap: calc(#{$blockgrip-width} + 12px);
 .trevixal-codelang[data-trevixal-detected] .trevixal-select__label {
   font-style: italic;
   color: t.token("color-text-muted");
+}
+
+// The equation dialog: the palette's keys in groups, the source, and a
+// preview of what it draws.
+.trevixal-equation {
+  width: min(40rem, calc(100vw - 2rem));
+}
+
+.trevixal-equation__palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: t.token('space-2');
+  margin-block-end: t.token('space-2');
+}
+
+.trevixal-equation__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+}
+
+.trevixal-equation__key {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.35rem;
+  color: inherit;
+  background: t.token('color-surface');
+  border: 0;
+  border-radius: t.token('radius-sm');
+  font: inherit;
+  font-family: 'Cambria Math', 'STIX Two Math', serif;
+  cursor: pointer;
+
+  &:hover {
+    background: t.token('color-selection');
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.token('focus-ring');
+  }
+}
+
+.trevixal-equation__source {
+  font-family: t.token('font-family-mono');
+}
+
+.trevixal-equation__preview {
+  min-height: 3rem;
+  padding: t.token('space-2');
+  overflow-x: auto;
+  border: 1px dashed t.token('color-border');
+  border-radius: t.token('radius-sm');
+  text-align: center;
+  color: t.token('color-text-muted');
+
+  math {
+    color: t.token('color-text');
+    font-size: 1.25em;
+  }
+}
+
+// The snippets: each abbreviation and what it puts in, a Delete each.
+.trevixal-snippets__list {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-1');
+  max-height: 30vh;
+  margin: 0 0 t.token('space-3');
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.trevixal-snippets__item {
+  display: flex;
+  align-items: center;
+  gap: t.token('space-2');
+}
+
+.trevixal-snippets__label {
+  margin-inline-end: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+
+  kbd {
+    padding: 0 0.3rem;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font-family: t.token('font-family-mono');
+  }
 }

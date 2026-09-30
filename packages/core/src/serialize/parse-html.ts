@@ -39,6 +39,40 @@ const DANGEROUS_TAGS = new Set([
   'noscript',
 ])
 
+/**
+ * The marks an element's own `style` says its text has, as Google Docs and
+ * many web pages write them: `font-weight: 700` rather than `<b>`. Each is
+ * a mark only a schema that has it gets; `font-weight: normal` takes a bold
+ * the element was given by its tag away again.
+ */
+const STYLE_MARKS: readonly {
+  readonly mark: string
+  readonly property: RegExp
+  readonly on: RegExp
+  readonly off?: RegExp
+}[] = [
+  {
+    mark: 'bold',
+    property: /font-weight\s*:\s*([^;]+)/i,
+    on: /^(bold|bolder|[6-9]00)$/i,
+    off: /^(normal|lighter|[1-4]00)$/i,
+  },
+  {
+    mark: 'italic',
+    property: /font-style\s*:\s*([^;]+)/i,
+    on: /^(italic|oblique)/i,
+    off: /^normal$/i,
+  },
+  { mark: 'underline', property: /text-decoration(?:-line)?\s*:\s*([^;]+)/i, on: /underline/i },
+  {
+    mark: 'strikethrough',
+    property: /text-decoration(?:-line)?\s*:\s*([^;]+)/i,
+    on: /line-through/i,
+  },
+  { mark: 'superscript', property: /vertical-align\s*:\s*([^;]+)/i, on: /^super/i },
+  { mark: 'subscript', property: /vertical-align\s*:\s*([^;]+)/i, on: /^sub/i },
+]
+
 interface RuleMatch<T> {
   readonly owner: T
   readonly rule: ParseRule
@@ -86,6 +120,21 @@ class HTMLParser {
     for (const type of Object.values(schema.marks)) {
       for (const rule of type.spec.parseHTML ?? []) this.markRules.add(type, rule)
     }
+  }
+
+  /** The marks in effect inside an element, once its own `style` is taken into account. */
+  private styled(element: HTMLElement, marks: readonly Mark[]): readonly Mark[] {
+    const style = element.getAttribute('style')
+    if (!style) return marks
+    let result = marks
+    for (const entry of STYLE_MARKS) {
+      const type = this.schema.marks[entry.mark]
+      const value = entry.property.exec(style)?.[1]?.trim()
+      if (!type || !value) continue
+      if (entry.on.test(value)) result = type.create().addToSet(result)
+      else if (entry.off?.test(value)) result = result.filter((mark) => mark.type !== type)
+    }
+    return result
   }
 
   parse(root: globalThis.Node): EditorNode {
@@ -137,8 +186,9 @@ class HTMLParser {
     const markMatch = this.markRules.match(element)
     if (markMatch) {
       const mark = markMatch.owner.create(markMatch.attrs ?? undefined)
-      return this.parseChildren(element, mark.addToSet(marks), inlineContext)
+      return this.parseChildren(element, this.styled(element, mark.addToSet(marks)), inlineContext)
     }
+    const inherited = this.styled(element, marks)
 
     const nodeMatch = this.nodeRules.match(element)
     if (nodeMatch) {
@@ -154,10 +204,14 @@ class HTMLParser {
         return [type.create(attrs)] // leaf (hr, br)
       }
       const inline = type.inlineContent
-      const children = this.parseChildren(element, inline ? marks : [], inline)
+      const children = this.parseChildren(element, inline ? inherited : [], inline)
       if (inline) {
         const inlineChildren = children.filter((child) => child.isInline)
-        return [type.create(attrs, mergeInline(Fragment.from(inlineChildren)))]
+        const blocks = children.filter((child) => !child.isInline)
+        if (blocks.length === 0 || inlineContext) {
+          return [type.create(attrs, mergeInline(Fragment.from(inlineChildren)))]
+        }
+        return liftedBlocks(type, attrs, children)
       }
       return [type.create(attrs, Fragment.from(children))]
     }
@@ -168,9 +222,41 @@ class HTMLParser {
     // nested inside a rejected frame slip into the document.
     if (dangerous) return []
 
-    // Unknown element (div, span, font, o:p, …): keep content, drop formatting.
-    return this.parseChildren(element, marks, inlineContext)
+    // Unknown element (div, span, font, o:p, …): keep content, drop formatting
+    // but what its style says of its text.
+    return this.parseChildren(element, inherited, inlineContext)
   }
+}
+
+/**
+ * A textblock that held blocks, a picture where the schema's pictures are
+ * blocks, as the textblocks either side of each and the block between: the
+ * picture a web page puts in a `<p>` is kept, not dropped with the paragraph
+ * that cannot hold it.
+ */
+function liftedBlocks(
+  type: NodeType,
+  attrs: Record<string, unknown> | undefined,
+  children: readonly EditorNode[],
+): EditorNode[] {
+  const out: EditorNode[] = []
+  let run: EditorNode[] = []
+  const flush = (): void => {
+    if (run.some((child) => !child.isText || child.textContent.trim() !== '')) {
+      out.push(type.create(attrs, mergeInline(Fragment.from(run))))
+    }
+    run = []
+  }
+  for (const child of children) {
+    if (child.isInline) {
+      run.push(child)
+      continue
+    }
+    flush()
+    out.push(child)
+  }
+  flush()
+  return out
 }
 
 const parserCache = new WeakMap<Schema, HTMLParser>()

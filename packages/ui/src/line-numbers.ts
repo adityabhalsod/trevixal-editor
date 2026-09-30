@@ -264,6 +264,28 @@ export function numberLinesIn(root: HTMLElement): void {
   }
 }
 
+/**
+ * Where each laid-out line of body text under `root` starts, as a point in
+ * the DOM a caret can be put at: the lines {@link measureLines} counts, in
+ * the same order, so line 3 here is line 3 in the margin.
+ */
+export function lineStartPoints(root: HTMLElement): { node: Node; offset: number }[] {
+  const points: { node: Node; offset: number }[] = []
+  for (const block of root.querySelectorAll<HTMLElement>(COUNTED)) {
+    if (block.closest(SKIPPED)) continue
+    if (block.parentElement?.closest(COUNTED)) continue
+    const starts = lineStartsIn(block)
+    if (starts.length > 0) {
+      for (const start of starts) points.push({ node: start.node, offset: start.offset })
+      continue
+    }
+    if (block.getBoundingClientRect().height === 0) continue
+    const first = firstText(block)
+    points.push(first ? { node: first, offset: 0 } : { node: block, offset: 0 })
+  }
+  return points
+}
+
 export interface LineNumbersOptions {
   /**
    * Where the numbers are drawn: a positioned ancestor of the editing surface,

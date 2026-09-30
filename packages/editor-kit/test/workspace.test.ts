@@ -1,12 +1,14 @@
-import type { Editor } from '@trevixal/core'
+import { createEditor } from '@trevixal/core'
 import { beforeEach, expect, test } from 'vitest'
+import { createFullSchema } from '../src/schema'
 import { createDocumentWorkspace } from '../src/workspace'
 
 /**
  * The store is opened before anything is drawn, and none of the tests below
- * gets as far as drawing, so the editor is never read.
+ * gets as far as drawing the tabs. The editor is only listened to, for the
+ * `[[` links that work from the start.
  */
-const editor = null as unknown as Editor
+const editor = createEditor({ schema: createFullSchema(), element: document.createElement('div') })
 
 const workspace = (namespace: string) =>
   createDocumentWorkspace({

@@ -71,6 +71,23 @@ describe('reading the browser selection back', () => {
     expect(editor.state.selection.eq(new TextSelection(pos([0], 4)))).toBe(true)
     editor.destroy()
   })
+
+  it('keeps a node selection through focus coming back, wherever the browser puts its caret', () => {
+    const { editor, view } = mount(doc(p('hello'), hr()))
+    editor.dispatch(editor.state.tr.setSelection(new NodeSelection([1])))
+    // A dialog had the focus; handed back, the browser puts a caret of its own
+    // at the start of the surface, not where the reader was.
+    const text = view.dom.querySelector('p')?.firstChild as globalThis.Node
+    const focus = view.dom.focus.bind(view.dom)
+    view.dom.focus = (options?: FocusOptions) => {
+      focus(options)
+      window.document.getSelection()?.setBaseAndExtent(text, 0, text, 0)
+    }
+    view.focus()
+    report()
+    expect(editor.state.selection.eq(new NodeSelection([1]))).toBe(true)
+    editor.destroy()
+  })
 })
 
 describe('inline decoration attributes', () => {

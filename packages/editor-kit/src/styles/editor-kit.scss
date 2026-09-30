@@ -241,6 +241,12 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   color: var(--tvx-color-danger, #dc2626);
 }
 
+// Vim's mode, set like Vim's own status line.
+#key-mode:not([hidden]) {
+  font: 600 0.8rem/1.5 ui-monospace, monospace;
+  color: var(--tvx-color-text);
+}
+
 #tabs:not(:empty) {
   margin-bottom: 0.5rem;
 }
@@ -323,6 +329,13 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
 .tvx-tok-selector {
   color: #a626a4;
 }
+// A diff's lines: what went in, and what came out.
+.tvx-tok-inserted {
+  color: #166534;
+}
+.tvx-tok-deleted {
+  color: #991b1b;
+}
 
 // The palette follows the theme that is actually in use, not the operating
 // system's preference: picking Nord or Midnight on a light desktop would
@@ -355,6 +368,12 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   .tvx-tok-tag {
     color: #e06c75;
   }
+  .tvx-tok-inserted {
+    color: #86efac;
+  }
+  .tvx-tok-deleted {
+    color: #fca5a5;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -386,5 +405,97 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
     .tvx-tok-tag {
       color: #e06c75;
     }
+    .tvx-tok-inserted {
+      color: #86efac;
+    }
+    .tvx-tok-deleted {
+      color: #fca5a5;
+    }
+  }
+}
+
+// ---------------------------------------------------------- the lock screen
+
+// While a protected document is locked, none of it is on the page: only the
+// screen asking for its password, which covers any dialog left open too.
+.trevixal-full-editor.trevixal-kit--locked {
+  visibility: hidden;
+}
+
+.trevixal-lock-screen {
+  z-index: 70;
+  background: var(--tvx-color-bg, #ffffff);
+}
+
+.trevixal-lock-screen__error {
+  margin: 0;
+  color: var(--tvx-color-danger, #dc2626);
+}
+
+// ---------------------------------------------------------- presentation
+
+// View ▸ Present: one slide at a time, filling the screen.
+.trevixal-presentation {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  background: var(--tvx-color-bg, #ffffff);
+  color: var(--tvx-color-text, #1a1a2b);
+
+  &:focus {
+    outline: none;
+  }
+
+  &__slide {
+    align-self: center;
+    justify-self: center;
+    width: min(1000px, 92vw);
+    max-height: 80vh;
+    overflow: auto;
+    font-size: clamp(1rem, 2.2vw, 1.8rem);
+    cursor: pointer;
+  }
+
+  &__title {
+    font-size: 1.8em;
+    margin: 0 0 0.6em;
+  }
+
+  &__notes {
+    padding: 0.5rem 1.5rem;
+    border-top: 1px solid var(--tvx-color-border, #d9d9e3);
+    background: var(--tvx-color-surface, #f7f7f8);
+    font-size: 1rem;
+  }
+
+  &__note {
+    margin: 0.25rem 0;
+  }
+
+  &__bar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  &__counter {
+    margin-inline-end: auto;
+    padding-inline-start: 1rem;
+    color: var(--tvx-color-text-muted, #6b6b80);
+  }
+
+  &__button {
+    font: inherit;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--tvx-color-border, #d9d9e3);
+    border-radius: 4px;
+    background: var(--tvx-color-surface, #f7f7f8);
+    color: inherit;
+    cursor: pointer;
   }
 }

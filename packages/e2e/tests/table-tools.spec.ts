@@ -187,11 +187,18 @@ test('Draw table: a line across splits the row in two', async ({ page }) => {
   const beta = await boxOf(page, 'beta')
   const y = beta.y + beta.height / 2
   await stroke(page, [beta.x + 6, y], [beta.x + beta.width - 6, y + 2])
+  // Only the cell under the line splits (ADR-0011): its neighbours span both rows.
   expect(await grid(page)).toEqual([
     ['alpha:1', 'beta:1', 'gamma:1'],
-    [':1', ':1', ':1'],
+    [':1'],
     ['delta:1', 'epsilon:1', 'zeta:1'],
   ])
+  const spans = await page.evaluate(() =>
+    [...(document.querySelector('.trevixal-content table') as HTMLTableElement).rows[0]?.cells ?? []].map(
+      (cell) => cell.rowSpan,
+    ),
+  )
+  expect(spans).toEqual([2, 1, 2])
 })
 
 test('Draw table: a box where there is no table draws a table that size', async ({ page }) => {

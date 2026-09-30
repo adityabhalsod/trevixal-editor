@@ -387,6 +387,39 @@ const markdown: LanguageDefinition = {
   ],
 }
 
+// ---------------------------------------------------------------- Terminal
+/**
+ * A shell session: commands after a prompt, and what they printed. The
+ * prompt is `$` or `❯` and a space at the start of a line; a line without
+ * one is output, and is shown quieter than the commands. Not `#`: a root
+ * prompt reads the same as a comment, and a comment copied as a command runs.
+ */
+export const TERMINAL_PROMPT = /^[ \t]*[$❯] /
+
+const terminal: LanguageDefinition = {
+  name: 'console',
+  displayName: 'Terminal',
+  aliases: ['terminal', 'shell-session', 'shellsession'],
+  rules: [
+    { pattern: /^[ \t]*[$❯] /my, className: 'tvx-tok-operator' },
+    { pattern: /^(?![ \t]*[$❯] )[^\n]+/my, className: 'tvx-tok-comment' },
+  ],
+}
+
+// -------------------------------------------------------------------- Diff
+const diff: LanguageDefinition = {
+  name: 'diff',
+  displayName: 'Diff',
+  aliases: ['patch'],
+  rules: [
+    // The file names come first: `---` and `+++` are not a removed or added line.
+    { pattern: /^(?:---|\+\+\+) [^\n]*/my, className: 'tvx-tok-comment' },
+    { pattern: /^@@[^\n]*/my, className: 'tvx-tok-keyword' },
+    { pattern: /^\+[^\n]*/my, className: 'tvx-tok-inserted' },
+    { pattern: /^-[^\n]*/my, className: 'tvx-tok-deleted' },
+  ],
+}
+
 /** Every bundled language, in the order a picker should show them. */
 export const BUNDLED_LANGUAGES: readonly LanguageDefinition[] = [
   javascript,
@@ -401,6 +434,8 @@ export const BUNDLED_LANGUAGES: readonly LanguageDefinition[] = [
   rust,
   java,
   markdown,
+  terminal,
+  diff,
 ]
 
 const BY_NAME = new Map<string, LanguageDefinition>()

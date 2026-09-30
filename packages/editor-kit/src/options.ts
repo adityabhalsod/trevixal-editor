@@ -8,7 +8,9 @@
  * them is not what this package is for.
  */
 import type { DocJSON, Editor } from '@trevixal/core'
-import type { EditorUI } from '@trevixal/ui'
+import type { MentionEvent, MentionUser } from '@trevixal/extension-comments'
+import type { SynonymLookup, WritingProvider } from '@trevixal/extension-writing'
+import type { EditorUI, Messages } from '@trevixal/ui'
 import type { FullEditorLayout, LayoutOptions } from './layout'
 
 /** One line in the About dialog. */
@@ -51,6 +53,68 @@ export interface FullEditorOptions extends LayoutOptions {
   readonly uploadEndpoint?: string | null
   /** Refuse an image larger than this, in bytes. Default 5 MB. */
   readonly maxImageBytes?: number
+  /**
+   * A pasted link's page title, fetched by the host, as uploads are sent:
+   * with it, a pasted address shows as its page's title. Without it, the
+   * editor asks nothing of the network and the address stays as pasted.
+   */
+  readonly fetchLinkTitle?: (href: string) => Promise<string | null>
+  /**
+   * A web page's HTML, for File ▸ Import from a web address. The browser can
+   * only fetch a page that allows it, so a host with a server passes one that
+   * fetches on the server's side. Without it, the browser tries directly.
+   */
+  readonly fetchPage?: (url: string) => Promise<string>
+  /**
+   * Whether an outside address answers, for Tools ▸ Check links. Defaults to
+   * a request with no CORS, which tells a dead address from a live one; pass
+   * null for a check that stays offline.
+   */
+  readonly checkLinkURL?: ((href: string) => Promise<'ok' | 'broken' | 'unknown'>) | null
+  /**
+   * The PlantUML server that draws PlantUML blocks; the public one by
+   * default. A diagram's source goes to it in the picture's address, so pass
+   * your own server, or null to leave PlantUML undrawn.
+   */
+  readonly plantumlServer?: string | null
+  /**
+   * A map tile URL template, `{z}`, `{x}` and `{y}` in it, for Insert ▸ Map:
+   * any provider's. OpenStreetMap's by default, with its credit.
+   */
+  readonly mapTiles?: string
+  /** The credit the map tiles ask for. */
+  readonly mapAttribution?: string
+  /**
+   * The writing assistant behind Tools ▸ Writing assistant: an object with
+   * the actions it can do and an `assist` that does one. The kit sends
+   * nothing anywhere itself; by default it rewrites and summarises by rule,
+   * in the page. Pass a provider over your own model to rewrite, summarise,
+   * translate and continue; null hides the menu.
+   */
+  readonly writingProvider?: WritingProvider | null
+  /** The people a comment can mention with `@`; none by default. */
+  readonly users?: readonly MentionUser[]
+  /** Called once for each person a new comment or reply mentions, to send them a note. */
+  readonly onMention?: (event: MentionEvent) => void
+  /**
+   * Synonyms for Right-click ▸ a word: a function over your own word list or
+   * a thesaurus service. A small built-in English list by default; null
+   * leaves right-click to the browser.
+   */
+  readonly thesaurus?: SynonymLookup | null
+  /**
+   * The chrome's translations, by language code, each loaded only when it is
+   * chosen: `{ de: () => import('@trevixal/ui/locales/de').then((m) => m.default) }`.
+   * With any given, View ▸ Language offers them beside English, and the
+   * choice is remembered. Arabic mirrors the chrome.
+   */
+  readonly languages?: Readonly<Record<string, () => Promise<Messages>>>
+  /**
+   * Minutes with nothing typed, clicked or scrolled before a password-protected
+   * document locks the screen until the password is given again. 10 by
+   * default; 0 turns the timer off, leaving File ▸ Lock now.
+   */
+  readonly autoLockMinutes?: number
   /** Extra rows for the About dialog, after the package's own. */
   readonly aboutRows?: readonly AboutRow[]
   /** Called after every change, once the readouts have been refreshed. */

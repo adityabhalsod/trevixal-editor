@@ -65,9 +65,9 @@ test('the full-editor example opens on a seeded document', async ({ page }) => {
     await expect(surface.locator('ol li')).not.toHaveCount(0)
     await expect(surface.locator('blockquote')).toBeVisible()
     await expect(surface.locator('table').first()).toBeVisible()
-    // TypeScript, SQL, one unlabelled block for auto-detection, and the
-    // Mermaid source the diagram extension previews.
-    await expect(surface.locator('pre')).toHaveCount(4)
+    // TypeScript, SQL, one unlabelled block for auto-detection, a terminal
+    // session, and the Mermaid source the diagram extension previews.
+    await expect(surface.locator('pre')).toHaveCount(5)
     // Code arrives highlighted, in two different languages.
     await expect(surface.locator('pre .tvx-tok-keyword').first()).toBeVisible()
 
@@ -195,7 +195,8 @@ test('the language select floats over the code block holding the caret', async (
 
     // Changing it re-highlights without altering the code.
     const text = await block.textContent()
-    await select.locator('.trevixal-codelang__trigger').click()
+    // The language trigger: the bar also holds the code options', styled alike.
+    await select.locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)').click()
     await page.click('[data-trevixal-language="python"]')
     await expect(block.locator('.tvx-tok-keyword', { hasText: 'interface' })).toHaveCount(0)
     expect(await block.textContent()).toBe(text)
@@ -219,13 +220,13 @@ test('the language picker lists every language with an icon and a tick', async (
     // "acted on the editor before it was ready" race, and on a loaded machine
     // WebKit loses it often enough to see.
     await expect(page.locator('.trevixal-codelang')).toBeVisible()
-    await page.click('.trevixal-codelang__trigger')
+    await page.click('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)')
 
-    // Twelve bundled languages plus "Plain text".
+    // Fourteen bundled languages, Terminal and Diff among them, plus "Plain text".
     const items = page.locator('.trevixal-codelang [data-trevixal-language]')
-    await expect(items).toHaveCount(13)
+    await expect(items).toHaveCount(15)
     // Every row carries a language glyph. A blank slot is the bug here.
-    await expect(items.locator('.trevixal-menu__icon svg')).toHaveCount(13)
+    await expect(items.locator('.trevixal-menu__icon svg')).toHaveCount(15)
 
     // Exactly one is marked, and it is the block's language.
     const checked = page.locator('.trevixal-codelang [aria-checked="true"]')
@@ -251,7 +252,7 @@ test('language glyphs carry their own colour', async ({ page }) => {
     // "acted on the editor before it was ready" race, and on a loaded machine
     // WebKit loses it often enough to see.
     await expect(page.locator('.trevixal-codelang')).toBeVisible()
-    await page.click('.trevixal-codelang__trigger')
+    await page.click('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)')
 
     const glyphs = page.locator('.trevixal-codelang [data-trevixal-language-icon]')
     const colors = await glyphs.evaluateAll((elements) =>
@@ -274,7 +275,7 @@ test('language glyphs carry their own colour', async ({ page }) => {
 
     // The panel scrolls without the heavy native scrollbar.
     const gutter = await page
-      .locator('.trevixal-codelang .trevixal-dropdown__panel')
+      .locator('.trevixal-codelang .trevixal-dropdown__panel:has([data-trevixal-language])')
       .evaluate((element: HTMLElement) => element.offsetWidth - element.clientWidth)
     expect(gutter).toBeLessThan(8)
   } finally {
@@ -365,7 +366,7 @@ test('the full-editor example highlights code and paints formatting', async ({ p
     const bar = page.locator('.trevixal-codelang')
     await expect(bar).toBeVisible()
     const pick = async (language: string): Promise<void> => {
-      await bar.locator('.trevixal-codelang__trigger').click()
+      await bar.locator('.trevixal-codelang__trigger:not(.trevixal-codelang__options-trigger)').click()
       await page.click(`[data-trevixal-language="${language}"]`)
     }
     await pick('sql')

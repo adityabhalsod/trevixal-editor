@@ -69,6 +69,28 @@ describe('cleanPastedHTML, Google Docs', () => {
     const run = first.content.child(0)
     expect(run.marks.some((mark) => mark.type.name === 'bold')).toBe(false)
   })
+
+  it('keeps the words Google made bold with a style, bold', () => {
+    const doc = parseHTML(testSchema, cleaned, document)
+    const world = doc.child(0).content.child(1)
+    expect(world.textContent).toBe('world')
+    expect(world.marks.map((mark) => mark.type.name)).toContain('bold')
+  })
+
+  it('reads italic, underline, struck and raised text from styles too', () => {
+    const doc = parseHTML(
+      testSchema,
+      '<p><span style="font-style:italic">a</span><span style="text-decoration:underline line-through">b</span><span style="vertical-align:super">c</span><b style="font-weight:normal">d</b></p>',
+      document,
+    )
+    const names = doc.child(0).content.children.map((run) =>
+      run.marks
+        .map((mark) => mark.type.name)
+        .sort()
+        .join('+'),
+    )
+    expect(names).toEqual(['italic', 'strikethrough+underline', 'superscript', ''])
+  })
 })
 
 describe('cleanPastedHTML, Word', () => {
@@ -135,5 +157,41 @@ describe('cleanPastedHTML, ordinary web HTML', () => {
 
   it('removes an attribute that held nothing but Word noise', () => {
     expect(cleanPastedHTML('<p class="MsoNormal" style="mso-x:1">hi</p>', 'word')).toBe('<p>hi</p>')
+  })
+})
+
+describe('pictures inside paragraphs', () => {
+  it('keeps a picture a page puts in a paragraph, when pictures are blocks', async () => {
+    const { Schema, defaultMarks, defaultNodes } = await import('../src/index')
+    const schema = new Schema({
+      nodes: {
+        ...defaultNodes(),
+        image: {
+          group: 'block',
+          atom: true,
+          attrs: { src: { default: '' }, alt: { default: '' } },
+          parseHTML: [
+            {
+              tag: 'img',
+              getAttrs: (element) => ({
+                src: element.getAttribute('src') ?? '',
+                alt: element.getAttribute('alt') ?? '',
+              }),
+            },
+          ],
+        },
+      },
+      marks: defaultMarks(),
+    })
+    const doc = parseHTML(
+      schema,
+      '<p>Look: <img src="https://x.test/a.png" alt="A"> there</p>',
+      document,
+    )
+    expect(doc.content.children.map((block) => [block.type.name, block.textContent])).toEqual([
+      ['paragraph', 'Look: '],
+      ['image', ''],
+      ['paragraph', ' there'],
+    ])
   })
 })

@@ -221,8 +221,91 @@
   }
 
   &__label {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-1');
     margin-inline-end: auto;
     font-size: 0.85rem;
+  }
+
+  // A named version stands out from the rolling backups.
+  &__item--version &__label {
+    font-weight: 600;
+  }
+
+  &__name {
+    display: flex;
+    gap: t.token('space-2');
+    margin-block-end: t.token('space-2');
+
+    input {
+      flex: 1;
+    }
+  }
+}
+
+// ------------------------------------------------------------- comparison
+// Two versions side by side: words taken out struck on the left, words put
+// in underlined on the right, whole blocks added or removed banded.
+.trevixal-compare {
+  width: min(64rem, calc(100vw - 2rem));
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: t.token('color-border');
+    border: 1px solid t.token('color-border');
+    @include t.slim-scrollbar;
+  }
+
+  &__head {
+    position: sticky;
+    top: 0;
+    padding: t.token('space-1') t.token('space-2');
+    background: t.token('color-surface');
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  &__row {
+    display: contents;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__cell {
+    padding: t.token('space-1') t.token('space-2');
+    background: t.token('color-bg');
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+
+    ins {
+      background: rgba(22, 163, 74, 0.2);
+      text-decoration: underline;
+    }
+
+    del {
+      background: rgba(220, 38, 38, 0.18);
+      text-decoration: line-through;
+    }
+
+    &--empty {
+      background: t.token('color-surface');
+    }
+  }
+
+  &__row--added &__cell--after {
+    background: rgba(22, 163, 74, 0.12);
+  }
+
+  &__row--removed &__cell--before {
+    background: rgba(220, 38, 38, 0.1);
+    text-decoration: line-through;
   }
 }
 
@@ -488,6 +571,40 @@
   }
 }
 
+// The page setup's header, footer and watermark on each sheet of the page
+// view (theming.ts), drawn over the text's margins and out of the way of the
+// pointer.
+.trevixal-page-marks {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+
+  &__header,
+  &__footer,
+  &__watermark {
+    position: absolute;
+    right: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  &__header,
+  &__footer {
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+  }
+
+  &__watermark {
+    color: rgb(128 128 128 / 0.15);
+    font: 700 56px/1.2 system-ui, sans-serif;
+    transform: rotate(-30deg);
+  }
+}
+
 // -------------------------------------------------------- media & embeds
 
 .trevixal-content {
@@ -511,6 +628,129 @@
     background: t.token('color-surface');
     border: 0;
     border-radius: t.token('radius-sm');
+  }
+
+  // A link to another document in the workspace: a link's colour, and a
+  // dotted rule to tell it from a web link.
+  .trevixal-wikilink {
+    color: t.token('color-accent');
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+
+    &::before {
+      content: '[[';
+      opacity: 0.45;
+    }
+
+    &::after {
+      content: ']]';
+      opacity: 0.45;
+    }
+  }
+
+  // A gallery: its images in a grid, square, each opening full size in the
+  // lightbox on a double click.
+  .trevixal-gallery {
+    display: grid;
+    grid-template-columns: repeat(var(--tvx-gallery-columns, 3), minmax(0, 1fr));
+    gap: t.token('space-2');
+    margin: t.token('space-3') 0;
+
+    img.trevixal-image,
+    figure {
+      width: 100%;
+      margin: 0;
+    }
+
+    img.trevixal-image {
+      aspect-ratio: 1;
+      object-fit: cover;
+      cursor: zoom-in;
+    }
+  }
+
+  // A drawing, or a whiteboard, as the SVG it draws itself as: on white, as
+  // a sheet of paper is, so its ink reads whatever the theme.
+  .trevixal-drawing {
+    margin: t.token('space-3') 0;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    background: #fff;
+    cursor: pointer;
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+  }
+
+  // A video's chapters under it, each a link to its start.
+  .trevixal-video-chapters {
+    margin: t.token('space-3') 0;
+  }
+
+  .trevixal-chapters {
+    margin: t.token('space-1') 0 0;
+    padding-inline-start: 1.4em;
+
+    a {
+      text-decoration: none;
+    }
+  }
+
+  .trevixal-chapters__time {
+    font-variant-numeric: tabular-nums;
+    color: t.token('color-text-muted');
+  }
+
+  // A recording: its waveform above the player.
+  .trevixal-audio-block {
+    margin: t.token('space-3') 0;
+    color: t.token('color-accent');
+
+    .trevixal-audio {
+      margin-top: t.token('space-1');
+    }
+  }
+
+  .trevixal-waveform {
+    display: block;
+    width: 100%;
+    height: 2.5rem;
+    fill: currentColor;
+  }
+
+  // Players that are not a 16:9 video take the height their embed page is
+  // drawn for: a post, a code pen, a track.
+  .trevixal-embed--twitter {
+    aspect-ratio: auto;
+    height: 34rem;
+    max-width: 34rem;
+  }
+
+  .trevixal-embed--gist,
+  .trevixal-embed--codepen,
+  .trevixal-embed--codesandbox,
+  .trevixal-embed--stackblitz {
+    aspect-ratio: auto;
+    height: 26rem;
+  }
+
+  .trevixal-embed--spotify {
+    aspect-ratio: auto;
+    height: 9.5rem;
+  }
+
+  .trevixal-embed--soundcloud {
+    aspect-ratio: auto;
+    height: 10.5rem;
+  }
+
+  .trevixal-embed--maps,
+  .trevixal-embed--figma {
+    aspect-ratio: 4 / 3;
   }
 
   // What a saved page shows in place of a player that will not start there.
@@ -648,6 +888,27 @@
   &__empty {
     color: t.token('color-text-muted');
   }
+
+  // A numbered display equation's "(2)", at the right edge, as LaTeX sets it.
+  &--block[data-numbered='true'] {
+    position: relative;
+    padding-inline-end: 3.5em;
+  }
+
+  &__number {
+    position: absolute;
+    inset-inline-end: t.token('space-3');
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.95em;
+  }
+}
+
+// A PlantUML diagram comes back from its server as a picture.
+.trevixal-diagram__picture {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 // A diagram renderer draws in a palette of its own, Mermaid's is dark ink on
@@ -730,6 +991,18 @@ pre > .trevixal-diagram {
 
   &--long {
     background: t.token('color-tone-warning-bg');
+  }
+
+  &--inclusive {
+    text-decoration: underline wavy t.token('color-tone-note-accent');
+  }
+
+  &--tone {
+    text-decoration: underline dotted t.token('color-tone-info-accent');
+  }
+
+  &--cliche {
+    text-decoration: underline dotted t.token('color-tone-warning-accent');
   }
 
   // A flagged word is something you can act on, so it says so. Only when
@@ -912,6 +1185,20 @@ pre > .trevixal-diagram {
     margin-inline-end: auto;
     color: t.token('color-text-muted');
   }
+
+  // Whose suggestions Accept all and Reject all take.
+  &__authors {
+    padding: 2px 4px;
+    color: t.token('color-text');
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+
+    &[hidden] {
+      display: none;
+    }
+  }
 }
 
 // -------------------------------------------------- tabs, accordion, refs
@@ -1013,6 +1300,11 @@ pre > .trevixal-diagram {
       color: t.token('color-accent');
       text-decoration: none;
     }
+
+    // An author-date citation reads in the line, (Smith, 2020), not raised.
+    &--author-date {
+      font-size: inherit;
+    }
   }
 
   .trevixal-references {
@@ -1021,6 +1313,84 @@ pre > .trevixal-diagram {
     border-top: 1px solid t.token('color-border');
     padding-top: t.token('space-3');
     font-size: 0.9em;
+
+    // An author-date list is alphabetical, not numbered, and hangs each
+    // entry's second line under its first word, as the style guides set it.
+    &:is(ul) {
+      list-style: none;
+      padding-inline-start: 2em;
+
+      > li {
+        text-indent: -2em;
+      }
+    }
+  }
+}
+
+// Reading heat map: each sentence tinted by how hard it reads, green to red.
+.trevixal-content .trevixal-heat {
+  border-radius: 2px;
+
+  &--easy {
+    background: rgba(34, 197, 94, 0.16);
+  }
+
+  &--fair {
+    background: rgba(234, 179, 8, 0.2);
+  }
+
+  &--hard {
+    background: rgba(249, 115, 22, 0.24);
+  }
+
+  &--very-hard {
+    background: rgba(239, 68, 68, 0.26);
+  }
+}
+
+// A findings report (accessibility, duplicate text): one row per finding.
+.trevixal-findings {
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  &__item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px t.token('space-2');
+    align-items: center;
+    padding: t.token('space-2') 0;
+    border-bottom: 1px solid t.token('color-border');
+  }
+
+  &__heading {
+    grid-column: 1;
+    font-size: 0.85rem;
+  }
+
+  &__message {
+    grid-column: 1;
+    font-size: 0.85rem;
+    color: t.token('color-text-muted');
+  }
+
+  &__item > .trevixal-dialog__button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+// Synonyms on right-click, in the writing menu's look.
+.trevixal-thesaurus {
+  &__heading,
+  &__empty {
+    padding: t.token('space-1') t.token('space-2');
+    font-size: 0.8rem;
+    color: t.token('color-text-muted');
   }
 }
 
@@ -1378,6 +1748,7 @@ pre > .trevixal-diagram {
     height: 10px;
     background: #fff;
     border: 1px solid t.token('color-accent');
+    touch-action: none;
   }
 }
 
@@ -1389,6 +1760,23 @@ pre > .trevixal-diagram {
   background: t.token('color-accent');
   border: 1px solid t.token('color-bg');
   border-radius: 2px;
+  // A drag on a handle resizes the picture; it is not a pan of the page.
+  touch-action: none;
+}
+
+// A finger needs a bigger target than a pointer: 24px, WCAG's minimum.
+@media (pointer: coarse) {
+  .trevixal-image-handles__handle,
+  .trevixal-image-crop__handle {
+    width: 24px;
+    height: 24px;
+    margin: -7px 0 0 -7px;
+  }
+
+  .trevixal-table-resize-handle {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 .trevixal-content .trevixal-image[data-trevixal-selected='true'] {
@@ -1435,3 +1823,737 @@ pre > .trevixal-diagram {
   border: 1px solid t.token('color-border');
   border-radius: t.token('radius-sm');
 }
+
+// ---------------------------------------------------------------- code blocks
+// What a code block's options draw. `codeBlockLines` puts a zero-width marker
+// at the start of each line, positioned out of the flow at its line: it draws
+// the number in the gutter and bands a line picked out, added or removed from
+// edge to edge. The title is the block's own attribute, drawn above the code;
+// a folded block shows its first lines and a bar over the next that unfolds it.
+.trevixal-content pre {
+  &[data-line-numbers='true'],
+  &[data-highlight-lines],
+  &[data-language='diff'],
+  &[data-collapsed='true'],
+  &:has(> .trevixal-code-output) {
+    position: relative;
+    // A stacking context of its own, so a band paints under the code.
+    isolation: isolate;
+  }
+
+  &[data-line-numbers='true'] {
+    padding-inline-start: calc(#{t.token('space-3')} + 4ch);
+  }
+
+  &[data-wrap='true'] {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &[data-title]::before {
+    content: attr(data-title);
+    display: block;
+    margin-block-end: t.token('space-2');
+    padding-block-end: t.token('space-1');
+    overflow: hidden;
+    border-bottom: 1px solid t.token('color-border');
+    font-family: t.token('font-family');
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: t.token('color-text-muted');
+  }
+
+  // Eight lines and the bar over the ninth: the numbers match COLLAPSED_LINES.
+  &[data-collapsed='true'] {
+    max-height: calc(9 * 1.55em + 2 * #{t.token('space-3')});
+    overflow-y: hidden;
+  }
+
+  &[data-collapsed='true'][data-title] {
+    max-height: calc(9 * 1.55em + 2 * #{t.token('space-3')} + 2.4em);
+  }
+
+  // A terminal is dark whatever the theme; its colours are set here to read
+  // on it, the prompt green and the output quieter than the commands.
+  &[data-language='console'] {
+    color: #e2e8f0;
+    background: #0f172a;
+
+    .tvx-tok-operator {
+      color: #4ade80;
+    }
+
+    .tvx-tok-comment {
+      color: #cbd5e1;
+      font-style: normal;
+    }
+  }
+}
+
+.trevixal-content .trevixal-code-line {
+  position: absolute;
+  z-index: -1;
+  inset-inline: 0;
+  height: 1.55em;
+  pointer-events: none;
+  user-select: none;
+
+  &--highlight {
+    background: t.token('color-selection');
+  }
+
+  &--added {
+    background: rgba(22, 163, 74, 0.16);
+  }
+
+  &--removed {
+    background: rgba(220, 38, 38, 0.16);
+  }
+}
+
+.trevixal-content pre[data-line-numbers='true'] .trevixal-code-line::before {
+  content: attr(data-line);
+  position: absolute;
+  inset-inline-start: 0;
+  width: calc(#{t.token('space-3')} + 3ch);
+  text-align: end;
+  color: t.token('color-text-muted');
+}
+
+.trevixal-content .trevixal-code-expand {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: calc(1.55em + #{t.token('space-3')});
+  background: linear-gradient(to bottom, transparent, t.token('color-code-bg') 40%);
+  white-space: normal;
+  user-select: none;
+}
+
+.trevixal-code-expand__button {
+  padding: 0.1rem 0.6rem;
+  color: t.token('color-accent');
+  background: t.token('color-surface');
+  border: 1px solid t.token('color-border');
+  border-radius: 999px;
+  font: inherit;
+  font-family: t.token('font-family');
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.token('focus-ring');
+  }
+}
+
+// What a run printed, or the page it drew, under its block.
+.trevixal-content .trevixal-code-output {
+  display: block;
+  margin-block-start: t.token('space-3');
+  padding-block-start: t.token('space-2');
+  border-top: 1px solid t.token('color-border');
+  white-space: normal;
+  user-select: text;
+}
+
+.trevixal-code-output__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: t.token('space-1');
+  font-family: t.token('font-family');
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: t.token('color-text-muted');
+}
+
+.trevixal-code-output__clear {
+  padding: 0 0.4rem;
+  color: inherit;
+  background: none;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  font: inherit;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.trevixal-code-output__log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: pre-wrap;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-code-output__line {
+  &--error {
+    color: t.token('color-danger');
+  }
+
+  &--warn {
+    color: #b45309;
+  }
+
+  &--quiet {
+    font-style: italic;
+    color: t.token('color-text-muted');
+  }
+}
+
+.trevixal-code-output__frame {
+  display: block;
+  width: 100%;
+  height: 12rem;
+  margin-block-start: t.token('space-1');
+  background: #fff;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// ------------------------------------------------------------- inclusions
+// A block or a document from the workspace, shown as it is there: a bar
+// naming the source with a button to open it, and its blocks below.
+.trevixal-content .trevixal-transclusion {
+  margin: t.token('space-3') 0;
+  border: 1px solid t.token('color-border');
+  border-inline-start: 3px solid t.token('color-accent');
+  border-radius: t.token('radius-sm');
+  user-select: none;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: t.token('space-2');
+    padding: t.token('space-1') t.token('space-2');
+    background: t.token('color-surface');
+    font-size: 0.8rem;
+    color: t.token('color-text-muted');
+  }
+
+  &__open {
+    padding: 0 0.5rem;
+    color: t.token('color-accent');
+    background: none;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+  }
+
+  &__body {
+    padding: 0 t.token('space-3');
+  }
+
+  &__missing {
+    font-style: italic;
+    color: t.token('color-text-muted');
+  }
+}
+
+// ---------------------------------------------------------- more carets
+// The editor's extra carets, which the browser cannot show: a bar that
+// blinks as the real caret does, and the words each one has selected.
+.trevixal-content .trevixal-extra-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  vertical-align: text-bottom;
+  border-inline-start: 2px solid t.token('color-accent');
+  margin-inline-end: -2px;
+  pointer-events: none;
+  user-select: none;
+  animation: trevixal-caret-blink 1.1s steps(1) infinite;
+}
+
+.trevixal-content .trevixal-extra-selection {
+  background: t.token('color-selection');
+}
+
+@keyframes trevixal-caret-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trevixal-content .trevixal-extra-caret {
+    animation: none;
+  }
+}
+
+// --------------------------------------------------------- advanced blocks
+// A sticky note in the margin: floated beside the text it sits by, set in
+// the flow on a narrow screen. Its paper colours are fixed, and its ink with
+// them, so it reads in every theme.
+.trevixal-content .trevixal-margin-note {
+  float: inline-end;
+  clear: inline-end;
+  width: min(14rem, 40%);
+  margin: 0 0 t.token('space-3') t.token('space-4');
+  padding: t.token('space-2') t.token('space-3');
+  color: #1f2937;
+  background: #fef3c7;
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
+
+  &[data-color='blue'] {
+    background: #dbeafe;
+  }
+
+  &[data-color='green'] {
+    background: #dcfce7;
+  }
+
+  &[data-color='pink'] {
+    background: #fce7f3;
+  }
+
+  > p {
+    margin: 0 0 0.4em;
+  }
+
+  > p:last-child {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 40rem) {
+    float: none;
+    width: auto;
+    margin: t.token('space-3') 0;
+  }
+}
+
+// A poll: the question, and each choice a button with its share drawn behind it.
+.trevixal-content .trevixal-poll {
+  margin: t.token('space-3') 0;
+  padding: t.token('space-3');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  user-select: none;
+
+  &__question {
+    margin: 0 0 t.token('space-2');
+    font-weight: 600;
+  }
+
+  &__options {
+    display: grid;
+    gap: t.token('space-1');
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__vote {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: t.token('space-2');
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    overflow: hidden;
+    color: t.token('color-text');
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+
+  &__bar {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    background: t.token('color-selection');
+    pointer-events: none;
+  }
+
+  &__label,
+  &__count {
+    position: relative;
+  }
+
+  &__count {
+    color: t.token('color-text-muted');
+    font-size: 0.85em;
+  }
+
+  &__total {
+    margin: t.token('space-2') 0 0;
+    font-size: 0.8rem;
+    color: t.token('color-text-muted');
+  }
+}
+
+// A map: the tiles around the place, laid on a sheet moved so the pin sits
+// in the middle of the view, and a bar with the place, the zoom and the credit.
+.trevixal-content .trevixal-map {
+  margin: t.token('space-3') 0;
+  overflow: hidden;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  user-select: none;
+
+  &__view {
+    position: relative;
+    height: 16rem;
+    overflow: hidden;
+    background: #e5e7eb;
+  }
+
+  &__sheet {
+    position: absolute;
+    left: calc(50% - var(--pin-x));
+    top: calc(50% - var(--pin-y));
+    width: 1536px;
+    height: 768px;
+  }
+
+  &__tile {
+    position: absolute;
+    width: 256px;
+    height: 256px;
+    max-width: none;
+  }
+
+  &__pin {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    margin: -18px 0 0 -9px;
+    background: #dc2626;
+    border: 2px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+
+  &__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: t.token('space-2');
+    padding: t.token('space-1') t.token('space-2');
+    background: t.token('color-surface');
+    font-size: 0.8rem;
+  }
+
+  &__place {
+    margin-inline-end: auto;
+    font-weight: 600;
+  }
+
+  &__controls button {
+    min-width: 1.6rem;
+    color: inherit;
+    background: t.token('color-bg');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    cursor: pointer;
+  }
+
+  &__credit {
+    color: t.token('color-text-muted');
+  }
+}
+
+// Content shown only when a template variable is set: framed and labelled
+// in the editor, dimmed while its condition fails; a download settles it.
+.trevixal-content .trevixal-conditional {
+  position: relative;
+  margin: t.token('space-2') 0;
+  padding: 1.4rem t.token('space-2') t.token('space-1');
+  border: 1px dashed t.token('color-border');
+  border-radius: t.token('radius-sm');
+
+  &::before {
+    content: 'Shown when ' attr(data-if) ' is set';
+    position: absolute;
+    top: 0.2rem;
+    inset-inline-start: t.token('space-2');
+    font-size: 0.7rem;
+    color: t.token('color-text-muted');
+    pointer-events: none;
+  }
+
+  &[data-equals]::before {
+    content: 'Shown when ' attr(data-if) ' is ' attr(data-equals);
+  }
+
+  &[data-condition-met='false'] {
+    opacity: 0.55;
+
+    &::before {
+      content: 'Hidden for now: ' attr(data-if) ' is not set';
+    }
+
+    &[data-equals]::before {
+      content: 'Hidden for now: ' attr(data-if) ' is not ' attr(data-equals);
+    }
+  }
+}
+
+// Redacted words: a solid bar the words cannot be read through. What leaves
+// the editor carries a fixed stand-in instead, so the bar is all there is.
+.trevixal-content .trevixal-redacted {
+  color: transparent;
+  background: t.token('color-text');
+  border-radius: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+// A section no edit can change until it is unlocked: framed, labelled, and
+// shown as not taking the caret.
+.trevixal-content .trevixal-locked-section {
+  position: relative;
+  margin: t.token('space-2') 0;
+  padding: 1.4rem t.token('space-2') t.token('space-1');
+  border: 1px solid t.token('color-border');
+  border-inline-start: 3px solid t.token('color-text-muted');
+  border-radius: t.token('radius-sm');
+  background: t.token('color-surface');
+  cursor: not-allowed;
+
+  &::before {
+    content: 'Locked';
+    position: absolute;
+    top: 0.2rem;
+    inset-inline-start: t.token('space-2');
+    font-size: 0.7rem;
+    color: t.token('color-text-muted');
+    pointer-events: none;
+  }
+}
+
+// Reduce motion, asked for in the editor rather than in the operating
+// system: no transitions, and animations end at once. Not a near-zero
+// transition: `transition-property` is `all` by default, so that would give
+// every element a transition it never had. The dialogs sit outside the
+// editor, at the end of the page, so they are reached through :has().
+[data-trevixal-motion='reduced'],
+body:has([data-trevixal-motion='reduced']) .trevixal-dialog-overlay {
+  &,
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// A dyslexia-friendly face where one is installed, and the wider letter,
+// word and line spacing the British Dyslexia Association's style guide asks
+// for. Nothing is downloaded for it. It is the reader's own setting, so it
+// wins over the fonts a document sets; code keeps its monospace.
+[data-trevixal-reading='dyslexia'] .trevixal-content {
+  letter-spacing: 0.035em;
+  word-spacing: 0.16em;
+  line-height: 1.8;
+
+  &,
+  :not(pre, code, pre *, code *) {
+    font-family: 'OpenDyslexic', 'Lexend', 'Atkinson Hyperlegible', 'Comic Sans MS', Verdana,
+      sans-serif !important;
+  }
+}
+
+// ---------------------------------------------------------------- comments
+// Commented text: a soft highlight and a rule under it. A resolved thread's
+// text loses both, from a rule the panel writes for that thread.
+.trevixal-content .trevixal-comment {
+  background: t.token('color-mark-bg');
+  border-bottom: 2px solid t.token('color-tone-warning-accent');
+}
+
+.trevixal-comments {
+  display: grid;
+  gap: t.token('space-2');
+  font-size: 0.85rem;
+
+  &__empty {
+    margin: 0;
+    color: t.token('color-text-muted');
+  }
+
+  &__threads,
+  &__entries {
+    display: grid;
+    gap: t.token('space-2');
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__thread {
+    display: grid;
+    gap: t.token('space-1');
+    padding: t.token('space-2');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    background: t.token('color-bg');
+
+    &--active {
+      border-color: t.token('color-accent');
+      box-shadow: 0 0 0 1px t.token('color-accent');
+    }
+
+    &--resolved {
+      opacity: 0.6;
+    }
+  }
+
+  &__quote {
+    all: unset;
+    cursor: pointer;
+    font-style: italic;
+    color: t.token('color-text-muted');
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:focus-visible {
+      outline: 2px solid t.token('color-accent');
+    }
+  }
+
+  &__meta {
+    display: flex;
+    gap: t.token('space-1');
+    align-items: baseline;
+  }
+
+  &__time {
+    color: t.token('color-text-muted');
+    font-size: 0.75rem;
+  }
+
+  &__text {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  &__reply {
+    display: grid;
+    gap: t.token('space-1');
+  }
+
+  &__box {
+    font: inherit;
+    padding: t.token('space-1');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    background: t.token('color-bg');
+    color: t.token('color-text');
+    resize: vertical;
+  }
+
+  &__mentions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: t.token('space-1');
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  &__mention,
+  &__button {
+    font: inherit;
+    padding: 2px t.token('space-2');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    cursor: pointer;
+  }
+
+  &__reply > .trevixal-comments__button {
+    justify-self: end;
+  }
+
+  &__actions {
+    display: flex;
+    gap: t.token('space-1');
+  }
+}
+
+// A long document lays out only what is on screen: the browser skips the
+// blocks off it until they scroll near, keeping their place with the last
+// height it measured. Not with line numbers or in page view, which both
+// measure every line of the document.
+.trevixal-content[data-trevixal-long]:not([data-line-numbers]) > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.5em;
+}
+
+.trevixal-paged .trevixal-content[data-trevixal-long] > * {
+  content-visibility: visible;
+}
+
+// ------------------------------------------------------------ form fields
+// A field to fill in: a box in the line, its label shown faintly until
+// something is filled in. A click fills it; a tick box ticks.
+.trevixal-content .trevixal-field {
+  display: inline-block;
+  min-width: 6em;
+  padding: 0 t.token('space-1');
+  border-bottom: 1px solid t.token('color-accent');
+  background: t.token('color-selection');
+  border-radius: 2px 2px 0 0;
+  cursor: pointer;
+
+  // The label waiting for a value: italic, in the text's own ink, since
+  // muted ink on the field's tint is too faint to read (and to pass axe).
+  &[data-empty] {
+    font-style: italic;
+  }
+
+  &--checkbox {
+    min-width: 0;
+    padding: 0 2px;
+    border-bottom: 0;
+    background: none;
+    font-size: 1.1em;
+  }
+
+  &--signature {
+    min-width: 10em;
+    font-family: 'Brush Script MT', 'Segoe Script', cursive;
+  }
+
+  &--dropdown::after {
+    content: ' ▾';
+    color: t.token('color-text-muted');
+  }
+}
+

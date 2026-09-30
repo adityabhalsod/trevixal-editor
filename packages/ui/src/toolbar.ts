@@ -1,4 +1,4 @@
-import type { Command, Editor, EditorNode, EditorSnapshot, Path } from '@trevixal/core'
+import type { Command, Editor, EditorNode, EditorSnapshot, PageSection, Path } from '@trevixal/core'
 import {
   type Control,
   NO_LIST_NUMBERING,
@@ -210,6 +210,8 @@ export interface BlockCommands {
   readonly insertCard?: Command
   readonly insertTimeline?: Command
   readonly insertPageBreak?: Command
+  /** A section break: what follows is set on pages of its own. */
+  readonly insertSectionBreak?: (section: PageSection) => Command
   readonly insertBadge?: (label: string, tone: string) => Command
   readonly insertButton?: (label: string, href: string) => Command
   readonly insertFootnote?: Command
@@ -220,9 +222,17 @@ export interface BlockCommands {
   readonly removeTab?: Command
   readonly insertAccordion?: (count: number) => Command
   readonly addAccordionItem?: Command
-  readonly insertCitation?: (text: string) => Command
+  readonly insertCitation?: (text: string, id?: string) => Command
   readonly insertReferenceList?: Command
   readonly renumberCitations?: Command
+  /** The entries a new citation can point at; with it, Insert ▸ Citation offers them. */
+  readonly referenceChoices?: (doc: EditorNode) => readonly { id: string; label: string }[]
+  /** Set the reference list in `apa`, `mla`, `chicago` or `ieee`: Insert ▸ Citation style. */
+  readonly setCitationStyle?: (style: string) => Command | null
+  /** The style the reference list is in, for the tick. */
+  readonly citationStyle?: (doc: EditorNode) => string
+  /** Sources from a BibTeX or CSL-JSON file's text: Insert ▸ Import sources. */
+  readonly importSources?: (text: string) => Command
   readonly setCalloutVariant?: (variant: string) => Command
   readonly setColumnCount?: (count: number) => Command
   readonly insertTimelineItem?: Command
@@ -239,6 +249,13 @@ export interface BlockCommands {
   readonly insertDocumentIndex?: Command
   readonly markIndexEntry?: (entry: string, sub: string) => Command
   readonly insertEndnote?: Command
+  // A margin note, a poll, a map, and content shown when a variable says so.
+  readonly insertMarginNote?: (color: string) => Command
+  readonly insertPoll?: (question: string, options: readonly string[]) => Command
+  /** A map of the place written as `lat, lng`; the command fails for anything else. */
+  readonly insertMap?: (coordinates: string, label: string, zoom: number) => Command
+  readonly wrapInConditional?: (variable: string, equals: string | null) => Command
+  readonly setTemplateVariables?: (variables: Readonly<Record<string, string>>) => Command
 }
 
 /** Something a cross-reference can point at, as `@trevixal/extension-blocks` lists them. */
@@ -276,6 +293,42 @@ export interface ToolbarGroupInfo {
   readonly label: string
 }
 
+/** The four toolbars View ▸ Toolbar offers, from a few buttons to all of them. */
+export type ToolbarPreset = 'minimal' | 'writing' | 'developer' | 'full'
+
+/**
+ * The groups each preset shows; `full` shows every group there is. A group a
+ * bar was not built with is skipped, so a host with fewer groups still gets
+ * the rest of a preset.
+ */
+export const TOOLBAR_PRESETS: Readonly<Record<Exclude<ToolbarPreset, 'full'>, readonly string[]>> =
+  {
+    minimal: ['marks', 'lists', 'history'],
+    writing: [
+      'quick',
+      'block',
+      'typography',
+      'marks',
+      'lists',
+      'align',
+      'color',
+      'insert',
+      'paint',
+      'history',
+    ],
+    developer: ['quick', 'block', 'marks', 'lists', 'insert', 'blocks', 'code', 'tools', 'history'],
+  }
+
+/** The groups of `available`, in its order, that a preset shows. */
+export function toolbarPresetGroups(
+  preset: ToolbarPreset,
+  available: readonly string[],
+): readonly string[] {
+  if (preset === 'full') return available
+  const shown = TOOLBAR_PRESETS[preset]
+  return available.filter((name) => shown.includes(name))
+}
+
 export interface Toolbar {
   readonly element: HTMLElement
   /**
@@ -298,6 +351,8 @@ export interface Toolbar {
   setVisibleGroups(names: readonly string[]): void
   /** Re-print the tooltips' keys, e.g. after the user rebinds one. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
+  /** Relabel every button and group from another catalogue, in place: a new UI language. */
+  setMessages(messages: Messages | undefined): void
   destroy(): void
 }
 
@@ -1010,7 +1065,7 @@ export function createToolbar(
   options: ToolbarOptions = {},
 ): Toolbar {
   const document = container.ownerDocument
-  const translate = createTranslator(options.messages)
+  let translate = createTranslator(options.messages)
   /** Every button in the bar, by name: what the Quick access tray offers back. */
   const itemsByName = new Map<string, ToolbarItem>()
   const quick = quickAccessGroup(options.quickAccess, itemsByName)
@@ -1039,10 +1094,9 @@ export function createToolbar(
       )
     : base
   const groups = options.groupOrder ? orderGroups(merged, options.groupOrder) : merged
-  const groupInfo = merged.map((group) => ({
-    name: group.name,
-    label: translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name),
-  }))
+  const groupLabel = (group: ToolbarGroup): string =>
+    translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name)
+  let groupInfo = merged.map((group) => ({ name: group.name, label: groupLabel(group) }))
   // Filled before anything is built, so the tray can offer any button.
   for (const group of groups) {
     for (const entry of group.items) if (!isControl(entry)) itemsByName.set(entry.name, entry)
@@ -1055,18 +1109,17 @@ export function createToolbar(
 
   const buttons: { item: ToolbarItem; element: HTMLButtonElement }[] = []
   const controls: Control[] = []
+  /** Where each group's name is written, so a new language can rewrite it. */
+  const labelled: { group: ToolbarGroup; element: HTMLElement; grip: HTMLButtonElement | null }[] =
+    []
 
   for (const group of groups) {
     const groupElement = document.createElement('div')
     groupElement.className = 'trevixal-toolbar__group'
     groupElement.dataset.trevixalGroup = group.name
-    if (group.label) {
-      groupElement.dataset.trevixalGroupLabel = translate(
-        `${TOOLBAR_GROUP_KEY}${group.name}`,
-        group.label,
-      )
-    }
-    if (options.reorderable) groupElement.appendChild(createGrip(document, group, translate))
+    const grip = options.reorderable ? createGrip(document, group.name) : null
+    if (grip) groupElement.appendChild(grip)
+    labelled.push({ group, element: groupElement, grip })
 
     for (const entry of group.items) {
       if (isControl(entry)) {
@@ -1088,6 +1141,14 @@ export function createToolbar(
     }
     root.appendChild(groupElement)
   }
+
+  const labelGroups = (): void => {
+    for (const { group, element, grip } of labelled) {
+      if (group.label) element.dataset.trevixalGroupLabel = groupLabel(group)
+      if (grip) labelGrip(grip, groupLabel(group))
+    }
+  }
+  labelGroups()
 
   const roving = bindRovingFocus(root)
   const reorder = options.reorderable
@@ -1160,10 +1221,19 @@ export function createToolbar(
     refresh,
     getGroupOrder: () => groupOrder(root),
     setGroupOrder: (order) => applyGroupOrder(root, order),
-    groups: groupInfo,
+    get groups() {
+      return groupInfo
+    },
     setVisibleGroups,
     setShortcutLabels(labels) {
       shortcutLabels = labels
+      retitle()
+    },
+    setMessages(messages) {
+      translate = createTranslator(messages)
+      groupInfo = merged.map((group) => ({ name: group.name, label: groupLabel(group) }))
+      labelGroups()
+      for (const { item, element } of buttons) labelButton(element, item, translate)
       retitle()
     },
     destroy() {
@@ -1187,18 +1257,8 @@ function createToolbarButton(
   button.className = 'trevixal-toolbar__button'
   button.dataset.trevixalItem = item.name
   const icon = item.icon ? createIcon(document, item.icon) : null
-  const label = translate(`${TOOLBAR_KEY}${item.name}`, item.label)
   if (icon) button.appendChild(icon)
-  else button.textContent = label
-  // Most items repeat the label as their accessible name, and a host that
-  // translates the label plainly means both. Only a name that genuinely
-  // differs gets a key of its own, which is also the rule `defaultMessages`
-  // follows when it lists them.
-  const ariaFallback = item.ariaLabel && item.ariaLabel !== item.label ? item.ariaLabel : label
-  const name = translate(`${TOOLBAR_KEY}${item.name}${ARIA_SUFFIX}`, ariaFallback)
-  button.setAttribute('aria-label', name)
-  // The tooltip, keys and all, is the toolbar's to write: see `retitle`.
-  button.title = name
+  labelButton(button, item, translate)
   button.tabIndex = -1
   // Keep the editor selection: the toolbar must never take focus on click.
   button.addEventListener('mousedown', (event) => event.preventDefault())
@@ -1284,20 +1344,35 @@ function orderGroups(
   return [...listed, ...groups.filter((group) => !listed.includes(group))]
 }
 
+/**
+ * A button's visible and accessible names, from the catalogue. The tooltip,
+ * keys and all, is the toolbar's to write: see `retitle`.
+ */
+function labelButton(button: HTMLButtonElement, item: ToolbarItem, translate: Translator): void {
+  const label = translate(`${TOOLBAR_KEY}${item.name}`, item.label)
+  if (!button.querySelector('svg')) button.textContent = label
+  // Most items repeat the label as their accessible name, and a host that
+  // translates the label plainly means both. Only a name that genuinely
+  // differs gets a key of its own, which is also the rule `defaultMessages`
+  // follows when it lists them.
+  const ariaFallback = item.ariaLabel && item.ariaLabel !== item.label ? item.ariaLabel : label
+  const name = translate(`${TOOLBAR_KEY}${item.name}${ARIA_SUFFIX}`, ariaFallback)
+  button.setAttribute('aria-label', name)
+  button.title = name
+}
+
+function labelGrip(grip: HTMLButtonElement, label: string): void {
+  grip.setAttribute('aria-label', `Move ${label} group`)
+  grip.title = `Drag to move the ${label} group. From the keyboard: Space, then the arrow keys.`
+}
+
 /** The handle a group is dragged by. A button, so the keyboard can pick it up too. */
-function createGrip(
-  document: Document,
-  group: ToolbarGroup,
-  translate: Translator,
-): HTMLButtonElement {
+function createGrip(document: Document, group: string): HTMLButtonElement {
   const grip = document.createElement('button')
   grip.type = 'button'
   grip.className = 'trevixal-toolbar__grip'
-  grip.dataset.trevixalGrip = group.name
-  const label = translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name)
-  grip.setAttribute('aria-label', `Move ${label} group`)
+  grip.dataset.trevixalGrip = group
   grip.setAttribute('aria-pressed', 'false')
-  grip.title = `Drag to move the ${label} group. From the keyboard: Space, then the arrow keys.`
   grip.tabIndex = -1
   const icon = createIcon(document, 'grip')
   if (icon) grip.appendChild(icon)

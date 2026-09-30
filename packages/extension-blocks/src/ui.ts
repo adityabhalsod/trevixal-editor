@@ -1,6 +1,24 @@
-import type { Command, EditorNode } from '@trevixal/core'
+import type { Command, EditorNode, PageSection } from '@trevixal/core'
 import { addAccordionItem, insertAccordion } from './accordion'
-import { insertCitation, insertReferenceList, renumberCitations } from './citations'
+import {
+  type NoteColor,
+  insertMap,
+  insertMarginNote,
+  insertPoll,
+  parseCoordinates,
+  setTemplateVariables,
+  wrapInConditional,
+} from './advanced'
+import { isCitationStyle, parseSources } from './citation-styles'
+import {
+  citationStyleOf,
+  importSources,
+  insertCitation,
+  insertReferenceList,
+  referenceChoices,
+  renumberCitations,
+  setCitationStyle,
+} from './citations'
 import {
   insertAnchor,
   insertBadge,
@@ -10,6 +28,7 @@ import {
   insertColumns,
   insertFootnote,
   insertPageBreak,
+  insertSectionBreak,
   insertTimeline,
   insertTimelineItem,
   insertToggleBlock,
@@ -45,6 +64,7 @@ export interface BlockUICommands {
   readonly insertCard: Command
   readonly insertTimeline: Command
   readonly insertPageBreak: Command
+  readonly insertSectionBreak: (section: PageSection) => Command
   readonly insertBadge: (label: string, tone: string) => Command
   readonly insertButton: (label: string, href: string) => Command
   readonly insertFootnote: Command
@@ -54,9 +74,16 @@ export interface BlockUICommands {
   readonly removeTab: Command
   readonly insertAccordion: (count: number) => Command
   readonly addAccordionItem: Command
-  readonly insertCitation: (text: string) => Command
+  readonly insertCitation: (text: string, id?: string) => Command
   readonly insertReferenceList: Command
   readonly renumberCitations: Command
+  /** The entries a new citation can point at, to pick from. */
+  readonly referenceChoices: (doc: EditorNode) => readonly { id: string; label: string }[]
+  /** Set the reference list in `apa`, `mla`, `chicago` or `ieee`. */
+  readonly setCitationStyle: (style: string) => Command | null
+  readonly citationStyle: (doc: EditorNode) => string
+  /** Sources from a BibTeX or CSL-JSON file's text; throws `SourceFileError` when it has none. */
+  readonly importSources: (text: string) => Command
   // Commands that change a block already in the document, rather than
   // inserting one. Without these the menus can only ever create.
   readonly setCalloutVariant: (variant: string) => Command
@@ -75,6 +102,12 @@ export interface BlockUICommands {
   readonly insertDocumentIndex: Command
   readonly markIndexEntry: (entry: string, sub: string) => Command
   readonly insertEndnote: Command
+  // The advanced blocks: a margin note, a poll, a map, conditional content.
+  readonly insertMarginNote: (color: string) => Command
+  readonly insertPoll: (question: string, options: readonly string[]) => Command
+  readonly insertMap: (coordinates: string, label: string, zoom: number) => Command
+  readonly wrapInConditional: (variable: string, equals: string | null) => Command
+  readonly setTemplateVariables: (variables: Readonly<Record<string, string>>) => Command
 }
 
 export function blockUICommands(): BlockUICommands {
@@ -87,6 +120,7 @@ export function blockUICommands(): BlockUICommands {
     insertCard,
     insertTimeline,
     insertPageBreak,
+    insertSectionBreak,
     insertBadge: (label, tone) => insertBadge(label, badgeTone(tone)),
     insertButton: (label, href) => insertButton(label, href || null),
     // insertFootnote takes an optional id; the UI never supplies one, so the
@@ -98,9 +132,13 @@ export function blockUICommands(): BlockUICommands {
     removeTab,
     insertAccordion: (count) => insertAccordion(count),
     addAccordionItem,
-    insertCitation: (text) => insertCitation(text),
+    insertCitation: (text, id) => insertCitation(text, id),
     insertReferenceList,
     renumberCitations,
+    referenceChoices,
+    setCitationStyle: (style) => (isCitationStyle(style) ? setCitationStyle(style) : null),
+    citationStyle: citationStyleOf,
+    importSources: (text) => importSources(parseSources(text)),
     setCalloutVariant: (variant) => setCalloutVariant(calloutVariant(variant)),
     setColumnCount: (count) => setColumnCount(count),
     insertTimelineItem,
@@ -113,5 +151,13 @@ export function blockUICommands(): BlockUICommands {
     insertDocumentIndex,
     markIndexEntry: (entry, sub) => markIndexEntry({ entry, sub }),
     insertEndnote: insertEndnote(),
+    insertMarginNote: (color) => insertMarginNote(color as NoteColor),
+    insertPoll: (question, options) => insertPoll(question, options),
+    insertMap: (coordinates, label, zoom) => (state) => {
+      const place = parseCoordinates(coordinates)
+      return place ? insertMap({ ...place, label, zoom })(state) : null
+    },
+    wrapInConditional: (variable, equals) => wrapInConditional(variable, equals),
+    setTemplateVariables: (variables) => setTemplateVariables(variables),
   }
 }

@@ -2,13 +2,17 @@ import { type Editor, Schema, createEditor, defaultMarks, defaultNodes } from '@
 import { type ImageStorage, image, imageNodes } from '@trevixal/extension-image'
 import {
   createTableTools,
+  enableCellCheckboxes,
   enableCellSelection,
+  formulaNodes,
   highlightActiveCell,
+  installFormulaUpdater,
+  markGridColumns,
   tableKeymap,
   tableNodes,
   tableUICommands,
 } from '@trevixal/extension-table'
-import { createEditorUI } from '@trevixal/ui'
+import { createEditorUI, enableLinkTitles } from '@trevixal/ui'
 
 declare global {
   interface Window {
@@ -23,7 +27,7 @@ declare global {
 }
 
 const schema = new Schema({
-  nodes: { ...defaultNodes(), ...tableNodes(), ...imageNodes() },
+  nodes: { ...defaultNodes(), ...tableNodes(), ...formulaNodes(), ...imageNodes() },
   marks: defaultMarks(),
 })
 
@@ -67,6 +71,9 @@ const images = image(editor, {
 // As the editor kit mounts them: double click a cell to select it, drag for more.
 highlightActiveCell(editor)
 enableCellSelection(editor)
+markGridColumns(editor)
+enableCellCheckboxes(editor)
+installFormulaUpdater(editor)
 const tableTools = createTableTools(editor, { container: surface })
 
 createEditorUI(editor, {
@@ -81,6 +88,10 @@ createEditorUI(editor, {
     insertImage: (attrs) => images.insertImage(attrs),
   },
 })
+
+// A pasted address takes its page's title. Fetching one is the host's call;
+// this page answers from the address alone, so no test reaches the network.
+enableLinkTitles(editor, async (href) => `Page at ${new URL(href).hostname}`)
 
 window.uiPage = {
   editor,

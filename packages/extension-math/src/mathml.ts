@@ -1,4 +1,5 @@
 import { escapeHTML } from '@trevixal/core'
+import { chemistryToLatex } from './chemistry'
 
 /**
  * Turns a LaTeX source string into MathML markup. The result is inserted as
@@ -154,6 +155,8 @@ const MO_SYMBOLS: Record<string, string> = {
   longmapsto: '⟼',
   hookrightarrow: '↪',
   hookleftarrow: '↩',
+  rightleftharpoons: '⇌',
+  leftrightharpoons: '⇋',
   uparrow: '↑',
   downarrow: '↓',
   updownarrow: '↕',
@@ -1021,6 +1024,11 @@ class Parser {
       case 'hphantom':
       case 'vphantom':
         return { html: `<mphantom>${this.parseArg()}</mphantom>` }
+      case 'ce': {
+        // mhchem's chemistry, drawn as the LaTeX it stands for.
+        const formula = this.readRawGroup() ?? ''
+        return { html: new Parser(chemistryToLatex(formula), this.display).parseTop() }
+      }
       case 'hspace': {
         const raw = (this.readRawGroup() ?? '').trim()
         return SAFE_LENGTH.test(raw) ? { html: `<mspace width="${raw}"/>` } : null

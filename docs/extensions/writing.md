@@ -1,8 +1,10 @@
 # Writing assistance
 
 `@trevixal/extension-writing`: readability, passive voice, repeated words,
-long sentences, grammar hints and keyword density, as marks in the margin and
-as a report.
+long sentences, grammar hints, inclusive language, tone, clichés and jargon,
+and keyword density, as marks in the margin and as a report. Beside them: a
+reading heat map, synonyms on right-click, an accessibility audit and a
+duplicate-text finder.
 
 ```sh
 npm install @trevixal/extension-writing
@@ -18,6 +20,9 @@ const assistant = createWritingAssistant(editor, {
   repeated: true,
   grammar: true,
   longSentences: true,
+  inclusive: true,      // on by default
+  tone: false,          // hedges, empty intensifiers, condescension; off by default
+  cliches: false,       // clichés, and jargon with its plain word; off by default
   debounceMs: 400,
   onReport: (report) => renderIssues(report.issues), // each issue: kind, range, message, suggestion?
 })
@@ -87,3 +92,92 @@ checks text it has not seen before, so the helper swaps every rendered text
 node for an identical fresh one. Only text; replacing whole blocks also works
 but reloads embed iframes, which would restart a playing video on what should
 be a display-only toggle.
+
+## Word lists
+
+`INCLUSIVE_TERMS`, `TONE_PHRASES` and `CLICHES` are the lists behind the
+three word-list checks. Each entry is a phrase, a message and, when one word
+simply stands in for another, its replacement. `findPhrases(text, entries)`
+runs any list, your own included, and returns ranges with the replacement in
+the original's case. A removal takes the space after it along, so the
+sentence closes up. It is not offered for the first word of a sentence,
+which would leave the sentence starting in lower case.
+
+## Reading heat map
+
+```ts
+import { createReadingHeatmap, readingLevel } from '@trevixal/extension-writing'
+
+const heatmap = createReadingHeatmap(editor)
+heatmap.toggle()
+readingLevel('The cat sat on the mat.') // { level: 'easy', grade: 0 }
+```
+
+Each sentence gets `trevixal-heat trevixal-heat--easy` (or `--fair`,
+`--hard`, `--very-hard`) and `data-reading-grade`, on a decoration layer of
+its own.
+
+## Synonyms
+
+```ts
+import { COMMON_SYNONYMS, enableThesaurus, wordListThesaurus } from '@trevixal/extension-writing'
+
+const stop = enableThesaurus(editor, { lookup: wordListThesaurus(COMMON_SYNONYMS) })
+enableThesaurus(editor, { lookup: (word) => myService.synonyms(word) }) // or a promise
+```
+
+A lookup that answers at once leaves the browser's menu alone for a word it
+does not know. One that answers with a promise cannot hand the event back, so
+its menu opens and says when nothing was found. A restriction on the context
+menu stops the event first, so no menu opens at all.
+
+## Accessibility audit
+
+```ts
+import { ACCESSIBILITY_KIND_LABELS, auditAccessibility, openFindingsReport } from '@trevixal/extension-writing'
+
+const issues = auditAccessibility(editor.state.doc, { background: '#ffffff' })
+// each: kind ('alt-text' | 'heading-order' | 'empty-heading' | 'link-text' | 'contrast' | 'table-header'), path, from?, to?, message
+```
+
+`contrastRatio(foreground, background)` is the WCAG ratio. `MINIMUM_CONTRAST`
+is 4.5, the level AA figure for body text.
+
+## Duplicate text
+
+```ts
+import { findDuplicatePassages } from '@trevixal/extension-writing'
+
+const passages = findDuplicatePassages(editor.state.doc, others, { minWords: 8 })
+// others: { id, title, doc }[]; each passage: path, from, to, text, foundIn
+```
+
+`openFindingsReport(document, { title, empty, findings })` shows any list of
+findings in the kit's dialog look, each with a Go to button.
+
+## A pluggable writing assistant
+
+```ts
+import { type WritingProvider, createRulesProvider } from '@trevixal/extension-writing'
+
+const provider: WritingProvider = {
+  actions: ['rewrite', 'summarise', 'translate', 'continue'],
+  async assist({ action, text, language }, { signal }) {
+    const response = await fetch('/api/assist', {
+      method: 'POST',
+      body: JSON.stringify({ action, text, language }),
+      signal,
+    })
+    return (await response.json()).text
+  },
+}
+```
+
+The editor makes no request of its own: the provider is the host's, and so
+is where it sends the text. `signal` aborts when the reader cancels.
+`createRulesProvider()` rewrites (`rewriteByRules`) and summarises
+(`summariseByRules`) in the page with the word lists above, and throws
+`AssistError` for what it cannot do. The assembled editor takes a provider
+as `writingProvider`, uses the rules one by default, and hides the menu for
+`null`.
+

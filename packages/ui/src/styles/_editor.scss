@@ -323,7 +323,9 @@ $list-depth: 9;
 // to the same numbers. The schemes are the list gallery's numbered ones.
 @mixin document-setting($attribute) {
   .trevixal-content#{$attribute},
-  .trevixal-content > #{$attribute} {
+  .trevixal-content > #{$attribute},
+  // A printed page's text carries the document's settings too (page-layout.ts).
+  .trevixal-page__body#{$attribute} {
     @content;
   }
 }

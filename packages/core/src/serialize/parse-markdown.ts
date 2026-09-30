@@ -5,6 +5,9 @@ import type { EditorNode } from '../model/node'
 import { normalizeDoc } from '../model/normalize'
 import type { Schema } from '../model/schema'
 import { safeHref, safeImageSrc } from '../schema/basic'
+import { codeBlockTitle, normalizeLineRanges } from '../schema/code-block'
+import { frontMatterOf } from '../schema/document-settings'
+import { MDX_LANGUAGE } from './markdown'
 
 export interface MarkdownParseOptions {
   /** Node names for tables, matching `@trevixal/extension-table`. */
@@ -13,13 +16,22 @@ export interface MarkdownParseOptions {
     readonly row?: string
     readonly cell?: string
   }
+  /**
+   * Read MDX: `import` and `export` lines and blocks of JSX components are
+   * kept as they are, each run in a code block in the `mdx` language.
+   */
+  readonly mdx?: boolean
 }
 
 interface Names {
   readonly table: string
   readonly row: string
   readonly cell: string
+  readonly mdx: boolean
 }
+
+/** YAML front matter: the file's first line `---`, then up to a closing `---` or `...`. */
+const FRONT_MATTER = /^---[ \t]*\n([\s\S]*?)\n(?:---|\.\.\.)[ \t]*(?:\n|$)/
 
 /**
  * Markdown (GFM) import for the same subset {@link serializeToMarkdown}
@@ -40,18 +52,43 @@ export function parseMarkdown(
     table: options.tableNames?.table ?? 'table',
     row: options.tableNames?.row ?? 'tableRow',
     cell: options.tableNames?.cell ?? 'tableCell',
+    mdx: options.mdx === true,
   }
   const parser = new BlockParser(schema, names)
-  const blocks = parser.parseBlocks(text.replace(/\r\n?/g, '\n').split('\n'))
+  let source = text.replace(/\r\n?/g, '\n')
+  const front = FRONT_MATTER.exec(source)
+  const frontMatter = front ? frontMatterOf(front[1]) : null
+  if (front) source = source.slice(front[0].length)
+  const blocks = parser.parseBlocks(source.split('\n'))
   const content = blocks.length > 0 ? blocks : [schema.nodeType('paragraph').create()]
-  return normalizeDoc(schema.topType.create(undefined, Fragment.from(content)))
+  const attrs = frontMatter && schema.topType.spec.attrs?.frontMatter ? { frontMatter } : undefined
+  return normalizeDoc(schema.topType.create(attrs, Fragment.from(content)))
+}
+
+/** An MDX line that is not Markdown: an import or export, or a component's tag. */
+const MDX_LINE = /^(?:import|export)\s|^<(?:[A-Z]|>|\/[A-Z])/
+
+/**
+ * The attributes a fence's meta sets, the way documentation sites write it:
+ * `title="app.ts" {1,3-5} showLineNumbers wrap collapsed`.
+ */
+function fenceAttrs(meta: string): Record<string, unknown> {
+  const attrs: Record<string, unknown> = {}
+  const title = /\btitle=(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(meta)
+  if (title) attrs.title = codeBlockTitle(title[1] ?? title[2] ?? title[3])
+  const lines = /\{([\d\s,-]+)\}/.exec(meta)
+  if (lines) attrs.highlightLines = normalizeLineRanges(lines[1])
+  if (/\bshowLineNumbers\b/.test(meta)) attrs.lineNumbers = true
+  if (/(?:^|\s)wrap(?:\s|$)/.test(meta)) attrs.wrap = true
+  if (/(?:^|\s)collapsed(?:\s|$)/.test(meta)) attrs.collapsed = true
+  return attrs
 }
 
 /** `- item`, `* item`, `+ item`, `1. item`; captures indent, marker and rest. */
 const BULLET_ITEM = /^(\s*)([-*+])(\s+)(.*)$/
 const ORDERED_ITEM = /^(\s*)(\d{1,9})[.)](\s+)(.*)$/
 const HEADING = /^ {0,3}(#{1,6})(?:\s+(.*?))?\s*#*\s*$/
-const FENCE = /^(\s*)(`{3,}|~{3,})\s*([^\s`]*)\s*$/
+const FENCE = /^(\s*)(`{3,}|~{3,})\s*([^\s`]*)(?:\s+([^`]*?))?\s*$/
 const RULE = /^ {0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/
 const BLOCKQUOTE = /^ {0,3}>\s?(.*)$/
 const TASK = /^\[([ xX])\]\s+(.*)$/
@@ -82,7 +119,13 @@ class BlockParser {
 
       const fence = FENCE.exec(line)
       if (fence) {
-        const [, , marker, language] = fence as unknown as [string, string, string, string]
+        const [, , marker, language, meta] = fence as unknown as [
+          string,
+          string,
+          string,
+          string,
+          string | undefined,
+        ]
         const body: string[] = []
         index += 1
         // An unterminated fence runs to the end of the document, per CommonMark.
@@ -91,7 +134,20 @@ class BlockParser {
           index += 1
         }
         if (index < lines.length) index += 1
-        out.push(this.codeBlock(body.join('\n'), language || null))
+        // `text` is how a fence with meta but no language is written.
+        const named = language && language.toLowerCase() !== 'text' ? language : null
+        out.push(this.codeBlock(body.join('\n'), named, meta ? fenceAttrs(meta) : {}))
+        continue
+      }
+
+      if (this.names.mdx && MDX_LINE.test(line)) {
+        // The run up to a blank line: one import list, or one component.
+        const body: string[] = []
+        while (index < lines.length && (lines[index] as string).trim() !== '') {
+          body.push(lines[index] as string)
+          index += 1
+        }
+        out.push(this.codeBlock(body.join('\n'), MDX_LANGUAGE))
         continue
       }
 
@@ -156,7 +212,7 @@ class BlockParser {
         paragraph.push(candidate)
         index += 1
       }
-      out.push(this.paragraphLines(paragraph))
+      out.push(...liftBlocks(this.paragraphLines(paragraph)))
     }
 
     return out
@@ -174,10 +230,17 @@ class BlockParser {
     )
   }
 
-  private codeBlock(text: string, language: string | null): EditorNode {
+  private codeBlock(
+    text: string,
+    language: string | null,
+    attrs: Record<string, unknown> = {},
+  ): EditorNode {
     return this.schema
       .nodeType('codeBlock')
-      .create({ language }, text.length > 0 ? Fragment.of(this.schema.text(text)) : Fragment.empty)
+      .create(
+        { ...attrs, language },
+        text.length > 0 ? Fragment.of(this.schema.text(text)) : Fragment.empty,
+      )
   }
 
   private paragraph(text: string): EditorNode {
@@ -343,7 +406,7 @@ class BlockParser {
           .nodeType(this.names.cell)
           .create(
             { header: rowIndex === 0, align: aligns[columnIndex] ?? null },
-            Fragment.of(this.paragraph(cellSource.trim().replaceAll('\\|', '|'))),
+            Fragment.from(liftBlocks(this.paragraph(cellSource.trim().replaceAll('\\|', '|')))),
           ),
       )
       return this.schema.nodeType(this.names.row).create(undefined, Fragment.from(cells))
@@ -360,6 +423,34 @@ class BlockParser {
     const nodes = new InlineParser(this.schema, source).parse()
     return mergeInline(Fragment.from(nodes))
   }
+}
+
+/**
+ * A paragraph holding blocks, a picture where the schema's pictures are
+ * blocks, as the paragraphs either side of each block and the block between
+ * them, so the picture is not lost to a paragraph that cannot hold it.
+ */
+function liftBlocks(paragraph: EditorNode): EditorNode[] {
+  const children = paragraph.content.children
+  if (children.every((child) => child.isInline)) return [paragraph]
+  const out: EditorNode[] = []
+  let run: EditorNode[] = []
+  const flush = (): void => {
+    const text = run.map((child) => child.textContent).join('')
+    if (run.length > 0 && text.trim() !== '')
+      out.push(paragraph.type.create(paragraph.attrs, Fragment.from(run)))
+    run = []
+  }
+  for (const child of children) {
+    if (child.isInline) {
+      run.push(child)
+      continue
+    }
+    flush()
+    out.push(child)
+  }
+  flush()
+  return out
 }
 
 /** Split a pipe-table row into its cells, honouring `\|` escapes. */

@@ -49,6 +49,7 @@ export {
   sliceInline,
 } from './model/inline'
 export { blocksInRange, type BlockRange, firstTextblockPath, textblocks } from './model/blocks'
+export { TableMap, type TableMapCell, type TableRect } from './model/table-map'
 export { type DocJSON, markFromJSON, nodeFromJSON } from './model/json'
 export { normalizeDoc } from './model/normalize'
 
@@ -301,16 +302,49 @@ export {
   headingNumbers,
 } from './schema/heading-numbering'
 export {
+  CODE_TITLE_MAX,
+  codeBlockTitle,
+  lineRangeTest,
+  normalizeLineRanges,
+} from './schema/code-block'
+export {
   columnCount,
   DOCUMENT_ATTRIBUTE,
   documentAttrs,
   documentSettingsAttrs,
+  documentCommentsOf,
   documentSettingsElement,
+  documentSignatureOf,
+  documentThemeOf,
+  frontMatterOf,
   MAX_COLUMNS,
+  storedVariables,
+  templateVariables,
   parseDocumentSettings,
   type TextDirection,
   textDirection,
 } from './schema/document-settings'
+export {
+  DEFAULT_PAGE_SETUP,
+  fillPageTemplate,
+  MAX_PAGE_MARGIN,
+  PAPER_SIZES,
+  type PageMargins,
+  type PageOrientation,
+  type PageSetup,
+  type PageTemplatePart,
+  type PaperSize,
+  type PageSection,
+  pageDimensions,
+  pageMargin,
+  pageSectionOf,
+  pageOrientation,
+  pageSetupAttr,
+  pageSetupOf,
+  pageTemplateParts,
+  paperSize,
+  storedPageSetup,
+} from './schema/page-setup'
 export {
   BUILT_IN_STYLES,
   documentStyle,
@@ -352,7 +386,12 @@ export {
 } from './schema/paragraph-format'
 
 // view
-export { EditorView, type EditorViewOptions, type NodeViewFactory } from './view/editor-view'
+export {
+  EditorView,
+  type EditorViewOptions,
+  type NodeViewFactory,
+  TREVIXAL_MIME,
+} from './view/editor-view'
 export {
   type DecorationSource,
   DOMRenderer,

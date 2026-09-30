@@ -886,11 +886,10 @@ test.describe('downloading a document', () => {
       const frame = page.locator('.trevixal-print-preview__frame')
       await expect(frame).toBeVisible()
       // "Export as PDF" renders this same page, so a preview that matches the
-      // editor is the PDF matching it too.
-      await expect(page.frameLocator('.trevixal-print-preview__frame').locator('body')).toHaveCSS(
-        'background-color',
-        ground,
-      )
+      // editor is the PDF matching it too. The paper is each page, on a desk.
+      await expect(
+        page.frameLocator('.trevixal-print-preview__frame').locator('.trevixal-page').first(),
+      ).toHaveCSS('background-color', ground)
       const srcdoc = (await frame.getAttribute('srcdoc')) ?? ''
       // A browser prints no background unless the page asks for one, and the
       // "Background graphics" box is off by default.
@@ -1016,8 +1015,8 @@ test.describe('the suggestion triggers', () => {
     try {
       await page.goto(server.origin)
       const surface = page.locator('#editor .trevixal-content')
-      // Three seeded tables, one of them inside another; the menu has to add a fourth.
-      await expect(surface.locator('table')).toHaveCount(3)
+      // Four seeded tables, one of them inside another; the menu has to add a fifth.
+      await expect(surface.locator('table')).toHaveCount(4)
 
       await emptyBlock(page)
       await page.keyboard.type('/tab')
@@ -1028,7 +1027,7 @@ test.describe('the suggestion triggers', () => {
       await expect(popup.locator('.trevixal-popup__label').first()).toHaveText('Table')
       await page.keyboard.press('Enter')
 
-      await expect(surface.locator('table')).toHaveCount(4)
+      await expect(surface.locator('table')).toHaveCount(5)
       await expect(popup).toHaveCount(0)
       // The trigger text is consumed, not left behind as a literal "/tab".
       await expect(surface).not.toContainText('/tab')

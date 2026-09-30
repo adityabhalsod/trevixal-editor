@@ -10,6 +10,7 @@
  */
 import {
   AUTOCORRECT_WORDS,
+  type Editor,
   FormatPainter,
   autocorrectRule,
   createEditor,
@@ -25,42 +26,94 @@ import {
   blockBindings,
   blockKeymap,
   blockUICommands,
+  enableAdvancedBlocks,
   installFieldUpdater,
+  parseCoordinates,
 } from '@trevixal/extension-blocks'
 import {
+  codeBlockLines,
   codeHighlight,
   copyToClipboard,
   createHighlighter,
+  insertCodeDiff,
+  insertRunnableCode,
+  insertTerminal,
 } from '@trevixal/extension-code-highlight'
-import { createMermaidRenderer, diagram, diagramUICommands } from '@trevixal/extension-diagram'
-import { attachments, embedUICommands } from '@trevixal/extension-embed'
+import { createCommentsPanel } from '@trevixal/extension-comments'
+import {
+  EVERY_DIAGRAM_LANGUAGE,
+  PLANTUML_SERVER,
+  createGraphvizRenderer,
+  createMermaidRenderer,
+  createPlantUMLRenderer,
+  diagram,
+  diagramUICommands,
+} from '@trevixal/extension-diagram'
+import {
+  attachments,
+  embedUICommands,
+  enableChapterLinks,
+  enableEmbedSelection,
+  formatTime,
+  insertAudio,
+  openAudioRecorder,
+} from '@trevixal/extension-embed'
 import { codeFormatUICommands } from '@trevixal/extension-format-code'
+import { enableFormFields, insertFormField } from '@trevixal/extension-forms'
 import {
   type ImageStorage,
+  capturePhoto,
+  captureScreen,
   createDataURLStorage,
   createFallbackStorage,
   createFetchStorage,
+  enableDrawingEditing,
+  enableLightbox,
   image,
+  insertDrawing,
+  openDrawingEditor,
+  promptForAltText,
+  setImageAlt,
+  setImageDecorative,
+  updateDrawing,
 } from '@trevixal/extension-image'
 import { mathUICommands } from '@trevixal/extension-math'
-import {} from '@trevixal/extension-security'
+import {
+  enableSectionLocks,
+  lockSection,
+  protectRedactionsOnCopy,
+  toggleRedaction,
+} from '@trevixal/extension-security'
 import {
   createTableTools,
+  enableCellCheckboxes,
   enableCellSelection,
   highlightActiveCell,
+  installFormulaUpdater,
+  markGridColumns,
   tableKeymap,
   tableUICommands,
 } from '@trevixal/extension-table'
 import { TrackChanges, createTrackChangesBar } from '@trevixal/extension-track-changes'
 import {
+  COMMON_SYNONYMS,
   analyzeText,
+  createReadingHeatmap,
+  createRulesProvider,
   createWritingAssistant,
   createWritingInlineUI,
+  enableThesaurus,
   goalProgress,
   isSpellcheckEnabled,
   setSpellcheck,
+  wordListThesaurus,
 } from '@trevixal/extension-writing'
 import {
+  type Messages,
+  type PaletteCommand,
+  type ToolbarPreset,
+  UI_LANGUAGES,
+  bindDocumentTheme,
   collectDocumentCSS,
   createCommandPalette,
   createDocumentOutline,
@@ -68,18 +121,28 @@ import {
   createFocusMode,
   createFullscreenToggle,
   createShortcutManager,
+  createSpeech,
   createStylesPane,
   createTableOfContents,
   createTypewriter,
+  currentTheme,
+  documentTheme,
   editorTheme,
+  enableLinkTitles,
+  installKeyPreset,
   openConfirmDialog,
   openCustomizeToolbarDialog,
   openDialog,
   openInfoDialog,
   paletteCommandsFromMenus,
   quickInsertItemsFromMenus,
+  reachableURL,
+  serializeTheme,
+  setDocumentTheme,
   setEditorWidth,
+  toolbarPresetGroups,
 } from '@trevixal/ui'
+import { applyReading, askDocumentFonts, exportTheme, importTheme } from './appearance'
 import { autocorrectLines, parseAutocorrectLines } from './autocorrect'
 import { initialContent } from './content'
 import {
@@ -97,14 +160,19 @@ import {
 } from './features'
 import { createFileActions } from './file-actions'
 import { createFloatingControls } from './floating'
+import { askFieldValue, askNewField } from './forms'
 import { createLayout } from './layout'
 import { DEFAULT_ABOUT_ROWS, type FullEditor, type FullEditorOptions } from './options'
 import { createSplitPanes } from './panes'
+import { openPresentation } from './presentation'
 import { createFullSchema } from './schema'
-import { createDocumentSecurity } from './security'
+import { DEFAULT_AUTO_LOCK_MINUTES, createDocumentSecurity } from './security'
 import { shortcutActions } from './shortcuts'
 import { createSuggestionMenus } from './suggestions'
+import { createDocumentTrust } from './trust'
 import { createDocumentWorkspace } from './workspace'
+import { runAssist } from './writing-assist'
+import { showAccessibilityReport, showDuplicateText } from './writing-reports'
 
 /**
  * Build the whole editor inside `options.element` and return a handle to it.
@@ -128,7 +196,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ---------------------------------------------------------------- schema
 
-  const schema = createFullSchema()
+  const schema = createFullSchema({
+    ...(options.mapTiles ? { tiles: options.mapTiles } : {}),
+    ...(options.mapAttribution ? { attribution: options.mapAttribution } : {}),
+  })
 
   const storage: ImageStorage = createFallbackStorage([
     ...(uploadEndpoint === null ? [] : [createFetchStorage({ endpoint: uploadEndpoint })]),
@@ -173,10 +244,23 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ------------------------------------------------------- document extensions
 
+  // A locked section refuses any edit that would change it. First among the
+  // transforms, so it judges the edit alone: field and formula updates added
+  // after it may still renumber what a section shows.
+  disposers.push(
+    enableSectionLocks(editor, {
+      onBlocked: () =>
+        security.report('That section is locked: Tools ▸ Locked sections… unlocks it'),
+    }),
+  )
+  // Redacted words are copied, cut and dragged as their stand-in.
+  disposers.push(protectRedactionsOnCopy(editor))
   disposers.push(highlightActiveCell(editor))
+  disposers.push(markGridColumns(editor))
   // Double click a cell to select it, drag to take in more. The highlighter
   // above is what makes the result visible.
   disposers.push(enableCellSelection(editor))
+  disposers.push(enableCellCheckboxes(editor))
   // Table ▸ Draw table and Eraser: tools the pointer holds over the page.
   const tableTools = createTableTools(editor, { container: editorHost })
   disposers.push(() => tableTools.destroy())
@@ -184,20 +268,69 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // rather than building a second with its own caches.
   const highlighter = createHighlighter({ autoDetect: true })
   disposers.push(codeHighlight(editor, highlighter))
+  // Numbered, picked-out and changed lines, and the bar that unfolds a folded block.
+  disposers.push(codeBlockLines(editor))
   // Tabs and accordions write their folded state back into the document, so a
   // section left open is still open after a reload.
   disposers.push(blockBindings(editor))
+  // Polls count votes, maps zoom and move, and each block shown only when a
+  // variable is set says whether it is.
+  disposers.push(
+    enableAdvancedBlocks(editor, {
+      editMap: async (place) => {
+        const values = await openDialog({
+          document,
+          title: 'Map',
+          submitLabel: 'Apply',
+          fields: [
+            {
+              name: 'place',
+              label: 'Latitude, longitude',
+              type: 'text',
+              value: `${place.lat}, ${place.lng}`,
+            },
+            { name: 'label', label: 'Name the place', type: 'text', value: place.label },
+            { name: 'zoom', label: 'Zoom, 1 to 18', type: 'number', value: String(place.zoom) },
+          ],
+        })
+        editor.view?.focus()
+        const at = values ? parseCoordinates(values.place ?? '') : null
+        if (!values || !at) return null
+        return { ...at, label: values.label?.trim() ?? '', zoom: Number(values.zoom) || place.zoom }
+      },
+    }),
+  )
 
-  // Mermaid is fetched from a CDN the first time a diagram block renders, so
-  // the page costs nothing until a diagram is actually used.
+  // Mermaid and Graphviz are fetched from a CDN the first time a block of
+  // theirs renders, so the page costs nothing until a diagram is used.
+  // PlantUML is drawn by a server, the public one unless the host says.
   let mermaidRenderer: ReturnType<typeof createMermaidRenderer> | null = null
-  /** Shared, so a split pane draws through the same loaded Mermaid as the editor. */
-  const renderDiagram: Parameters<typeof diagram>[1]['render'] = async (code, context) => {
+  let graphvizRenderer: ReturnType<typeof createGraphvizRenderer> | null = null
+  const plantumlServer =
+    options.plantumlServer === undefined ? PLANTUML_SERVER : options.plantumlServer
+  const plantumlRenderer = plantumlServer ? createPlantUMLRenderer(plantumlServer) : null
+  /** One diagram in whichever language its block names. */
+  const drawDiagram: Parameters<typeof diagram>[1]['render'] = async (code, context) => {
+    if (context.language === 'plantuml') {
+      if (!plantumlRenderer) throw new Error('PlantUML is not drawn in this editor')
+      return plantumlRenderer(code, context)
+    }
+    if (context.language === 'dot' || context.language === 'graphviz') {
+      if (!graphvizRenderer) {
+        const { loadGraphviz } = await import('@trevixal/extension-diagram')
+        graphvizRenderer = createGraphvizRenderer(await loadGraphviz())
+      }
+      return graphvizRenderer(code, context)
+    }
     if (!mermaidRenderer) {
       const { loadMermaid } = await import('@trevixal/extension-diagram')
       mermaidRenderer = createMermaidRenderer(await loadMermaid())
     }
-    const drawn = await mermaidRenderer(code, context)
+    return mermaidRenderer(code, context)
+  }
+  /** Shared, so a split pane draws through the same loaded renderers as the editor. */
+  const renderDiagram: Parameters<typeof diagram>[1]['render'] = async (code, context) => {
+    const drawn = await drawDiagram(code, context)
     // A diagram that lands after the preview has rendered is a diagram the
     // preview does not have. Drawing one is not an edit, it appends an element
     // beside the block rather than changing the document, so nothing schedules
@@ -207,7 +340,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     panes.refreshPreview()
     return drawn
   }
-  const diagrams = diagram(editor, { render: renderDiagram })
+  const diagrams = diagram(editor, { render: renderDiagram, languages: EVERY_DIAGRAM_LANGUAGE })
 
   const uploadStatus = layout.uploadStatus
   const images = image(editor, {
@@ -225,6 +358,42 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       if (uploadStatus) uploadStatus.textContent = `Upload failed: ${message}`
     },
   })
+
+  // Media in the editor: images open full size on a double click, a video's
+  // chapter links seek its player, and a drawing opens to edit on a double
+  // click. A new image asks for its alt text.
+  disposers.push(enableLightbox(editor))
+  disposers.push(enableChapterLinks(editor))
+  if (options.fetchLinkTitle) disposers.push(enableLinkTitles(editor, options.fetchLinkTitle))
+  disposers.push(enableEmbedSelection(editor))
+  disposers.push(
+    enableDrawingEditing(editor, (path, data) => {
+      void openDrawingEditor(document, data).then((next) => {
+        editor.view?.focus()
+        if (next) editor.exec(updateDrawing(path, next))
+      })
+    }),
+  )
+  disposers.push(
+    promptForAltText(editor, (path) => {
+      void openDialog({
+        document,
+        title: 'Describe this image',
+        submitLabel: 'Save',
+        cancelLabel: 'Skip',
+        body: 'What it shows, for anyone who cannot see it. A decorative image needs none.',
+        fields: [
+          { name: 'alt', label: 'Alt text', type: 'text' },
+          { name: 'decorative', label: 'Decorative only', type: 'checkbox' },
+        ],
+      }).then((values) => {
+        editor.view?.focus()
+        if (!values) return
+        if (values.decorative === 'true') editor.exec(setImageDecorative(true, path))
+        else if (values.alt?.trim()) editor.exec(setImageAlt(values.alt.trim(), path))
+      })
+    }),
+  )
 
   // Non-image files dropped on the editor become attachment chips.
   const files = attachments(editor, {
@@ -262,16 +431,32 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // it sees the transaction actually applied: an edit it has added field steps
   // to is no longer one track changes can record. Track changes adds itself
   // when Suggesting is switched on, so the updater goes back on after it.
+  // Table formulas' results are kept current the same way, and for the same reason.
   let removeFieldUpdater = installFieldUpdater(editor)
+  let removeFormulaUpdater = installFormulaUpdater(editor)
   const stopFollowingTrackChanges = track.onEnabledChange(() => {
     removeFieldUpdater()
+    removeFormulaUpdater()
     removeFieldUpdater = installFieldUpdater(editor)
+    removeFormulaUpdater = installFormulaUpdater(editor)
   })
   disposers.push(() => {
     stopFollowingTrackChanges()
     removeFieldUpdater()
+    removeFormulaUpdater()
   })
   const writing = createWritingAssistant(editor, { longSentences: true })
+  // Tools ▸ Check writing ▸ Reading heat map: every sentence tinted by how hard it reads.
+  const heatmap = createReadingHeatmap(editor)
+  disposers.push(() => heatmap.destroy())
+  // Right-click a word for its synonyms, from the host's thesaurus or a small built-in list.
+  if (options.thesaurus !== null) {
+    disposers.push(
+      enableThesaurus(editor, {
+        lookup: options.thesaurus ?? wordListThesaurus(COMMON_SYNONYMS),
+      }),
+    )
+  }
   // Point at any wavy underline for what was flagged; click it for the fix.
   // Ctrl+. opens the same menu for the issue under the caret.
   const writingUI = createWritingInlineUI(editor, writing)
@@ -279,6 +464,14 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // ------------------------------------------------------------------ chrome
 
   const chrome = createChrome(editor, editorShell, layout.root, preferences, remember)
+  // A document saved with a theme opens in it; the reader's own comes back after.
+  disposers.push(bindDocumentTheme(editor, chrome.theme))
+  const applyReadingPreferences = (): void =>
+    applyReading(layout.root, {
+      reducedMotion: preferences.reducedMotion === true,
+      dyslexiaFont: preferences.dyslexiaFont === true,
+    })
+  applyReadingPreferences()
   // A right-to-left document mirrors the whole editor with it: the chrome, the
   // sidebar and the panes, as well as the text.
   // The root is the host's own element, so a `dir` it came with is its
@@ -314,6 +507,14 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // Format ▸ Styles pane: every named style, applied, changed and made there.
   const stylesPane = createStylesPane(editor, { container: layout.styles })
   const reviewBar = createTrackChangesBar(editor, track, { container: layout.review, author })
+  // Comment threads in the sidebar, saved with the document.
+  const comments = createCommentsPanel(editor, {
+    container: layout.comments,
+    author: () => author,
+    users: () => options.users ?? [],
+    onMention: options.onMention,
+  })
+  disposers.push(() => comments.destroy())
 
   // A sub-namespace of its own, not the bare namespace: protecting the
   // document re-writes every key this store can see through the encrypted
@@ -328,6 +529,25 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     panel.hidden = !panel.hidden
     layout.sidebar.hidden = layout.panels.every((section) => section.hidden)
   }
+
+  // ----------------------------------------------------------- key presets
+
+  // Emacs's chords or Vim's modes over the editor's own keys, as chosen under
+  // Tools ▸ Key bindings; Vim's mode shows in the status line.
+  const showKeyMode = (mode: string | null): void => {
+    layout.keyMode.hidden = mode === null
+    layout.keyMode.textContent = mode ? `-- ${mode.toUpperCase()} --` : ''
+  }
+  let keyPreset = preferences.keyPreset ?? 'standard'
+  let removeKeyPreset = installKeyPreset(editor, keyPreset, { onMode: showKeyMode })
+  const setKeyPreset = (next: 'standard' | 'emacs' | 'vim'): void => {
+    removeKeyPreset()
+    keyPreset = next
+    removeKeyPreset = installKeyPreset(editor, next, { onMode: showKeyMode })
+    remember({ keyPreset: next })
+    editor.view?.focus()
+  }
+  disposers.push(() => removeKeyPreset())
 
   // ------------------------------------------------------------- workspace
 
@@ -353,6 +573,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   // Verbs, not handles: half of what these reach for is built further down,
   // and every one of them is only ever called from a keypress.
   const shortcutList = shortcutActions({
+    addComment: () => runMenuEntry('insertComment'),
+    addNextMatch: () => void ui.carets.addNextMatch(),
     flushAutosave: () => void saving.autosave.flush(),
     newDocument: () => void newDocument(),
     openDocument: () => void openDocument(),
@@ -360,8 +582,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     // `ui.findReplace` found nothing until the menu had, so Ctrl+F did nothing.
     openFindReplace: () => runMenuEntry('findReplace'),
     openLinkDialog: () => ui.openLinkDialog(),
+    openGoTo: () => ui.openGoTo(),
     openPalette: () => palette.open(),
     pickEmoji: () => void suggestions.pickEmoji(),
+    playMacro: () => void ui.macros.play(),
     printDocument: (preview) => print(preview),
     protectDocument: () => void protectDocument(),
     toggleFocusMode: () => focus.toggle(),
@@ -370,7 +594,19 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   })
 
   const shortcuts = createShortcutManager(editor, {
-    actions: shortcutList,
+    // Each noted by the macro recorder as it runs, so Ctrl+B in a macro plays
+    // back as Bold; playing one is not part of the macro.
+    actions: shortcutList.map((action) =>
+      action.name === 'macroPlay'
+        ? action
+        : {
+            ...action,
+            run: (target: Editor) => {
+              ui.macros.note(action.name, action.run)
+              action.run(target)
+            },
+          },
+    ),
     overrides: preferences.shortcuts,
     onChange: (overrides) => {
       remember({ shortcuts: overrides })
@@ -383,6 +619,25 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // --------------------------------------------------------- command palette
 
+  // The store once open, for the palette's recently opened documents.
+  let openedStore: Awaited<ReturnType<typeof workspace.store>> | null = null
+  void workspace.store().then((store) => {
+    openedStore = store
+  })
+  /** The documents opened most recently, but the one on screen, as palette entries. */
+  const recentDocumentCommands = (): PaletteCommand[] => {
+    const current = workspace.activeId()
+    return (openedStore?.recent(8) ?? [])
+      .filter((meta) => meta.id !== current)
+      .map((meta) => ({
+        name: `recentDocument-${meta.id}`,
+        label: `Open ${meta.title || 'Untitled'}`,
+        group: 'Recent documents',
+        icon: 'folderOpen',
+        keywords: ['recent', 'document', meta.folder ?? ''],
+        run: () => void workspace.openDocument(meta.id),
+      }))
+  }
   const palette = createCommandPalette(editor, {
     container: document.body,
     // The whole menu tree is on offer, so the list is long. It scrolls, and the
@@ -396,6 +651,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     // meant the palette offered a dozen commands while the menus offered two
     // hundred, and every feature added since had to be remembered twice.
     commands: () => [
+      // The workspace's recently opened documents first, each a jump to it.
+      ...recentDocumentCommands(),
       // With the manager's labels, so Link reads Ctrl+Shift+K here as it does
       // in the menu, and a rebind shows the next time the palette opens.
       ...paletteCommandsFromMenus(ui.menus, shortcuts.labels()),
@@ -418,7 +675,22 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ----------------------------------------------------------------- security
 
-  const security = createDocumentSecurity({ editor, layout, saving })
+  const security = createDocumentSecurity({
+    editor,
+    layout,
+    saving,
+    autoLockMinutes: options.autoLockMinutes ?? DEFAULT_AUTO_LOCK_MINUTES,
+    passkey: () => trust.passkey(),
+  })
+  // Signatures, the audit log and passkeys.
+  const trust = createDocumentTrust({
+    editor,
+    layout,
+    namespace,
+    author,
+    isProtected: () => security.isProtected(),
+  })
+  disposers.push(() => trust.destroy())
   // Destructured so the menu and shortcut wiring below reads as it did when
   // these three were declared here.
   const { protectDocument, print } = security
@@ -426,7 +698,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // ------------------------------------------------------------- file actions
 
-  const { openDocument, download } = createFileActions(editor, security)
+  const { openDocument, download, compareWithFile, importFromURL, exportFolder, mailMerge } =
+    createFileActions(editor, security, options.fetchPage)
+  // A click on a field fills it in: a tick box ticks, the rest ask.
+  disposers.push(enableFormFields(editor, { fill: askFieldValue }))
 
   // -------------------------------------------------- stats, goals and status
 
@@ -446,6 +721,52 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       repeated: analysis.repeated.length,
       keywords: analysis.keywords,
     })
+  }
+
+  /** Insert ▸ Comment…: a thread on the selected text, the panel opened to show it. */
+  async function askComment(): Promise<void> {
+    if (editor.state.selection.empty) {
+      await openInfoDialog({
+        document,
+        title: 'Nothing selected',
+        body: 'Select the words the comment is about, then choose Insert ▸ Comment again.',
+      })
+      editor.view?.focus()
+      return
+    }
+    const values = await openDialog({
+      document,
+      title: 'Comment',
+      submitLabel: 'Comment',
+      fields: [
+        {
+          name: 'text',
+          label: 'Comment',
+          type: 'textarea',
+          required: true,
+          placeholder:
+            (options.users ?? []).length > 0 ? 'Type @ and a name to mention someone' : '',
+        },
+      ],
+    })
+    editor.view?.focus()
+    if (!values?.text) return
+    if (comments.addComment(values.text) && layout.comments.hidden) togglePanel(layout.comments)
+  }
+
+  /** Keep the document as it is now under a name, to come back to or compare against. */
+  async function askVersionName(): Promise<void> {
+    const values = await openDialog({
+      document,
+      title: 'Save version',
+      submitLabel: 'Save',
+      body: 'A named version is kept however many backups come after it. File ▸ Local backups compares or restores it.',
+      fields: [
+        { name: 'name', label: 'Name', type: 'text', required: true, placeholder: 'Sent to Sam' },
+      ],
+    })
+    editor.view?.focus()
+    if (values?.name) await saving.autosave.saveVersion(values.name)
   }
 
   /** Start over, keeping the current text reachable in the local backups. */
@@ -537,12 +858,78 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // -------------------------------------------------------------- the chrome
 
+  // Dictation and read-aloud, where the browser has the Web Speech API. Each
+  // start and stop refreshes the menus, so their ticks follow.
+  const speech = createSpeech(editor, { onChange: () => ui.toolbar.refresh() })
+  disposers.push(() => speech.destroy())
+
+  // The writing assistant's provider: the host's, the in-page rules, or none.
+  const writingProvider =
+    options.writingProvider === null ? null : (options.writingProvider ?? createRulesProvider())
+
+  // ---------------------------------------------------------------- language
+
+  const loaders = options.languages ?? {}
+  /** The chrome's languages this host can load; English only has a place beside another. */
+  const languageCodes = UI_LANGUAGES.map((entry) => entry.code).filter((code) =>
+    code === 'en' ? Object.keys(loaders).length > 0 : code in loaders,
+  )
+  let language = 'en'
+
+  /** Show the chrome in a language, loading its catalogue first, and remember it. */
+  async function switchLanguage(code: string): Promise<void> {
+    const entry = UI_LANGUAGES.find((candidate) => candidate.code === code)
+    const load = loaders[code]
+    if (!entry || (code !== 'en' && !load)) return
+    let messages: Messages | undefined
+    try {
+      messages = load ? await load() : undefined
+    } catch {
+      await openInfoDialog({
+        document,
+        title: 'Language not available',
+        body: `The ${entry.name} labels could not be loaded, so the menus stay as they are.`,
+      })
+      return
+    }
+    ui.setLanguage({ code, direction: entry.direction, messages })
+    language = code
+    remember({ language: code === 'en' ? undefined : code })
+  }
+
+  /**
+   * Every group the toolbar was built with, known once it is. The menus ask
+   * which preset is on while they are being built, before the toolbar is.
+   */
+  let toolbarGroupNames: readonly string[] = []
+
+  /** The preset the toolbar's shown groups match, if they match one. */
+  function activeToolbarPreset(): ToolbarPreset | null {
+    const all = toolbarGroupNames
+    if (all.length === 0) return null
+    const shown = preferences.toolbarGroups ?? all
+    const presets: readonly ToolbarPreset[] = ['minimal', 'writing', 'developer', 'full']
+    const matches = (preset: ToolbarPreset): boolean => {
+      const groups = toolbarPresetGroups(preset, all)
+      return groups.length === shown.length && groups.every((name) => shown.includes(name))
+    }
+    return presets.find(matches) ?? null
+  }
+
   let readOnly = false
   let spellcheckOn = true
   let writingOn = true
 
   /** Every check Tools ▸ Check writing can turn on, in the order the menu lists them. */
-  const WRITING_CHECKS = ['grammar', 'passive', 'repeat', 'long'] as const
+  const WRITING_CHECKS = [
+    'grammar',
+    'passive',
+    'repeat',
+    'long',
+    'inclusive',
+    'tone',
+    'cliche',
+  ] as const
 
   const ui = createEditorUI(editor, {
     container: chromeHost,
@@ -588,14 +975,67 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     },
     blockCommands: blockUICommands(),
     codeFormatCommands: codeFormatUICommands(),
-    embedCommands: { ...embedUICommands(), pickAttachment: () => files.pickFiles() },
+    embedCommands: {
+      ...embedUICommands(),
+      pickAttachment: () => files.pickFiles(),
+      recordAudio: () => {
+        void openAudioRecorder(document).then(async (recording) => {
+          editor.view?.focus()
+          if (!recording) return
+          const stored = await storage.upload(recording.file, {})
+          editor.exec(
+            insertAudio({
+              src: stored.url,
+              waveform: recording.waveform,
+              title: `Recording, ${formatTime(recording.seconds)}`,
+            }),
+          )
+        })
+      },
+    },
     mathCommands: mathUICommands(),
     diagramCommands: diagramUICommands(),
+    codeCommands: { insertTerminal, insertCodeDiff, insertRunnableCode },
+    securityCommands: {
+      toggleRedaction,
+      lockSection,
+      manageLockedSections: () => void security.manageLockedSections(),
+      lockNow: () => void security.lockNow(),
+    },
+    // Quick Parts, kept with the preferences: Insert ▸ Snippet, and their
+    // abbreviations expanding as they are typed.
+    snippets: {
+      list: () => preferences.snippets ?? [],
+      save: (snippets) => remember({ snippets }),
+    },
+    workspaceCommands: { includeDocument: () => void workspace.includeDocument() },
     images: {
       pickFiles: () => images.pickFiles(),
       insertImage: (attrs) => images.insertImage(attrs),
+      pickGallery: () => images.pickFiles({ gallery: true }),
+      capturePhoto: () => {
+        void capturePhoto(document).then((file) => {
+          editor.view?.focus()
+          if (file) void images.uploadFiles([file])
+        })
+      },
+      captureScreen: () => {
+        void captureScreen(document).then((file) => {
+          editor.view?.focus()
+          if (file) void images.uploadFiles([file])
+        })
+      },
+      insertDrawing: () => {
+        void openDrawingEditor(document).then((data) => {
+          editor.view?.focus()
+          if (data) editor.exec(insertDrawing(data))
+        })
+      },
     },
     shortcutLabels: shortcuts.labels(),
+    links: {
+      checkURL: options.checkLinkURL === null ? undefined : (options.checkLinkURL ?? reachableURL),
+    },
     fileActions: {
       newDocument: () => void newDocument(),
       openDocument: () => void openDocument(),
@@ -606,13 +1046,49 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       printPreview: () => print(true),
       exportPDF: () => print(false),
       backups: () => void saving.openBackups(),
+      saveVersion: () => void askVersionName(),
+      compareWithFile: () => void compareWithFile(),
+      importFromURL: () => void importFromURL(),
+      exportFolder: () => void workspace.store().then((store) => exportFolder(store)),
       protectDocument: () => void protectDocument(),
       documentRestrictions: () => void editRestrictions(),
+      signDocument: () => void trust.signDocument(),
+      addPasskey: () => void trust.addPasskey(),
     },
     viewActions: {
       setTheme: (theme) => chrome.theme.setMode(theme),
       setThemePreset: (preset) => chrome.theme.setPreset(preset),
-      customTheme: () => void askCustomTheme(chrome.theme),
+      customTheme: () =>
+        void askCustomTheme(chrome.theme, (preset) =>
+          remember({ customTheme: serializeTheme(preset) }),
+        ),
+      importTheme: () =>
+        void importTheme(chrome.theme).then((preset) => {
+          if (preset) remember({ customTheme: serializeTheme(preset) })
+        }),
+      exportTheme: () => exportTheme(chrome.theme),
+      toggleDocumentTheme: () =>
+        editor.exec(
+          setDocumentTheme(documentTheme(editor.state.doc) ? null : currentTheme(chrome.theme)),
+        ),
+      documentFonts: () => void askDocumentFonts(editor, chrome.fonts),
+      toggleReducedMotion: () => {
+        remember({ reducedMotion: preferences.reducedMotion !== true })
+        applyReadingPreferences()
+      },
+      toggleDyslexiaFont: () => {
+        remember({ dyslexiaFont: preferences.dyslexiaFont !== true })
+        applyReadingPreferences()
+      },
+      setLanguage: (code) => void switchLanguage(code),
+      languages: languageCodes,
+      activeLanguage: () => language,
+      setToolbarPreset: (preset) => {
+        const visible = toolbarPresetGroups(preset, toolbarGroupNames)
+        ui.toolbar.setVisibleGroups(visible)
+        remember({ toolbarGroups: visible, toolbarOrder: visible })
+      },
+      activeToolbarPreset: () => activeToolbarPreset(),
       customCSS: () => void askCustomCSS(chrome.styles, (css) => remember({ customCSS: css })),
       manageFonts: () => void askFont(chrome.fonts, () => ui.toolbar.refresh()),
       setWidth: (width) => setEditorWidth(editorShell, width),
@@ -654,10 +1130,33 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
         for (const kind of WRITING_CHECKS) writing.setEnabled(kind, writingOn)
       },
       toggleWritingCheck: (kind) => writing.setEnabled(kind, !writing.isEnabled(kind)),
+      toggleReadingHeatmap: () => heatmap.toggle(),
+      addComment: () => void askComment(),
+      present: () => void openPresentation(editor),
+      showAuditLog: () => void trust.showAuditLog(),
+      insertFormField: (kind) =>
+        void askNewField(kind).then((field) => {
+          editor.view?.focus()
+          if (field) editor.exec(insertFormField(field))
+        }),
+      mailMerge: () => void mailMerge(),
+      ...(speech.canDictate ? { toggleDictation: () => speech.toggleDictation() } : {}),
+      ...(speech.canReadAloud ? { toggleReadAloud: () => speech.toggleReadAloud() } : {}),
+      ...(writingProvider
+        ? {
+            assist: (action) => void runAssist(editor, writingProvider, action),
+            assistActions: writingProvider.actions,
+          }
+        : {}),
+      toggleComments: () => togglePanel(layout.comments),
+      checkAccessibility: () => void showAccessibilityReport(editor),
+      findDuplicateText: () => void showDuplicateText(editor, workspace),
       isWritingCheckEnabled: (kind) => writing.isEnabled(kind),
       toggleSmartTypography: () =>
         remember({ smartTypography: preferences.smartTypography === false }),
       toggleAutocorrect: () => remember({ autocorrect: preferences.autocorrect === false }),
+      setKeyPreset,
+      activeKeyPreset: () => keyPreset,
       autocorrectOptions: () => void askAutocorrect(),
       toggleSpellcheck: () => {
         spellcheckOn = !spellcheckOn
@@ -704,6 +1203,20 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
             return preferences.smartTypography !== false
           case 'autocorrect':
             return preferences.autocorrect !== false
+          case 'documentTheme':
+            return documentTheme(editor.state.doc) !== null
+          case 'reducedMotion':
+            return preferences.reducedMotion === true
+          case 'dyslexiaFont':
+            return preferences.dyslexiaFont === true
+          case 'readingHeatmap':
+            return heatmap.isShown
+          case 'commentsPanel':
+            return !layout.comments.hidden
+          case 'dictation':
+            return speech.isDictating
+          case 'readAloud':
+            return speech.isReading
           default:
             return false
         }
@@ -749,6 +1262,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       },
     },
   })
+
+  toolbarGroupNames = ui.toolbar.groups.map((group) => group.name)
+  // The language chosen last time, loaded as the page opens.
+  if (preferences.language) void switchLanguage(preferences.language)
 
   // Every group is built, the hidden ones too, so Customize toolbar can bring
   // one back on the spot rather than reloading the page to build it.
