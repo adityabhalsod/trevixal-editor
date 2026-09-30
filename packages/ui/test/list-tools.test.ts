@@ -374,4 +374,15 @@ describe('repeatHeaderRowsIn', () => {
     repeatHeaderRowsIn(root)
     expect(first?.querySelectorAll('thead')).toHaveLength(1)
   })
+
+  it('leaves a table inside a cell as it is, as Word repeats no nested header row', () => {
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<table><tr><th>Item</th></tr><tr><td><table><tr><th>Setup</th></tr><tr><td>08:00</td></tr></table></td></tr></table>'
+    repeatHeaderRowsIn(root)
+    const inner = root.querySelector('td table')
+    expect(root.querySelector('table')?.firstElementChild?.tagName).toBe('THEAD')
+    expect(inner?.querySelector('thead')).toBeNull()
+    expect(inner?.querySelectorAll('tr')).toHaveLength(2)
+  })
 })

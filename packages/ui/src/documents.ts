@@ -545,12 +545,15 @@ function printedDocument(editor: Editor, options: PrintOptions): EditorNode {
  * Word's Repeat Header Rows, in print, as the Word export already has it: a
  * browser heads every page a table runs onto with its `thead`, so each
  * table's header row moves into one. Only the printed copy changes; the
- * editor keeps a table's rows together, as the document does.
+ * editor keeps a table's rows together, as the document does. A table inside
+ * a cell is left as it is: Word repeats no nested header row, and Chromium
+ * prints one without its top rule.
  */
 export function repeatHeaderRowsIn(root: ParentNode): void {
   const childrenNamed = (parent: Element, tag: string): Element[] =>
     [...parent.children].filter((child) => child.tagName === tag)
   for (const table of root.querySelectorAll('table')) {
+    if (table.parentElement?.closest('td, th')) continue
     if (childrenNamed(table, 'THEAD').length > 0) continue
     // The parser a print page goes through puts the rows in a `tbody`.
     const body = childrenNamed(table, 'TBODY')[0] ?? table

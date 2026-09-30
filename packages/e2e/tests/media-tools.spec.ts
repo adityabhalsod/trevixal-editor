@@ -89,6 +89,8 @@ test('takes a camera photo, asks what it shows, and opens it full size', async (
     await insertMenu(page, 'Camera photo…')
     const camera = dialog(page, 'Camera photo')
     await camera.getByRole('button', { name: 'Take photo' }).click()
+    // The still takes the live picture's place, so the buttons stay in view.
+    await expect(camera.locator('video')).toBeHidden()
     await camera.getByRole('button', { name: 'Insert', exact: true }).click()
     await expect(inserted(page)).toHaveCount(1)
 

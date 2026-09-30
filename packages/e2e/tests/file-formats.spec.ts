@@ -263,7 +263,8 @@ test('downloads every document in the workspace at once', async ({ page }) => {
     expect(file.suggestedFilename()).toBe('workspace.zip')
     const bytes = await readFile((await file.path()) as string)
     expect(bytes.subarray(0, 4).toString('latin1')).toBe('PK\u0003\u0004')
-    expect(bytes.includes(Buffer.from('welcome.md'))).toBe(true)
+    // Each file is named after its document, the tour after its heading.
+    expect(bytes.includes(Buffer.from('trevixal.md'))).toBe(true)
     expect(bytes.includes(Buffer.from('# Trevixal'))).toBe(true)
   } finally {
     await server.close()

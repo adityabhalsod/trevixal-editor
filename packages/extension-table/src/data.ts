@@ -480,9 +480,11 @@ function totalsAbove(node: EditorNode): boolean {
 /**
  * Mermaid source for a chart of the table's data: the first column's
  * texts label the points, and every other column holding a number is a
- * series, named by its header. A pie takes the first such column. Rows with
- * no number, and a total row (Word's option, or one whose formulas add up
- * the rows above), are left out. Null when the table has no numbers to draw.
+ * series, named by its header. A pie takes the first such column. A bar
+ * chart draws the series after the first as lines, as Mermaid would lay
+ * their bars over the first's and hide them. Rows with no number, and a
+ * total row (Word's option, or one whose formulas add up the rows above),
+ * are left out. Null when the table has no numbers to draw.
  */
 export function tableChartSource(table: EditorNode, kind: ChartKind): string | null {
   const map = TableMap.of(table)
@@ -523,7 +525,10 @@ export function tableChartSource(table: EditorNode, kind: ChartKind): string | n
   }
   const lines = ['xychart-beta', `    x-axis [${labels.map(quoted).join(', ')}]`]
   if (series.length === 1 && first.name) lines.push(`    y-axis ${quoted(first.name)}`)
-  for (const { values } of series) lines.push(`    ${kind} [${values.join(', ')}]`)
+  series.forEach(({ values }, index) => {
+    const plot = kind === 'bar' && index > 0 ? 'line' : kind
+    lines.push(`    ${plot} [${values.join(', ')}]`)
+  })
   return lines.join('\n')
 }
 

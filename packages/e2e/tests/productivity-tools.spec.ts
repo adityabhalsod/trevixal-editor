@@ -173,7 +173,7 @@ test('lists the documents opened lately at the top of the command palette', asyn
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.locator('.trevixal-palette')
     await expect(palette).toBeVisible()
-    const recent = palette.getByRole('option', { name: /^Open Welcome/ })
+    const recent = palette.getByRole('option', { name: /^Open Trevixal/ })
     await expect(recent).toBeVisible()
     await recent.click()
     await expect(page.locator(`${surface} h1`).first()).toHaveText('Trevixal')

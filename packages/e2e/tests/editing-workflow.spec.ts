@@ -134,6 +134,17 @@ test('compares the document with a file, side by side', async ({ page }) => {
     await expect(same).toBeHidden()
     await comparison.getByLabel('Show the blocks that did not change').check()
     await expect(same.locator('.trevixal-compare__cell--before')).toHaveText('Same line.')
+    // The tick box, the table and the button stand apart, not touching.
+    const gaps = await comparison.evaluate((element) => {
+      const box = (selector: string): DOMRect =>
+        (element.querySelector(selector) as HTMLElement).getBoundingClientRect()
+      const grid = box('.trevixal-compare__grid')
+      return [
+        grid.top - box('.trevixal-dialog__field--inline').bottom,
+        box('.trevixal-dialog__actions').top - grid.bottom,
+      ]
+    })
+    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(6)
   } finally {
     await server.close()
   }

@@ -132,6 +132,25 @@ test.describe('a table as data', () => {
   })
 })
 
+test('draws a chart’s bars in a colour that shows on the page', async ({ page }) => {
+  const server = await serveDist(distDir)
+  try {
+    await page.goto(server.origin)
+    await page.locator('#editor td').getByText('140.00', { exact: true }).click()
+    await page.click('[data-trevixal-menu="table"]')
+    await page.click('[data-trevixal-menu="table"] ~ * [data-trevixal-item="chartBar"]')
+    const bar = page
+      .locator('#editor pre', { hasText: 'xychart-beta' })
+      .locator('svg .bar-plot-0 rect')
+      .first()
+    await expect(bar).toBeVisible({ timeout: 30_000 })
+    // Mermaid's own first colour is a lavender barely darker than the page.
+    expect((await bar.getAttribute('fill'))?.toLowerCase()).not.toBe('#ececff')
+  } finally {
+    await server.close()
+  }
+})
+
 test('the tour’s budget adds itself up', async ({ page }) => {
   const server = await serveDist(distDir)
   try {

@@ -147,6 +147,16 @@ test('checks the document for accessibility, and goes to what it finds', async (
       'Link text',
       'Colour contrast',
     ])
+    // The buttons sit clear of the list above them.
+    const gap = await report.evaluate((element) => {
+      const items = element.querySelectorAll('.trevixal-findings__item')
+      const last = (items[items.length - 1] as HTMLElement).getBoundingClientRect()
+      const actions = (
+        element.querySelector('.trevixal-dialog__actions') as HTMLElement
+      ).getBoundingClientRect()
+      return actions.top - last.bottom
+    })
+    expect(gap).toBeGreaterThanOrEqual(6)
     await report
       .locator('.trevixal-findings__item')
       .nth(1)

@@ -73,7 +73,10 @@
 }
 
 .trevixal-dialog {
+  // No paragraph margins: a hint is a line under its field, and an empty
+  // one waiting for an error should take no room.
   &__hint {
+    margin: 0;
     color: t.token('color-text-muted');
     font-size: 0.75rem;
   }
@@ -254,6 +257,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1px;
+    // Clear of the tick box above it.
+    margin-top: t.token('space-2');
     max-height: 60vh;
     overflow-y: auto;
     background: t.token('color-border');
@@ -909,6 +914,8 @@
   display: block;
   max-width: 100%;
   height: auto;
+  // Centred, as the drawings the other renderers make are.
+  margin-inline: auto;
 }
 
 // A diagram renderer draws in a palette of its own, Mermaid's is dark ink on

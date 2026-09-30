@@ -170,7 +170,7 @@ const longDocuments = [
   { file: '04-heading-numbers-1.a.i.png', caption: 'Heading numbers as 1. a. i.' },
   { file: '05-heading-numbers-parenthesis-1)a)i).png', caption: 'Heading numbers as 1) a) i)' },
   { file: '06-heading-numbers-roman-I.A.1.png', caption: 'Heading numbers as I. A. 1.' },
-  { file: '07-insert-menu.png', caption: 'Insert menu: captions, cross-references, tables of figures, index and endnotes' },
+  { file: '07-insert-menu.png', caption: 'Insert menu: captions, cross-references, tables of figures and the index' },
   { file: '08-caption-dialog.png', caption: 'The Caption dialog' },
   { file: '09-figure-captions.png', caption: 'Numbered figure captions' },
   { file: '10-table-and-equation-captions.png', caption: 'Table and equation captions' },

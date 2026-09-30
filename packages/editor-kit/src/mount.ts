@@ -174,6 +174,10 @@ import { createDocumentWorkspace } from './workspace'
 import { runAssist } from './writing-assist'
 import { showAccessibilityReport, showDuplicateText } from './writing-reports'
 
+// A chart's series, in the chrome's accent and then hues as dark: Mermaid's
+// own first colour is a lavender barely darker than the page.
+const CHART_PALETTE = '#4f46e5, #d97706, #059669, #dc2626, #0284c7, #7c3aed'
+
 /**
  * Build the whole editor inside `options.element` and return a handle to it.
  *
@@ -324,7 +328,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     }
     if (!mermaidRenderer) {
       const { loadMermaid } = await import('@trevixal/extension-diagram')
-      mermaidRenderer = createMermaidRenderer(await loadMermaid())
+      mermaidRenderer = createMermaidRenderer(await loadMermaid(), {
+        themeVariables: { xyChart: { plotColorPalette: CHART_PALETTE } },
+      })
     }
     return mermaidRenderer(code, context)
   }

@@ -341,6 +341,21 @@ describe('charts from a table', () => {
     )
   })
 
+  it('draws a second series as a line, since Mermaid would lay its bars over the first', () => {
+    const halves = docOf(
+      row(head('Region'), head('Q1'), head('Q2')),
+      row(cell('North'), cell('1200'), cell('1480')),
+      row(cell('South'), cell('980'), cell('1120')),
+    )
+    expect(tableChartSource(halves.child(0), 'bar')).toBe(
+      'xychart-beta\n    x-axis ["North", "South"]\n    bar [1200, 980]\n    line [1480, 1120]',
+    )
+    // A line chart draws every series as a line already.
+    expect(tableChartSource(halves.child(0), 'line')).toBe(
+      'xychart-beta\n    x-axis ["North", "South"]\n    line [1200, 980]\n    line [1480, 1120]',
+    )
+  })
+
   it('leaves out a total row its formulas work out, as it leaves out Word’s', () => {
     const totalled = budget(row(cell('Total'), cell(formula('SUM(ABOVE)'))))
     expect(tableChartSource(settled(totalled).child(0), 'bar')).toBe(

@@ -966,17 +966,18 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
           icon: 'search',
           items: [
             { name: 'writingAssistant', label: 'All checks', icon: 'search' },
-            { name: 'writingGrammar', label: 'Grammar', icon: 'check' },
-            { name: 'writingPassive', label: 'Passive voice', icon: 'check' },
-            { name: 'writingRepeated', label: 'Repeated words', icon: 'check' },
-            { name: 'writingLong', label: 'Long sentences', icon: 'check' },
-            { name: 'writingInclusive', label: 'Inclusive language', icon: 'check' },
-            { name: 'writingTone', label: 'Tone', icon: 'check' },
-            { name: 'writingCliches', label: 'Clichés and jargon', icon: 'check' },
+            // Not a tick: these are on and off, and the tick at the end says which.
+            { name: 'writingGrammar', label: 'Grammar', icon: 'autocorrect' },
+            { name: 'writingPassive', label: 'Passive voice', icon: 'autocorrect' },
+            { name: 'writingRepeated', label: 'Repeated words', icon: 'autocorrect' },
+            { name: 'writingLong', label: 'Long sentences', icon: 'autocorrect' },
+            { name: 'writingInclusive', label: 'Inclusive language', icon: 'autocorrect' },
+            { name: 'writingTone', label: 'Tone', icon: 'autocorrect' },
+            { name: 'writingCliches', label: 'Clichés and jargon', icon: 'autocorrect' },
             { name: 'readingHeatmap', label: 'Reading heat map', icon: 'statistics' },
           ],
         },
-        { name: 'spellcheck', label: 'Spell check', icon: 'check' },
+        { name: 'spellcheck', label: 'Spell check', icon: 'autocorrect' },
         {
           name: 'assistMenu',
           label: 'Writing assistant',
@@ -996,7 +997,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         { name: 'mailMerge', label: 'Mail merge…', icon: 'csvImport' },
         separator('tools-sep-autoformat'),
         { name: 'smartTypography', label: 'Smart quotes and symbols', icon: 'quote' },
-        { name: 'autocorrect', label: 'AutoCorrect as you type', icon: 'check' },
+        { name: 'autocorrect', label: 'AutoCorrect as you type', icon: 'autocorrect' },
         { name: 'autocorrectOptions', label: 'AutoCorrect options…', icon: 'autocorrect' },
         { name: 'checkLinks', label: 'Check links…', icon: 'link' },
         { name: 'compareDocuments', label: 'Compare with a file…', icon: 'codeDiff' },
@@ -1400,6 +1401,13 @@ interface ShortcutSlot {
   readonly fallback: string
 }
 
+function appendRule(document: Document, panel: HTMLElement): void {
+  const rule = document.createElement('div')
+  rule.className = 'trevixal-menu__separator'
+  rule.setAttribute('role', 'separator')
+  panel.appendChild(rule)
+}
+
 function renderMenuItem(
   document: Document,
   panel: HTMLElement,
@@ -1412,10 +1420,7 @@ function renderMenuItem(
   label: Labeller,
 ): void {
   if (item.separator) {
-    const rule = document.createElement('div')
-    rule.className = 'trevixal-menu__separator'
-    rule.setAttribute('role', 'separator')
-    panel.appendChild(rule)
+    appendRule(document, panel)
     return
   }
 
@@ -1442,6 +1447,10 @@ function renderMenuItem(
     panel.appendChild(group)
     return
   }
+
+  // A group's entries end where a plain one follows, or it would read as one of them.
+  if (panel.lastElementChild?.classList.contains('trevixal-menu__group'))
+    appendRule(document, panel)
 
   const button = document.createElement('button')
   button.type = 'button'

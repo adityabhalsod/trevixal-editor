@@ -934,7 +934,7 @@ function createActions(
       document,
       title: 'Front matter',
       submitLabel: 'Save',
-      body: 'The YAML a Markdown file keeps above its text, between two --- lines: a title, tags, a date. Markdown and MDX downloads carry it.',
+      body: 'The YAML a Markdown file keeps above its text, between two lines of three dashes: a title, tags, a date. Markdown and MDX downloads carry it.',
       fields: [
         {
           name: 'yaml',

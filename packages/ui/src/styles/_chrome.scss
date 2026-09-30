@@ -27,6 +27,12 @@
     font-size: 0.875rem;
     border-radius: t.token('radius-sm');
   }
+
+  // A menu holds dozens of entries, where a toolbar dropdown holds a few:
+  // it takes most of the window's height before it scrolls.
+  .trevixal-dropdown__panel {
+    max-height: min(75vh, 44rem);
+  }
 }
 
 // ------------------------------------------------------- dropdown (shared)
@@ -137,6 +143,10 @@
     border-radius: t.token('radius-sm');
     font: inherit;
     font-size: 0.875rem;
+    // Fixed, not the font's own: a language named in Devanagari, Japanese or
+    // Arabic falls back to a font with taller lines, and its row would stand
+    // taller than the rest.
+    line-height: 1.4;
     text-align: start;
     // One line per entry: the panel grows to fit the label rather than the
     // label wrapping inside a fixed panel.
@@ -750,6 +760,17 @@
   }
 }
 
+// The toolbar's text box and size menu, as tall as the buttons beside them.
+.trevixal-drawing-editor__words,
+.trevixal-drawing-editor__size {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: t.token('color-bg');
+  color: inherit;
+  font: inherit;
+}
+
 .trevixal-drawing-editor__swatch {
   width: 1.5rem;
   height: 1.5rem;
@@ -800,6 +821,12 @@
   object-fit: contain;
   background: #000;
   border-radius: t.token('radius-sm');
+
+  // The display above outranks the user agent's rule for `[hidden]`, and the
+  // live picture would stay up beside the still, pushing the buttons away.
+  &[hidden] {
+    display: none;
+  }
 }
 
 .trevixal-recorder__meter {
@@ -874,13 +901,18 @@
 
   &__item {
     width: 100%;
+    overflow: hidden;
     padding: 0.25rem 0.4rem;
     border: 0;
     border-radius: t.token('radius-sm');
     background: none;
     color: inherit;
     font: inherit;
+    // The size of the document list above, one line each as its titles are.
+    font-size: 0.8rem;
     text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
 
     &:hover,
@@ -986,8 +1018,18 @@
     width: min(24rem, 100%);
   }
 
+  // A dialog taller than the window scrolls, but its name stays at the top
+  // and its buttons at the foot. The negative margins give back the padding
+  // the sticky parts carry, so a dialog that fits looks the same; the
+  // negative offsets let them reach the dialog's edge, as sticking keeps
+  // clear of the padding otherwise.
   &__title {
-    margin: 0 0 t.token('space-3');
+    position: sticky;
+    top: calc(-1 * #{t.token('space-4')});
+    z-index: 1;
+    margin: calc(-1 * #{t.token('space-4')}) 0 t.token('space-3');
+    padding-top: t.token('space-4');
+    background: t.token('color-bg');
     font-size: 1rem;
     font-weight: 600;
   }
@@ -1030,9 +1072,29 @@
   }
 
   &__actions {
+    position: sticky;
+    bottom: calc(-1 * #{t.token('space-4')});
+    z-index: 1;
     display: flex;
     justify-content: flex-end;
     gap: t.token('space-2');
+    margin-bottom: calc(-1 * #{t.token('space-4')});
+    padding-bottom: t.token('space-4');
+    background: t.token('color-bg');
+  }
+
+  // Beside a list or a table rather than inside a form, which spaces its rows.
+  > .trevixal-dialog__actions {
+    margin-top: t.token('space-3');
+  }
+
+  // A colour field shows its colour: the text padding would squeeze the
+  // swatch to a line.
+  &__input[type='color'] {
+    width: 3.5rem;
+    height: 2.25rem;
+    padding: 3px;
+    cursor: pointer;
   }
 
   &__button {

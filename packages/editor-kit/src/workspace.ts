@@ -65,9 +65,9 @@ export function createDocumentWorkspace(context: DocumentWorkspaceContext): Docu
 
   async function buildWorkspace() {
     const store = await documentStore()
-    if (store.list().length === 0) {
-      await store.create({ title: 'Welcome', doc: editor.getJSON() })
-    }
+    // Untitled here, so the store names it after its first heading and the
+    // name keeps following it, as every other document's does.
+    if (store.list().length === 0) await store.create({ doc: editor.getJSON() })
     // The strip carries pin, favourite, rename, folder and delete on each tab's
     // menu, and its `+` offers the templates; the panel adds recents,
     // favourites and the folder tree beside them.

@@ -1,4 +1,4 @@
-import { createEditor } from '@trevixal/core'
+import { createEditor, parseHTML } from '@trevixal/core'
 import { beforeEach, expect, test } from 'vitest'
 import { createFullSchema } from '../src/schema'
 import { createDocumentWorkspace } from '../src/workspace'
@@ -48,4 +48,25 @@ test('reports itself closed until something has been drawn', () => {
 
 test('tearing down a workspace that was never opened does nothing', () => {
   expect(() => workspace('trevixal').destroy()).not.toThrow()
+})
+
+test('names the document already open after its first heading, as it names every other', async () => {
+  const schema = createFullSchema()
+  const planned = createEditor({
+    schema,
+    element: document.createElement('div'),
+    doc: parseHTML(schema, '<h1>Launch plan</h1><p>Tasks and dates.</p>', document),
+  })
+  const documents = createDocumentWorkspace({
+    editor: planned,
+    stripHost: document.createElement('div'),
+    panelHost: document.createElement('div'),
+    namespace: 'named',
+  })
+  await documents.open()
+
+  // A title the store derived keeps following the heading; a fixed one would
+  // count as a rename by hand and stay put whatever the document says.
+  expect((await documents.store()).list().map((meta) => meta.title)).toEqual(['Launch plan'])
+  documents.destroy()
 })

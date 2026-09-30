@@ -37,6 +37,34 @@ describe('menubar', () => {
     expect(container.querySelector('.trevixal-menubar')).toBeNull()
   })
 
+  it('rules off a group from the entry after it, which would read as one of its own', () => {
+    const editor = mountEditor()
+    const menubar = createMenubar(editor, container, {
+      menus: [
+        {
+          name: 'table',
+          label: 'Table',
+          items: [
+            {
+              name: 'columnType',
+              label: 'Column type',
+              items: [{ name: 'columnText', label: 'Text' }],
+            },
+            { name: 'filterRows', label: 'Filter rows…' },
+          ],
+        },
+      ],
+    })
+    const panel = menubar.element.querySelector('.trevixal-dropdown__panel')
+    const kinds = [...(panel?.children ?? [])].map((child) => child.className)
+    expect(kinds).toEqual([
+      'trevixal-menu__group',
+      'trevixal-menu__separator',
+      'trevixal-menu__item',
+    ])
+    menubar.destroy()
+  })
+
   it('opens a menu, runs an item and closes again', () => {
     const editor = mountEditor()
     const menubar = createMenubar(editor, container)

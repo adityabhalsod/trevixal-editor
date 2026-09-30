@@ -157,7 +157,8 @@ test('links one document to another with [[, and lists what links back', async (
     await runMenuItem(page, 'view', 'workspacePanel')
     const tabs = page.locator('.trevixal-tabs-bar__item')
     await expect(tabs).toHaveCount(1)
-    await expect(tabs.first()).toContainText('Welcome')
+    // Named after the tour's heading, which it follows.
+    await expect(tabs.first()).toContainText('Trevixal')
 
     // A second document, from the Blank template.
     await page.locator('.trevixal-tabs-bar__new').click()
@@ -166,13 +167,13 @@ test('links one document to another with [[, and lists what links back', async (
     await page.locator(surface).click()
     await page.keyboard.type('Launch notes')
     await page.keyboard.press('Enter')
-    await page.keyboard.type('See [[Wel')
+    await page.keyboard.type('See [[Trev')
 
     const popup = page.locator('.trevixal-popup:not([hidden])')
-    await expect(popup.getByRole('option')).toHaveText(['Welcome'])
+    await expect(popup.getByRole('option')).toHaveText(['Trevixal'])
     await page.keyboard.press('Enter')
     const link = page.locator(`${surface} .trevixal-wikilink`)
-    await expect(link).toHaveText('Welcome')
+    await expect(link).toHaveText('Trevixal')
     await expect(popup).toHaveCount(0)
     const backlinks = page.locator('.trevixal-backlinks')
     await expect(backlinks.locator('.trevixal-backlinks__empty')).toBeVisible()
@@ -184,7 +185,7 @@ test('links one document to another with [[, and lists what links back', async (
     const item = backlinks.getByRole('button', { name: 'Launch notes' })
     await expect(item).toBeVisible()
     await item.click()
-    await expect(page.locator(`${surface} .trevixal-wikilink`)).toHaveText('Welcome')
+    await expect(page.locator(`${surface} .trevixal-wikilink`)).toHaveText('Trevixal')
   } finally {
     await server.close()
   }
