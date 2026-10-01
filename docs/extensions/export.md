@@ -1,7 +1,10 @@
-# Word and RTF, in and out
+# Word, OpenDocument, EPUB and more, in and out
 
-`@trevixal/extension-export`: DOCX and RTF writers and a DOCX reader, with
-their own ZIP, XML, OOXML and RTF implementations and no dependencies at all.
+`@trevixal/extension-export`: DOCX, RTF, OpenDocument, EPUB and LaTeX
+writers, and DOCX, OpenDocument, PDF-text and Notion or Google Docs export
+readers, with their own ZIP, XML, OOXML, ODF and RTF implementations and no
+dependencies at all. Reading a PDF's text is the one exception: PDF.js is
+fetched from jsDelivr the first time a PDF is opened, as Mermaid is.
 
 ```sh
 npm install @trevixal/extension-export
@@ -16,6 +19,40 @@ const docx = await serializeToDOCX(editor.state.doc, { title: 'Report', theme, r
 const rtf = serializeToRTF(editor.state.doc, { theme, rendered })
 const doc = await parseDOCX(editor.schema, file, { images: 'embed' })
 ```
+
+## The other formats
+
+```ts
+import {
+  parseExportArchive,
+  parseODT,
+  parsePDF,
+  loadPdfJs,
+  serializeToEPUB,
+  serializeToLaTeX,
+  serializeToODT,
+  serializeToPPTX,
+  documentSlides,
+} from '@trevixal/extension-export'
+
+const odt = serializeToODT(doc, { title: 'Report' })       // .odt bytes
+const book = serializeToEPUB(doc, document, { title: 'Report', author: 'Ada' })
+const tex = serializeToLaTeX(doc)                          // an article's source
+const deck = serializeToPPTX(doc, { title: 'Talk' })       // .pptx bytes
+const slides = documentSlides(doc)                         // { title, blocks, notes }[]
+const fromODT = await parseODT(schema, file)
+const fromPDF = await parsePDF(schema, file, await loadPdfJs())
+const fromArchive = await parseExportArchive(schema, file, document)
+```
+
+| Format | Writes | Reads |
+| --- | --- | --- |
+| OpenDocument `.odt` | Headings, marks, links, lists, code, tables with merged cells, pictures packed in | The same, and what LibreOffice writes: automatic styles read back as marks, spans as colspans and rowspans |
+| EPUB `.epub` | A chapter for each level-one heading, a table of contents, pictures as files in the book | |
+| LaTeX `.tex` | An `article`: sections, marks, lists, `lstlisting` code, equations, `tabular` tables, every special character escaped | |
+| PowerPoint `.pptx` | A slide for each top-level heading (the highest level the document uses), its blocks as the body, lists as bullets at their depth, note callouts as speaker's notes | |
+| PDF `.pdf` | | The text layer: lines by their baseline, paragraphs by the space between, larger lines as headings |
+| Notion or Google Docs `.zip` | | Notion's Markdown or HTML pages, or Google Docs' web page export, pictures packed in and Google's class styles read as formatting |
 
 ## As descriptors
 
@@ -51,6 +88,53 @@ a download is not a bleached copy of the document:
 
 The full picture of how the UI kit gathers these is on
 [What an export carries](../reference/exports).
+
+## Long documents
+
+The reference apparatus goes to Word as Word builds it:
+
+| In the editor | In the `.docx` |
+| --- | --- |
+| Heading numbering | Word's own numbering on the heading paragraphs, one list for the document |
+| A caption's number | A `SEQ Figure` (or `Table`, `Equation`) field, in the Caption style, bookmarked |
+| A cross-reference | A `REF` field to the caption's or heading's bookmark (`\r` for a numbered heading's number) |
+| A table of figures | A `TOC \c "Figure"` field holding the editor's entries |
+| Marked index words, the index | `XE` fields after the words, and an `INDEX` field |
+| Line numbers | `w:lnNumType` on the section |
+| Right to left | `w:bidi` on each text paragraph and the section, `w:rtl` on the runs, `w:bidiVisual` on the tables |
+
+Each field is written with the result the editor computed, so the document
+reads correctly the moment it opens. A document with a table of figures or an
+index asks Word to update its fields on opening, which is when the page
+numbers are filled in. RTF carries the heading numbers as text, caption
+numbers as `SEQ` fields, the lists as their entries, `\linemod1` and
+`\rtlpar`.
+
+## Formatting tools
+
+Named styles and paragraph formatting go to Word as its own:
+
+| In the editor | In the `.docx` |
+| --- | --- |
+| Named styles | Word styles in `styles.xml`: Normal, Title, Subtitle, the headings, Emphasis, Strong and Subtle Emphasis under Word's own ids with whatever the document changed in them, and the writer's own as custom styles based on Normal; paragraphs point at theirs with `w:pStyle`, runs with `w:rStyle` |
+| Borders and shading | `w:pBdr`, each side as wide as drawn, and `w:shd` |
+| A drop cap | The first letter in a paragraph of its own, framed with `w:framePr w:dropCap` over the lines it drops |
+| Tab stops | `w:tabs`, each stop at its position with its alignment and leader |
+| Text columns | `w:cols` on the section, half an inch apart, with `w:sep` for the line between |
+| Page setup | The paper and orientation as `w:pgSz` (with `w:orient`), the margins as `w:pgMar`, the header and footer as `header1.xml` and `footer1.xml`, centred, with `PAGE` and `NUMPAGES` fields for `{page}` and `{pages}`. A document without one is US Letter with 1 in margins |
+| A section break | The section before it ends in a paragraph holding its `w:sectPr`; the last section's is the body's. Each takes its break's orientation, columns and margins |
+| A page break | `w:br w:type="page"`, read back as a page break rather than a line break |
+| Hyphenation | `w:autoHyphenation` in the settings |
+| Widow and orphan control | `w:widowControl` in the document defaults, left out when it is off |
+
+RTF has no style sheet to point at, so each paragraph and run carries its
+style's look: the built-in styles' own look, with the document's changes laid
+over it. Borders are `\brdr` words, a fill `\cbpat`, a drop cap a
+`\dropcapli` frame, tab stops `\tx` with `\tqr`, `\tqc`, `\tqdec` and
+leaders such as `\tldot`, columns `\cols`, hyphenation `\hyphauto1` and
+widow control `\widowctrl`. A fill that shows nothing, such as a transparent
+one a browser writes on a copied block, is left out of both rather than
+painted black.
 
 ## Also exported
 

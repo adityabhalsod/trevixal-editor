@@ -1,4 +1,4 @@
-import type { Command } from '@trevixal/core'
+import type { Command, EditorState } from '@trevixal/core'
 import {
   type LinkCardAttrs,
   insertAudio,
@@ -7,6 +7,7 @@ import {
   insertLinkCard,
   insertVideo,
 } from './commands'
+import { setVideoChapters, videoChaptersAt } from './media'
 import type { EmbedNodesOptions } from './url'
 
 export { formatBytes } from './format'
@@ -29,6 +30,10 @@ export interface EmbedUICommands {
   readonly insertAudio: (src: string) => Command
   readonly insertIframe: (src: string, title?: string) => Command
   readonly insertLinkCard: (attrs: LinkCardAttrs) => Command
+  /** The selected video's chapters, one a line; empty text takes them off. */
+  readonly setVideoChapters: (text: string | null) => Command
+  /** The selected video's chapters, for the dialog; null without a video selected. A reader. */
+  readonly videoChaptersAt: (state: EditorState) => string | null
 }
 
 export function embedUICommands(options: EmbedNodesOptions = {}): EmbedUICommands {
@@ -38,5 +43,7 @@ export function embedUICommands(options: EmbedNodesOptions = {}): EmbedUICommand
     insertAudio: (src) => insertAudio({ src }),
     insertIframe: (src, title) => insertIframe({ src, title: title ?? null }, options),
     insertLinkCard: (attrs) => insertLinkCard(attrs),
+    setVideoChapters: (text) => setVideoChapters(text),
+    videoChaptersAt,
   }
 }

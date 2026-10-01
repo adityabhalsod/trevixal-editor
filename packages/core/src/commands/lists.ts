@@ -183,12 +183,16 @@ export const splitListItem: Command = (state) => {
   tr.step(new SplitNodeStep(point.path, point.offset))
 
   // Move the second half (and any later blocks of this item) into a new item.
+  // A folded item keeps the blocks it hides: the new item goes after them,
+  // as an outliner's does, rather than bringing them into view.
   const item = nodeAtPath(tr.doc, context.itemPath)
   if (!item) return null
-  const moved = item.content.slice(blockIndex + 1)
-  tr.step(new ReplaceNodesStep(context.itemPath, blockIndex + 1, item.childCount, Fragment.empty))
+  const end = context.item.attrs.folded === true ? blockIndex + 2 : item.childCount
+  const moved = Fragment.from(item.content.children.slice(blockIndex + 1, end))
+  tr.step(new ReplaceNodesStep(context.itemPath, blockIndex + 1, end, Fragment.empty))
   // The new item inherits the old one's type but never its `checked` state:
-  // splitting a finished task yields a fresh, unfinished one.
+  // splitting a finished task yields a fresh, unfinished one. Nor its due
+  // date, assignee or fold, which are the old item's own.
   const itemType = context.item.type
   const newAttrs = 'checked' in context.item.attrs ? { checked: false } : undefined
   tr.step(
@@ -452,7 +456,7 @@ function renumbered(list: EditorNode, scheme: ListNumberingScheme, isRoot: boole
  */
 export function setListNumbering(schemeId: string): Command {
   return (state) => {
-    const scheme = listNumberingScheme(schemeId)
+    const scheme = listNumberingScheme(schemeId, state.doc)
     if (!scheme) return null
     const type = state.schema.nodeType(scheme.listType)
     if (storedNumbering(scheme) !== null && !('numbering' in (type.spec.attrs ?? {}))) return null
@@ -491,5 +495,5 @@ export const unwrapList: Command = (state) => {
  */
 export function listNumberingAt(doc: EditorNode, blockPath: Path): ListNumberingScheme | null {
   const root = listTreeRootAt(doc, blockPath)
-  return root ? listNumberingOf(root.node) : null
+  return root ? listNumberingOf(root.node, doc) : null
 }

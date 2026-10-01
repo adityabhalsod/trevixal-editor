@@ -3,11 +3,15 @@ import {
   type EditorNode,
   Fragment,
   MoveNodeStep,
+  ReplaceNodesStep,
+  TableMap,
   TextSelection,
   pos,
   replaceNodeAt,
 } from '@trevixal/core'
-import { type CellContext, cellContextAt, columnCount, columnStart } from './commands'
+import { type CellContext, cellContextAt, gridCellOf } from './commands'
+import { rowGroups } from './features'
+import { placementsOf, tableFrom } from './table-grid'
 
 /** Which way a row or column is being moved. */
 export type MoveDirection = 'up' | 'down' | 'left' | 'right'
@@ -17,7 +21,9 @@ export type MoveDirection = 'up' | 'down' | 'left' | 'right'
  *
  * Rows are swapped whole, so a row carries its cells, their spans and their
  * content with it. The alternative, moving content between fixed rows, would
- * lose per-cell attributes like alignment and header status.
+ * lose per-cell attributes like alignment and header status. Rows a merged
+ * cell spans move together, past the next row or rows tied the same way, so
+ * a move never cuts a merged cell apart.
  *
  * Declines at the ends of the table, and when the selection is outside one.
  */
@@ -27,59 +33,107 @@ export function moveRow(direction: 'up' | 'down'): Command {
     if (!context) return null
 
     const { table, tablePath, rowIndex } = context
-    const target = direction === 'up' ? rowIndex - 1 : rowIndex + 1
-    if (target < 0 || target >= table.childCount) return null
+    const groups = rowGroups(table)
+    const at = groups.findIndex((group) => group.first <= rowIndex && rowIndex <= group.last)
+    const moving = groups[at]
+    const other = groups[direction === 'up' ? at - 1 : at + 1]
+    if (!moving || !other) return null
 
-    // The row keeps its identity through a move, so every position inside it
-    // maps with it. The caret stays in the cell the user was editing without
-    // being put back by hand, and so does anything else anchored in there.
-    return state.tr.step(new MoveNodeStep(tablePath, rowIndex, target))
+    if (moving.first === moving.last && other.first === other.last) {
+      // The row keeps its identity through a move, so every position inside
+      // it maps with it. The caret stays in the cell the user was editing
+      // without being put back by hand, and so does anything else anchored in
+      // there.
+      return state.tr.step(new MoveNodeStep(tablePath, rowIndex, other.first))
+    }
+
+    const upper = direction === 'up' ? other : moving
+    const lower = direction === 'up' ? moving : other
+    const rows = table.content.children
+    const order = [
+      ...rows.slice(lower.first, lower.last + 1),
+      ...rows.slice(upper.first, upper.last + 1),
+    ]
+    const shift =
+      direction === 'up' ? -(other.last - other.first + 1) : other.last - other.first + 1
+    const tr = state.tr.step(
+      new ReplaceNodesStep(tablePath, upper.first, lower.last + 1, Fragment.from(order)),
+    )
+    const moved = (path: readonly number[]): readonly number[] => {
+      const next = [...path]
+      next[tablePath.length] = (path[tablePath.length] as number) + shift
+      return next
+    }
+    const { from, to } = state.selection
+    return tr.setSelection(
+      new TextSelection(pos(moved(from.path), from.offset), pos(moved(to.path), to.offset)),
+    )
   }
+}
+
+/**
+ * The table's columns in blocks no cell spans out of: each column on its
+ * own, or the columns a merged cell ties together.
+ */
+function columnGroups(table: EditorNode): { first: number; last: number }[] {
+  const map = TableMap.of(table)
+  const groups: { first: number; last: number }[] = []
+  let first = 0
+  let last = 0
+  for (let column = 0; column < map.width; column++) {
+    for (const cell of map.cells) {
+      if (cell.left === column) last = Math.max(last, cell.left + cell.width - 1)
+    }
+    if (column === last) {
+      groups.push({ first, last })
+      first = column + 1
+      last = first
+    }
+  }
+  return groups
 }
 
 /**
  * Swap the column holding the selection with the one beside it.
  *
- * Column indices are counted in grid columns rather than child indices, so a
- * table containing merged cells still moves the right cells. A column whose
- * boundary is crossed by a colspan cannot be moved without splitting that
- * cell, so the command declines instead of silently rewriting the merge.
+ * Columns are counted in grid columns rather than child indices, so a table
+ * containing merged cells still moves the right cells. Columns a merged cell
+ * spans move together, as rows do; with nothing beside them to swap with,
+ * the command declines rather than cutting the merge apart.
  */
 export function moveColumn(direction: 'left' | 'right'): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
 
-    const { table, tablePath, row, cellIndex, rowIndex } = context
-    const from = columnStart(row, cellIndex)
-    const to = direction === 'left' ? from - 1 : from + 1
-    if (to < 0 || to >= columnCount(table)) return null
+    const { table, tablePath } = context
+    const current = gridCellOf(context)
+    const groups = columnGroups(table)
+    const at = groups.findIndex(
+      (group) => group.first <= current.left && current.left <= group.last,
+    )
+    const moving = groups[at]
+    const other = groups[direction === 'left' ? at - 1 : at + 1]
+    if (!moving || !other) return null
 
-    // Every row must have a cell starting at both columns, or the swap would
-    // cut through a merged cell.
-    const plan: { row: EditorNode; a: number; b: number }[] = []
-    for (const candidate of table.content.children) {
-      const a = childIndexAtColumn(candidate, from)
-      const b = childIndexAtColumn(candidate, to)
-      if (a === null || b === null) return null
-      plan.push({ row: candidate, a, b })
+    const left = direction === 'left' ? other : moving
+    const right = direction === 'left' ? moving : other
+    const leftWidth = left.last - left.first + 1
+    const rightWidth = right.last - right.first + 1
+    const placed = placementsOf(table)
+    for (const cell of placed) {
+      if (cell.left >= left.first && cell.left <= left.last) cell.left += rightWidth
+      else if (cell.left >= right.first && cell.left <= right.last) cell.left -= leftWidth
     }
-
-    const rows = plan.map(({ row: candidate, a, b }) => {
-      const cells = [...candidate.content.children]
-      const first = cells[a]
-      const second = cells[b]
-      if (!first || !second) return candidate
-      cells[a] = second
-      cells[b] = first
-      return candidate.type.create(candidate.attrs, Fragment.from(cells), candidate.marks)
-    })
-
-    const next = table.type.create(table.attrs, Fragment.from(rows), table.marks)
-    const tr = state.tr.step(replaceNodeAt(tablePath, Fragment.of(next)))
-    const landed = childIndexAtColumn(rows[rowIndex] ?? row, to)
+    const built = tableFrom(table, table.content.children, placed)
+    // The moving columns' cells went past the others: back by their width, or on by it.
+    const shift = direction === 'left' ? -leftWidth : rightWidth
+    const landed = TableMap.of(built.table).at(current.top, current.left + shift)
+    const tr = state.tr.step(replaceNodeAt(tablePath, Fragment.of(built.table)))
     return tr.setSelection(
-      new TextSelection(pos([...tablePath, rowIndex, landed ?? cellIndex, 0], 0)),
+      new TextSelection(
+        pos([...tablePath, landed?.row ?? context.rowIndex, landed?.index ?? 0, 0], 0),
+      ),
     )
   }
 }
@@ -88,7 +142,7 @@ export function moveColumn(direction: 'left' | 'right'): Command {
  * Swap the content of the selected cell with the next or previous one.
  *
  * Only the content moves: the destination keeps its own header flag,
- * alignment and colspan, because those describe the cell's place in the grid
+ * alignment and spans, because those describe the cell's place in the grid
  * rather than the value sitting in it.
  */
 export function swapCellContent(direction: MoveDirection): Command {
@@ -133,42 +187,27 @@ export function swapCellContent(direction: MoveDirection): Command {
   }
 }
 
-/** The cell one step away in a direction, or null at the table's edge. */
+/**
+ * The cell one step away in a direction, on the grid, or null at the
+ * table's edge. Grid columns, not child indices: with merged cells above,
+ * below or beside, the neighbour may sit in another row or at another index.
+ */
 function neighbourOf(
   context: CellContext,
   direction: MoveDirection,
 ): { rowIndex: number; cellIndex: number } | null {
-  const { table, row, rowIndex, cellIndex } = context
-
-  if (direction === 'left' || direction === 'right') {
-    const next = direction === 'left' ? cellIndex - 1 : cellIndex + 1
-    if (next < 0 || next >= row.childCount) return null
-    return { rowIndex, cellIndex: next }
-  }
-
-  const nextRow = direction === 'up' ? rowIndex - 1 : rowIndex + 1
-  if (nextRow < 0 || nextRow >= table.childCount) return null
-  const candidate = table.content.maybeChild(nextRow)
-  if (!candidate) return null
-  // Grid columns, not child indices: with merged cells above or below, the
-  // cell directly under this one may sit at a different child index.
-  const column = columnStart(row, cellIndex)
-  const index = childIndexAtColumn(candidate, column)
-  if (index === null) return null
-  return { rowIndex: nextRow, cellIndex: index }
-}
-
-/** Child index of the cell that *starts* at a grid column, else null. */
-function childIndexAtColumn(row: EditorNode, column: number): number | null {
-  let start = 0
-  for (let index = 0; index < row.childCount; index++) {
-    if (start === column) return index
-    const cell = row.child(index)
-    const span = cell.attrs.colspan
-    start += typeof span === 'number' && span > 1 ? span : 1
-    if (start > column) return null // a merged cell straddles this boundary
-  }
-  return null
+  const map = TableMap.of(context.table)
+  const cell = gridCellOf(context)
+  const [row, column] =
+    direction === 'left'
+      ? [cell.top, cell.left - 1]
+      : direction === 'right'
+        ? [cell.top, cell.left + cell.width]
+        : direction === 'up'
+          ? [cell.top - 1, cell.left]
+          : [cell.top + cell.height, cell.left]
+  const found = map.at(row, column)
+  return found ? { rowIndex: found.row, cellIndex: found.index } : null
 }
 
 /** A row with one cell replaced. */

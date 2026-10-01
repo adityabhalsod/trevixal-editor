@@ -1,6 +1,18 @@
 import type { EditorNode } from '../model/node'
 import type { HTMLSpec, MarkSpec, NodeSpec } from '../model/schema'
-import { storedNumberingsFor } from './list-numbering'
+import { codeBlockTitle, normalizeLineRanges } from './code-block'
+import { safeColor, safeFontFamily } from './css-values'
+import { type TextDirection, documentAttrs, textDirection } from './document-settings'
+import { isCustomNumberingId, isStoredNumbering } from './list-numbering'
+import { safeStyleId } from './named-styles'
+import {
+  paragraphFormatAttrs,
+  paragraphFormatCSS,
+  paragraphFormatHTML,
+  parseParagraphFormat,
+} from './paragraph-format'
+
+export { safeColor, safeFontFamily }
 
 const SAFE_PROTOCOLS = /^(?:https?|mailto|tel|ftp):/i
 
@@ -51,42 +63,6 @@ export function safeCSSValue(value: unknown, maxLength = 120): string | null {
   return trimmed
 }
 
-/**
- * A font stack. Quoted family names are allowed, unlike other CSS values,
- * but only as balanced quotes around plain words, never as a way to close
- * the declaration and start another.
- */
-export function safeFontFamily(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (trimmed.length === 0 || trimmed.length > 200) return null
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(trimmed)) return null
-  if (/[<>();{}]|url\(|expression|javascript:|@import/i.test(trimmed)) return null
-  const families = trimmed.split(',').map((family) => family.trim())
-  if (families.length === 0 || families.length > 12) return null
-  return families.every((family) => FONT_FAMILY.test(family)) ? families.join(', ') : null
-}
-
-const FONT_FAMILY = /^("[\w \-]+"|'[\w \-]+'|[\w-]+)$/
-
-/**
- * Named, hex, rgb() and hsl() colors only. Validated against an explicit
- * grammar rather than the general CSS sanitizer, which forbids the
- * parentheses these functional notations need.
- */
-export function safeColor(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  if (trimmed.length === 0 || trimmed.length > 64) return null
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(trimmed)) return null
-  return COLOR.test(trimmed) ? trimmed : null
-}
-
-const COLOR =
-  /^(#[0-9a-f]{3,8}|[a-z]+|rgba?\( *\d{1,3}%? *(,| ) *\d{1,3}%? *(,| ) *\d{1,3}%? *((,|\/) *[\d.]+%? *)?\)|hsla?\( *[\d.]+(deg|rad|turn)? *(,| ) *[\d.]+%? *(,| ) *[\d.]+%? *((,|\/) *[\d.]+%? *)?\))$/i
-
 /** A CSS length with an explicit unit, or a bare number treated as px. */
 export function safeLength(value: unknown): string | null {
   const css = safeCSSValue(value, 32)
@@ -95,7 +71,7 @@ export function safeLength(value: unknown): string | null {
   return /^\d+(\.\d+)?(px|pt|em|rem|%|vw|vh|ch)$/i.test(css) ? css : null
 }
 
-/** Alignment, indent and vertical-rhythm attrs shared by textblocks. */
+/** Alignment, indent, vertical-rhythm, direction and paragraph-format attrs shared by textblocks. */
 export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
   return {
     align: { default: null },
@@ -103,6 +79,10 @@ export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
     lineHeight: { default: null },
     spaceBefore: { default: null },
     spaceAfter: { default: null },
+    // `rtl` or `ltr` against the document's own direction; null follows it.
+    dir: { default: null },
+    // Borders and shading, and a drop cap: see paragraph-format.ts.
+    ...paragraphFormatAttrs(),
   }
 }
 
@@ -137,29 +117,49 @@ export function safeElementId(value: unknown): string | null {
   return value
 }
 
-/** Render align/indent/line-height/spacing as a sanitized style attribute. */
+/** Render align/indent/line-height/spacing/direction/borders/drop cap as sanitized attributes. */
 export function blockLayoutHTML(node: EditorNode): Record<string, string> {
   const declarations: string[] = []
   const align = typeof node.attrs.align === 'string' ? node.attrs.align : null
   if (align && ALIGNMENTS.has(align)) declarations.push(`text-align: ${align}`)
   const indent = typeof node.attrs.indent === 'number' ? node.attrs.indent : 0
   const steps = Math.min(MAX_INDENT, Math.max(0, Math.round(indent)))
-  if (steps > 0) declarations.push(`margin-left: ${steps * 2.5}rem`)
+  // The start side rather than the left: a right-to-left paragraph indents
+  // from the right, including one that takes its direction from the document.
+  if (steps > 0) declarations.push(`margin-inline-start: ${steps * 2.5}rem`)
   const lineHeight = safeLineHeight(node.attrs.lineHeight)
   if (lineHeight) declarations.push(`line-height: ${lineHeight}`)
   const before = safeLength(node.attrs.spaceBefore)
   if (before) declarations.push(`margin-top: ${before}`)
   const after = safeLength(node.attrs.spaceAfter)
   if (after) declarations.push(`margin-bottom: ${after}`)
-  return declarations.length > 0 ? { style: declarations.join('; ') } : {}
+  declarations.push(...paragraphFormatCSS(node.attrs))
+  const attrs: Record<string, string> = { ...paragraphFormatHTML(node.attrs) }
+  if (declarations.length > 0) attrs.style = declarations.join('; ')
+  const dir = textDirection(node.attrs.dir)
+  if (dir) attrs.dir = dir
+  return attrs
 }
 
-/** Read align/indent/line-height/spacing back from imported HTML. */
+/**
+ * The indent a block's markup carries, in rem: our own `margin-inline-start`,
+ * or the `margin-left` (`margin-right` when right-to-left) that other editors
+ * and older exports write.
+ */
+function indentOf(element: HTMLElement, dir: TextDirection | null): number {
+  const logical = /margin-inline-start:\s*([\d.]+)rem/i.exec(element.getAttribute('style') ?? '')
+  if (logical) return Number.parseFloat(logical[1] as string)
+  return Number.parseFloat(dir === 'rtl' ? element.style.marginRight : element.style.marginLeft)
+}
+
+/** Read align/indent/line-height/spacing/direction back from imported HTML. */
 export function parseBlockLayout(element: HTMLElement): Record<string, unknown> {
   const attrs: Record<string, unknown> = {}
   const align = element.style.textAlign || element.getAttribute('align')
   if (align && ALIGNMENTS.has(align)) attrs.align = align
-  const margin = Number.parseFloat(element.style.marginLeft)
+  const dir = textDirection(element.getAttribute('dir')?.toLowerCase())
+  if (dir) attrs.dir = dir
+  const margin = indentOf(element, dir)
   if (Number.isFinite(margin) && margin > 0) {
     attrs.indent = Math.min(MAX_INDENT, Math.round(margin / 2.5))
   }
@@ -169,7 +169,7 @@ export function parseBlockLayout(element: HTMLElement): Record<string, unknown> 
   if (before) attrs.spaceBefore = before
   const after = safeLength(element.style.marginBottom)
   if (after) attrs.spaceAfter = after
-  return attrs
+  return { ...attrs, ...parseParagraphFormat(element) }
 }
 
 /**
@@ -225,14 +225,29 @@ function parseListStyle(
  */
 function numberingHTML(node: EditorNode): Record<string, string> {
   const id = node.attrs.numbering
-  if (typeof id !== 'string' || !storedNumberingsFor(node.type.name).has(id)) return {}
-  return { 'data-numbering': id }
+  return isStoredNumbering(node.type.name, id) ? { 'data-numbering': id } : {}
 }
 
 /** Read a multilevel scheme back from imported HTML, if this list type allows it. */
 function parseNumbering(element: HTMLElement, listTypeName: string): Record<string, unknown> {
   const id = element.getAttribute('data-numbering')
-  return id !== null && storedNumberingsFor(listTypeName).has(id) ? { numbering: id } : {}
+  return isStoredNumbering(listTypeName, id) ? { numbering: id } : {}
+}
+
+/**
+ * A numbered list's `style`: its own marker style, and under a defined
+ * scheme where its first level starts. A defined scheme counts with counters
+ * of its own (see `listSchemesCSS`), which the `start` attribute does not set.
+ */
+function orderedListStyleHTML(node: EditorNode): Record<string, string> {
+  const start = typeof node.attrs.start === 'number' ? Math.round(node.attrs.start) : 1
+  const declarations = [
+    listStyleHTML(node, ORDERED_LIST_STYLES).style,
+    isCustomNumberingId(node.attrs.numbering) && start !== 1
+      ? `counter-reset: tvx-list-1 ${start - 1}`
+      : undefined,
+  ].filter(Boolean)
+  return declarations.length > 0 ? { style: declarations.join('; ') } : {}
 }
 
 /**
@@ -259,6 +274,73 @@ function isCheckbox(element: Element): boolean {
     element.tagName.toLowerCase() === 'input' &&
     (element.getAttribute('type') ?? '').toLowerCase() === 'checkbox'
   )
+}
+
+/** A task's due date: a real calendar date written as ISO does, `2026-10-01`, or null. */
+export function safeTaskDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const real = date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  return real ? match[0] : null
+}
+
+/** Longest name a task's assignee keeps. */
+const MAX_ASSIGNEE = 60
+
+/** Who a task is assigned to: one line of text, trimmed, or null. */
+export function safeAssignee(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const name = value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: a name is one line of plain text
+    .replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, ' ')
+    .trim()
+    .slice(0, MAX_ASSIGNEE)
+    .trim()
+  return name === '' ? null : name
+}
+
+/**
+ * A task's assignee and due date as one line, `@Priya · 2026-10-01`: what
+ * the editor's chip says, and what the Word and RTF exports write after the
+ * task. Null when it has neither.
+ */
+export function taskMetaText(attrs: Readonly<Record<string, unknown>>): string | null {
+  const assignee = safeAssignee(attrs.assignee)
+  const parts = [assignee ? `@${assignee}` : null, safeTaskDate(attrs.due)]
+  return parts.filter(Boolean).join(' · ') || null
+}
+
+/**
+ * The task attributes past `checked`: its due date, assignee and fold. The
+ * chip is drawn by the stylesheet at the end of the item's first line, from
+ * one custom property, so a print and a saved page show it too; the text is
+ * quoted for CSS, and a name can hold neither quote nor backslash unescaped.
+ */
+function taskItemHTML(node: EditorNode): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  const due = safeTaskDate(node.attrs.due)
+  const assignee = safeAssignee(node.attrs.assignee)
+  if (due) attrs['data-due'] = due
+  if (assignee) attrs['data-assignee'] = assignee
+  const chips = taskMetaText(node.attrs)
+  if (chips) attrs.style = `--tvx-task-meta: "${chips.replace(/["\\]/g, '\\$&')}"`
+  return { ...attrs, ...foldHTML(node) }
+}
+
+/** A list item folded shut, showing its first block only. */
+function foldHTML(node: EditorNode): Record<string, string> {
+  return node.attrs.folded === true ? { 'data-folded': '' } : {}
+}
+
+function parseTaskItem(element: HTMLElement): Record<string, unknown> {
+  return {
+    due: safeTaskDate(element.getAttribute('data-due')),
+    assignee: safeAssignee(element.getAttribute('data-assignee')),
+    folded: element.hasAttribute('data-folded'),
+  }
 }
 
 /**
@@ -295,13 +377,33 @@ function languageOf(element: HTMLElement): string | null {
 /** The built-in node set: doc, paragraph, headings, quote, code, lists, … */
 export function defaultNodes(): Record<string, NodeSpec> {
   return {
-    doc: { content: 'block+' },
+    // The whole document's settings are its attributes (document-settings.ts).
+    doc: { content: 'block+', attrs: documentAttrs() },
     paragraph: {
       content: 'inline*',
       group: 'block',
-      attrs: blockLayoutAttrs(),
-      toHTML: (node) => ({ tag: 'p', attrs: blockLayoutHTML(node) }),
-      parseHTML: [{ tag: 'p', getAttrs: parseBlockLayout }],
+      // `id` is what a link to this block points at, as a heading's is. Null
+      // until something (the block menu's "Copy link") asks for one.
+      // `paragraphStyle` is the named style it takes (see named-styles.ts),
+      // null for Normal.
+      attrs: { id: { default: null }, paragraphStyle: { default: null }, ...blockLayoutAttrs() },
+      toHTML: (node) => {
+        const attrs = blockLayoutHTML(node)
+        const id = safeElementId(node.attrs.id)
+        const style = safeStyleId(node.attrs.paragraphStyle)
+        if (style && style !== 'normal') attrs['data-paragraph-style'] = style
+        return { tag: 'p', attrs: id ? { ...attrs, id } : attrs }
+      },
+      parseHTML: [
+        {
+          tag: 'p',
+          getAttrs: (element) => ({
+            id: safeElementId(element.getAttribute('id')),
+            paragraphStyle: safeStyleId(element.getAttribute('data-paragraph-style')),
+            ...parseBlockLayout(element),
+          }),
+        },
+      ],
     },
     heading: {
       content: 'inline*',
@@ -333,15 +435,48 @@ export function defaultNodes(): Record<string, NodeSpec> {
       content: 'text*',
       group: 'block',
       marks: '',
-      attrs: { language: { default: null } },
+      // `id` is a link target, as a paragraph's is. The rest say how the code
+      // is shown: its lines numbered, some picked out ("1,3-5"), long lines
+      // wrapped, a title or file name above it, and a long block folded.
+      attrs: {
+        language: { default: null },
+        id: { default: null },
+        lineNumbers: { default: false },
+        highlightLines: { default: null },
+        wrap: { default: false },
+        title: { default: null },
+        collapsed: { default: false },
+      },
       preserveWhitespace: true,
       toHTML: (node) => {
         const language = safeLanguageName(node.attrs.language)
         const attrs: Record<string, string> = {}
         if (language) attrs['data-language'] = language
+        const id = safeElementId(node.attrs.id)
+        if (id) attrs.id = id
+        if (node.attrs.lineNumbers === true) attrs['data-line-numbers'] = 'true'
+        const highlight = normalizeLineRanges(node.attrs.highlightLines)
+        if (highlight) attrs['data-highlight-lines'] = highlight
+        if (node.attrs.wrap === true) attrs['data-wrap'] = 'true'
+        const title = codeBlockTitle(node.attrs.title)
+        if (title) attrs['data-title'] = title
+        if (node.attrs.collapsed === true) attrs['data-collapsed'] = 'true'
         return { tag: 'pre', attrs, childTag: 'code' }
       },
-      parseHTML: [{ tag: 'pre', getAttrs: (element) => ({ language: languageOf(element) }) }],
+      parseHTML: [
+        {
+          tag: 'pre',
+          getAttrs: (element) => ({
+            language: languageOf(element),
+            id: safeElementId(element.getAttribute('id')),
+            lineNumbers: element.getAttribute('data-line-numbers') === 'true',
+            highlightLines: normalizeLineRanges(element.getAttribute('data-highlight-lines')),
+            wrap: element.getAttribute('data-wrap') === 'true',
+            title: codeBlockTitle(element.getAttribute('data-title')),
+            collapsed: element.getAttribute('data-collapsed') === 'true',
+          }),
+        },
+      ],
     },
     horizontalRule: {
       group: 'block',
@@ -386,19 +521,30 @@ export function defaultNodes(): Record<string, NodeSpec> {
     },
     taskItem: {
       content: 'block+',
-      attrs: { checked: { default: false } },
+      // `due` is an ISO date and `assignee` a name, both null until set;
+      // `folded` hides every block but the first, as a list item's does.
+      attrs: {
+        checked: { default: false },
+        due: { default: null },
+        assignee: { default: null },
+        folded: { default: false },
+      },
       toHTML: (node) => ({
         tag: 'li',
         attrs: {
           'data-type': 'taskItem',
           'data-checked': node.attrs.checked === true ? 'true' : 'false',
+          ...taskItemHTML(node),
         },
       }),
       parseHTML: [
         {
           tag: 'li',
           attribute: 'data-checked',
-          getAttrs: (element) => ({ checked: element.getAttribute('data-checked') === 'true' }),
+          getAttrs: (element) => ({
+            checked: element.getAttribute('data-checked') === 'true',
+            ...parseTaskItem(element),
+          }),
         },
         // GitHub-flavoured markdown and other editors paste a bare `<li>`
         // holding an `<input type=checkbox>`. The parser drops the input
@@ -441,7 +587,7 @@ export function defaultNodes(): Record<string, NodeSpec> {
       attrs: { start: { default: 1 }, listStyle: { default: null }, numbering: { default: null } },
       toHTML: (node) => {
         const attrs: Record<string, string> = {
-          ...listStyleHTML(node, ORDERED_LIST_STYLES),
+          ...orderedListStyleHTML(node),
           ...numberingHTML(node),
         }
         if (node.attrs.start !== 1) attrs.start = String(node.attrs.start)
@@ -463,8 +609,13 @@ export function defaultNodes(): Record<string, NodeSpec> {
     },
     listItem: {
       content: 'block+',
-      toHTML: () => ({ tag: 'li' }),
-      parseHTML: [{ tag: 'li' }],
+      // Folded shut: only the first block shows, so the items nested under
+      // it are out of sight until it is unfolded.
+      attrs: { folded: { default: false } },
+      toHTML: (node) => ({ tag: 'li', attrs: foldHTML(node) }),
+      parseHTML: [
+        { tag: 'li', getAttrs: (element) => ({ folded: element.hasAttribute('data-folded') }) },
+      ],
     },
     text: { group: 'inline' },
   }
@@ -595,6 +746,23 @@ export function defaultMarks(): Record<string, MarkSpec> {
           getAttrs: (element) => {
             const color = safeColor(element.style.backgroundColor)
             return color ? { color } : false
+          },
+        },
+      ],
+    },
+    // Text in a named character style (see named-styles.ts).
+    charStyle: {
+      attrs: { id: {} },
+      toHTML: (mark) => ({
+        tag: 'span',
+        attrs: { 'data-char-style': safeStyleId(mark.attrs.id) ?? 'emphasis' },
+      }),
+      parseHTML: [
+        {
+          tag: 'span[data-char-style]',
+          getAttrs: (element) => {
+            const id = safeStyleId(element.getAttribute('data-char-style'))
+            return id ? { id } : false
           },
         },
       ],

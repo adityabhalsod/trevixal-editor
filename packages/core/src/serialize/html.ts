@@ -1,5 +1,6 @@
 import type { EditorNode, TextNode } from '../model/node'
 import type { HTMLSpec } from '../model/schema'
+import { documentSettingsAttrs } from '../schema/document-settings'
 
 export interface HTMLSerializeOptions {
   /**
@@ -26,10 +27,16 @@ export function serializeToHTML(node: EditorNode, options: HTMLSerializeOptions 
   if (node.isText) return serializeText(node as TextNode)
   const replacement = options.renderNode?.(node)
   if (replacement !== null && replacement !== undefined) return replacement
-  const spec = node.type.spec.toHTML?.(node)
   // An arrow, not a bare reference: `map` would pass the index along as the
   // options argument.
   const children = node.content.children.map((child) => serializeToHTML(child, options)).join('')
+  if (node.type === node.type.schema.topType) {
+    // The document's own settings, when it has any, wrap its blocks; without
+    // them the markup is the blocks alone, as it has always been.
+    const attrs = documentSettingsAttrs(node)
+    return Object.keys(attrs).length > 0 ? renderTag({ tag: 'div', attrs }, children) : children
+  }
+  const spec = node.type.spec.toHTML?.(node)
   if (!spec) return children
   return renderTag(spec, children)
 }

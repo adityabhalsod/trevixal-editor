@@ -31,11 +31,85 @@ editor.exec(insertColumns(3))
 | Tabs | `insertTabs(count)`, `addTab`, `removeTab`, `moveTab`, `activateTab` |
 | Accordion | `insertAccordion`, `addAccordionItem`, `setAccordionItemOpen`, `toggleAccordionExclusive` |
 | Badge, button, anchor | `insertBadge`, `insertButton`, `insertAnchor` |
-| Footnotes, citations | `insertFootnote`, `insertCitation`, `insertReferenceList`, `renumberCitations` |
+| Footnotes, endnotes, citations | `insertFootnote`, `insertEndnote`, `insertCitation(text, id?)`, `insertReferenceList`, `renumberCitations`, `importSources(sources)`, `setCitationStyle(style)`, `citationStyleOf(doc)`, `referenceChoices(doc)` |
+| Captions, cross-references | `insertCaption(kind, { label, text?, position? })`, `insertCrossReference(target, format)`, `referenceTargets(doc)` |
+| Table of figures, index | `insertCaptionList(kind)`, `markIndexEntry({ entry?, sub? })`, `insertDocumentIndex` |
 | Page break | `insertPageBreak` |
+| Section break: what follows is set on pages of its own, turned, in columns or with other margins | `insertSectionBreak({ orientation, columns, margin })` (each null for the document's) |
 
 `blockUICommands()` hands the whole set to `createEditorUI`, which populates
 *Insert* with them.
+
+## Citation styles
+
+A reference entry can carry its source's details (`source`, CSL-like JSON:
+authors, year, title, container, publisher, volume, issue, pages, URL, DOI),
+and the reference list names its style (`style`: `apa`, `mla`, `chicago` or
+`ieee`, IEEE by default).
+
+```ts
+import { importSources, parseSources, setCitationStyle } from '@trevixal/extension-blocks'
+
+editor.exec(importSources(parseSources(bibtexOrCslJson))) // throws SourceFileError when it finds none
+editor.exec(setCitationStyle('apa'))
+```
+
+`setCitationStyle` writes every entry with details out again in the style,
+orders the list, and relabels every citation in one undoable step. Author-date
+styles order by author, and IEEE orders by first citation. An author-date
+citation renders as its own label, `(Smith & Doe, 2020)`, and a numbered one
+as `[1]`. `parseBibTeX`, `parseCSLJSON`, `formatReference(source, style)` and
+`citationLabel(source, style, index)` are exported for use on their own.
+
+## Margin notes, polls, maps and conditional content
+
+`advancedBlockNodes(maps?)` adds four more, and `enableAdvancedBlocks(editor,
+{ editMap? })` makes them work:
+
+| Block | Commands | What it does |
+| --- | --- | --- |
+| Margin note | `insertMarginNote(color)` | A sticky note floated beside the text, in yellow, blue, green or pink |
+| Poll | `insertPoll(question, choices)` | A question and its choices; a click votes, one vote a poll on each page, which a second choice moves |
+| Map | `insertMap({ lat, lng, zoom, label })` | Tiles around a place from any provider, `advancedBlockNodes({ tiles, attribution })`, OpenStreetMap's by default; `+` and `−` zoom it |
+| Conditional | `wrapInConditional(variable, equals?)`, `setTemplateVariables(variables)` | Blocks shown only while a template variable is set, or set to a value |
+
+The template variables are the document's own, `doc.attrs.variables`. In the
+editor a conditional block is framed and labelled, and dimmed while its
+condition fails. `resolveConditionals(doc)` gives the reader's copy, the
+shown blocks unwrapped and the rest gone, which the assembled editor's
+downloads write out.
+
+## Fields
+
+Caption numbers, cross-references, tables of figures and the index are
+fields, as in Word: each keeps its result in its own attributes, so every
+serializer writes what the reader sees without computing anything.
+`installFieldUpdater(editor)` keeps the results current. It adds a dispatch
+transform that appends the updates to the edit that made them necessary, so
+one undo takes back an inserted figure and the renumbering it caused. Install
+it after any other transform (track changes) so it sees the final edit; the
+kit does.
+
+```ts
+const stop = installFieldUpdater(editor)
+editor.exec(insertCaption('figure', { label: 'Figure', text: 'A cat' }))
+const target = referenceTargets(editor.state.doc).find((entry) => entry.kind === 'figure')
+if (target) editor.exec(insertCrossReference(target, 'label')) // "Figure 1", and it follows
+```
+
+| Node | Holds | HTML |
+| --- | --- | --- |
+| `captionNumber` (inline) | `kind` (figure, table, equation), `id`, `number` | `<span class="trevixal-caption-number" data-caption="figure" id="fig-1">1</span>` |
+| `crossReference` (inline) | `target`, `format` (label, number, text, full), `text` | `<span class="trevixal-xref" data-xref="fig-1" data-href="#fig-1">Figure 1</span>` |
+| `captionList` | `kind`, `entries` (JSON) | `<nav data-caption-list="figure">` |
+| `documentIndex` | `entries` (JSON) | `<div data-document-index>` |
+| `indexTerm` (mark, from `referenceMarks()`) | `id`, `entry`, `sub` | `<span data-index-term="xe-1">` |
+| `endnoteRef`, `endnoteList`, `endnoteItem` | as the footnote nodes | `data-endnote`, numbered i, ii, iii |
+
+A caption is any paragraph (or figure caption) holding a `captionNumber`, with
+the words before it ("Figure") as ordinary text. Results are recomputed rather
+than trusted on import, and a caption pasted twice gets a fresh id for its
+copy. `referenceMarks()` has to be added to the schema's marks for the index.
 
 ## Getting out of a container
 

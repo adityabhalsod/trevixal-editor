@@ -18,6 +18,36 @@ function isNonContent(node: globalThis.Node): boolean {
   return dataset.trevixalPlaceholder === 'true' || dataset.trevixalWidget === 'true'
 }
 
+/** Whether `node` is, or sits inside, an element that occupies no model offsets, up to `root`. */
+export function isInsideNonContent(node: globalThis.Node, root: globalThis.Node): boolean {
+  for (
+    let current: globalThis.Node | null = node;
+    current && current !== root;
+    current = current.parentNode
+  ) {
+    if (isNonContent(current)) return true
+  }
+  return false
+}
+
+/** Whether `node` sits inside an inline atom, where the model has no offsets, up to `root`. */
+export function isInsideInlineAtom(
+  root: globalThis.Node,
+  renderer: DOMRenderer,
+  node: globalThis.Node,
+): boolean {
+  for (
+    let current: globalThis.Node | null = node;
+    current && current !== root;
+    current = current.parentNode
+  ) {
+    const model = current.nodeType === ELEMENT_NODE ? modelAt(renderer, current) : null
+    if (model?.isTextblock) return false
+    if (model && !model.isText && model.isInline) return true
+  }
+  return false
+}
+
 /** Model node an element renders, if any. */
 function modelAt(renderer: DOMRenderer, node: globalThis.Node): EditorNode | null {
   return renderer.modelOf.get(node) ?? null
@@ -69,8 +99,54 @@ export function positionFromDOMPoint(
   if (!path) return null
 
   const content = renderer.contentElementOf(blockElement)
-  const offset = inlineOffsetOf(renderer, content, domNode, domOffset)
+  const atom = atomAround(renderer, content, domNode)
+  const offset = atom
+    ? besideAtom(renderer, content, atom, domNode, domOffset)
+    : inlineOffsetOf(renderer, content, domNode, domOffset)
   return offset === null ? null : { path, offset }
+}
+
+/** The outermost inline atom element holding `node` inside `content`, if any. */
+function atomAround(
+  renderer: DOMRenderer,
+  content: HTMLElement,
+  node: globalThis.Node,
+): globalThis.Node | null {
+  let atom: globalThis.Node | null = null
+  for (
+    let current: globalThis.Node | null = node;
+    current && current !== content;
+    current = current.parentNode
+  ) {
+    const model = current.nodeType === ELEMENT_NODE ? modelAt(renderer, current) : null
+    if (model && !model.isText) atom = current
+  }
+  return atom
+}
+
+/**
+ * A point inside an atom, where Chromium and Firefox put the caret when the
+ * atom ends a line: the model has no offsets there, so it is before the atom
+ * at the very start of it and after the atom anywhere else.
+ */
+function besideAtom(
+  renderer: DOMRenderer,
+  content: HTMLElement,
+  atom: globalThis.Node,
+  node: globalThis.Node,
+  offset: number,
+): number | null {
+  const before = offsetToNodeStart(renderer, content, atom)
+  if (before === null) return null
+  let atStart = offset === 0
+  for (
+    let current = node;
+    atStart && current !== atom;
+    current = current.parentNode as globalThis.Node
+  ) {
+    if (current.previousSibling) atStart = false
+  }
+  return atStart ? before : before + 1
 }
 
 /**

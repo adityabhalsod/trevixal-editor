@@ -4,13 +4,17 @@ import { type ShortcutContext, type ShortcutPlatform, shortcutActions } from '..
 
 const nothing = (): void => undefined
 const verbs: ShortcutContext = {
+  addComment: nothing,
+  addNextMatch: nothing,
   flushAutosave: nothing,
   newDocument: nothing,
   openDocument: nothing,
   openFindReplace: nothing,
   openLinkDialog: nothing,
+  openGoTo: nothing,
   openPalette: nothing,
   pickEmoji: nothing,
+  playMacro: nothing,
   printDocument: nothing,
   protectDocument: nothing,
   toggleFocusMode: nothing,

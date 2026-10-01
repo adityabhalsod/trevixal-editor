@@ -1,4 +1,5 @@
 @use 'sass:list';
+@use 'sass:map';
 @use 'tokens' as t;
 
 // A list `$depth` levels down, counted over every kind of list, as the Word
@@ -102,7 +103,7 @@ $list-depth: 9;
   blockquote {
     margin: 0.75em 0;
     padding: t.token('space-1') t.token('space-4');
-    border-left: 3px solid t.token('color-accent');
+    border-inline-start: 3px solid t.token('color-accent');
     color: t.token('color-text-muted');
   }
 
@@ -136,7 +137,10 @@ $list-depth: 9;
   ul,
   ol {
     margin: 0 0 0.75em;
-    padding-left: 1.5em;
+    padding-inline-start: 1.5em;
+    // How far out past an item's text its fold chevron sits: beyond the
+    // marker. A task list and a defined scheme set their own.
+    --tvx-fold-gutter: 1.6em;
   }
 
   li > p {
@@ -226,6 +230,52 @@ $list-depth: 9;
     }
   }
 
+  // ---- folded list items -------------------------------------------------------
+  // A folded item shows its first block alone (see list-tools.ts). Only the
+  // editor folds: a print or a saved page has no chevron to open one with,
+  // so it shows everything.
+  &[contenteditable] {
+    li[data-folded] > :not(:first-child) {
+      display: none;
+    }
+
+    li:is([data-folded], :has(> :nth-child(2))) > :first-child {
+      position: relative;
+    }
+
+    // Open, the chevron points down; folded, at the text it hides, in the
+    // accent. Set on the item, so hovering never outranks being folded.
+    li {
+      --tvx-fold-turn: rotate(90deg);
+      --tvx-fold-ink: #{t.token('color-text-muted')};
+    }
+
+    li:dir(rtl) {
+      --tvx-fold-turn: rotate(-90deg);
+    }
+
+    li[data-folded] {
+      --tvx-fold-turn: none;
+      --tvx-fold-ink: #{t.token('color-accent')};
+    }
+
+    // The chevron that folds an item: before its first block, out past its
+    // marker, where the view looks for a press on it. On an item that can
+    // fold it shows while the pointer is over the item's own text; on a
+    // folded one it stays.
+    li[data-folded] > :first-child::before,
+    li:has(> :nth-child(2)):hover:not(:has(li:hover)) > :first-child::before {
+      content: '';
+      position: absolute;
+      inset-inline-end: calc(100% + var(--tvx-fold-gutter));
+      top: calc(0.5lh - 0.3em);
+      border-block: 0.3em solid transparent;
+      border-inline-start: 0.45em solid var(--tvx-fold-ink);
+      cursor: pointer;
+      transform: var(--tvx-fold-turn);
+    }
+  }
+
   hr {
     margin: 1.25em 0;
     border: none;
@@ -263,4 +313,212 @@ $list-depth: 9;
     color: t.token('color-text-muted');
     pointer-events: none;
   }
+}
+
+// ---- heading numbering -------------------------------------------------------
+// A document setting: `data-heading-numbering` sits on the editing surface in
+// the editor, and on the wrapper inside `.trevixal-content` on a saved page,
+// so every rule is written for both. Only headings at the top level count, as
+// `headingNumbers` in the core counts them, and a browser test holds the two
+// to the same numbers. The schemes are the list gallery's numbered ones.
+@mixin document-setting($attribute) {
+  .trevixal-content#{$attribute},
+  .trevixal-content > #{$attribute},
+  // A printed page's text carries the document's settings too (page-layout.ts).
+  .trevixal-page__body#{$attribute} {
+    @content;
+  }
+}
+
+$heading-counters: tvx-h1 tvx-h2 tvx-h3 tvx-h4 tvx-h5 tvx-h6;
+
+@include document-setting('[data-heading-numbering]') {
+  counter-reset: $heading-counters;
+
+  @for $level from 1 through 6 {
+    > h#{$level} {
+      counter-increment: list.nth($heading-counters, $level);
+      @if $level < 6 {
+        // Each heading starts the levels below it again. `counter-set`, not
+        // `counter-reset`: a reset on a sibling nests a new counter, and
+        // Chromium then keeps counting the old one (3. Results, 3.3. Retention).
+        $below: ();
+        @for $deeper from $level + 1 through 6 {
+          $below: list.append($below, list.nth($heading-counters, $deeper) 0, $separator: space);
+        }
+        counter-set: $below;
+      }
+
+      &::before {
+        margin-inline-end: 0.4em;
+        font-variant-numeric: tabular-nums;
+      }
+    }
+  }
+}
+
+// Per scheme: each level's counter style, what follows it, and whether a
+// number carries its ancestors' (1.1.1.) or stands alone (a., i.).
+$heading-schemes: (
+  'outline': (
+    levels: (decimal),
+    suffix: '.',
+    outline: true,
+  ),
+  'default': (
+    levels: (decimal, lower-alpha, lower-roman),
+    suffix: '.',
+    outline: false,
+  ),
+  'parenthesis': (
+    levels: (decimal, lower-alpha, lower-roman),
+    suffix: ')',
+    outline: false,
+  ),
+  'roman-outline': (
+    levels: (upper-roman, upper-alpha, decimal, lower-alpha, lower-roman),
+    suffix: '.',
+    outline: false,
+  ),
+);
+
+@each $id, $scheme in $heading-schemes {
+  $levels: map.get($scheme, levels);
+  $suffix: map.get($scheme, suffix);
+  @include document-setting("[data-heading-numbering='#{$id}']") {
+    @for $level from 1 through 6 {
+      > h#{$level}::before {
+        @if map.get($scheme, outline) {
+          $parts: ();
+          @for $part from 1 through $level {
+            $parts: list.append($parts, counter(list.nth($heading-counters, $part)), $separator: space);
+            @if $part < $level {
+              $parts: list.append($parts, '.', $separator: space);
+            }
+          }
+          content: $parts $suffix;
+        } @else {
+          $style: list.nth($levels, ($level - 1) % list.length($levels) + 1);
+          content: counter(list.nth($heading-counters, $level), $style) $suffix;
+        }
+      }
+    }
+  }
+}
+
+// ---- hyphenation, widows and orphans --------------------------------------------
+// Document settings. Hyphenation breaks words at their syllables in the
+// language the page declares. Widows and orphans only mean anything where the
+// text is cut into pages: a print, a PDF. Browsers keep two lines together by
+// default, as Word's widow control does, so only turning it off is written out.
+@include document-setting('[data-hyphenation]') {
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+
+@include document-setting("[data-widow-control='off']") {
+  widows: 1;
+  orphans: 1;
+}
+
+// ---- text columns -----------------------------------------------------------------
+// Newspaper columns, a document setting: the text runs down one column and on
+// into the next, with Word's gap between them, and its line when asked for.
+@for $count from 2 through 3 {
+  @include document-setting("[data-columns='#{$count}']") {
+    column-count: $count;
+    column-gap: 2.5em;
+  }
+}
+
+@include document-setting('[data-column-rule]') {
+  column-rule: 1px solid t.token('color-border');
+}
+
+// ---- named styles ------------------------------------------------------------------
+// The built-in styles' own look. What a document changes in them, and styles
+// of its own, come in a stylesheet drawn from its definitions (named-styles.ts),
+// scoped to the surface or the saved page so it outranks these.
+// As Word's own: large, light and drawn close, not bold.
+.trevixal-content p[data-paragraph-style='title'] {
+  margin: 0 0 0.4em;
+  font-size: 2.25em;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.trevixal-content p[data-paragraph-style='subtitle'] {
+  margin: 0 0 0.8em;
+  color: t.token('color-text-muted');
+  font-size: 1.3em;
+}
+
+.trevixal-content [data-char-style='emphasis'] {
+  font-style: italic;
+}
+
+.trevixal-content [data-char-style='strong'] {
+  font-weight: 700;
+}
+
+.trevixal-content [data-char-style='subtleEmphasis'] {
+  color: t.token('color-text-muted');
+  font-style: italic;
+}
+
+// ---- tabs ------------------------------------------------------------------------
+// A tab character in a box of its own, sized by the layout to reach its stop
+// (see tab-layout.ts), with a leader across the gap when the stop has one.
+// Leaders are backgrounds, which a print drops unless told to keep them.
+.trevixal-content .trevixal-tab {
+  display: inline-block;
+  white-space: pre;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+
+  &[data-leader='dot'] {
+    background: radial-gradient(circle, currentColor 0.06em, transparent 0.08em) left bottom 0.28em / 0.4em 0.4em repeat-x;
+  }
+
+  &[data-leader='hyphen'] {
+    background: repeating-linear-gradient(to right, currentColor 0 0.35em, transparent 0.35em 0.6em) left bottom 0.45em / 100% 1px no-repeat;
+  }
+
+  &[data-leader='underscore'] {
+    background: linear-gradient(currentColor, currentColor) left bottom 0.2em / 100% 1px no-repeat;
+  }
+}
+
+// ---- drop caps --------------------------------------------------------------------
+// The paragraph's first letter, as tall as the lines it drops over and floated
+// at their start: dropped into the text, or hung out in the margin beside it.
+// Sized in the paragraph's own line height, so the letter spans whole lines.
+.trevixal-content [data-drop-cap]::first-letter {
+  float: inline-start;
+  margin-block-start: 0.06em;
+  margin-inline-end: 0.08em;
+  font-size: calc(3 * #{t.token('line-height')} * 1em);
+  line-height: 1;
+}
+
+@for $lines from 2 through 5 {
+  .trevixal-content [data-drop-cap-lines='#{$lines}']::first-letter {
+    font-size: calc(#{$lines} * #{t.token('line-height')} * 1em);
+  }
+}
+
+// In the margin: the letter's own width out past the start of the text.
+.trevixal-content [data-drop-cap='margin']::first-letter {
+  margin-inline-start: -0.78em;
+  margin-inline-end: 0.12em;
+}
+
+// ---- index entries -------------------------------------------------------------
+// Words marked for the index are underlined while editing, so a writer can
+// see what is filed, and nowhere else: a saved page or a print has no
+// `contenteditable` on its content, and the words read as ordinary text.
+.trevixal-content[contenteditable] .trevixal-index-term {
+  text-decoration: underline dotted t.token('color-text-muted');
+  text-underline-offset: 0.2em;
 }

@@ -27,6 +27,12 @@
     font-size: 0.875rem;
     border-radius: t.token('radius-sm');
   }
+
+  // A menu holds dozens of entries, where a toolbar dropdown holds a few:
+  // it takes most of the window's height before it scrolls.
+  .trevixal-dropdown__panel {
+    max-height: min(75vh, 44rem);
+  }
 }
 
 // ------------------------------------------------------- dropdown (shared)
@@ -75,7 +81,7 @@
 
   &__chevron {
     display: inline-flex;
-    margin-left: auto;
+    margin-inline-start: auto;
     opacity: 0.65;
 
     svg {
@@ -87,6 +93,7 @@
   &__panel {
     position: absolute;
     top: calc(100% + 4px);
+    // Physical, as `alignPanel` measures: it flips from the right edge of the window.
     left: 0;
     z-index: 40;
     // Wide enough for the longest row. An absolutely positioned panel
@@ -136,7 +143,11 @@
     border-radius: t.token('radius-sm');
     font: inherit;
     font-size: 0.875rem;
-    text-align: left;
+    // Fixed, not the font's own: a language named in Devanagari, Japanese or
+    // Arabic falls back to a font with taller lines, and its row would stand
+    // taller than the rest.
+    line-height: 1.4;
+    text-align: start;
     // One line per entry: the panel grows to fit the label rather than the
     // label wrapping inside a fixed panel.
     white-space: nowrap;
@@ -227,7 +238,7 @@
     border: 0;
     border-radius: t.token('radius-sm');
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -307,7 +318,7 @@
     border-top: 1px solid t.token('color-border');
     font: inherit;
     font-size: 0.8rem;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
 
     &:hover {
@@ -420,6 +431,125 @@
     margin: auto;
     font-size: 0.85rem;
   }
+
+  // The document's own schemes, under a rule, after the built-in ones.
+  &__grid--defined {
+    padding-top: t.token('space-2');
+    border-top: 1px solid t.token('color-border');
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__define {
+    display: block;
+    width: calc(100% - 2 * #{t.token('space-2')});
+    margin: 0 t.token('space-2') t.token('space-2');
+    padding: t.token('space-2');
+    background: t.token('color-surface');
+    color: t.token('color-text');
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover {
+      border-color: t.token('color-accent');
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: t.token('focus-ring');
+    }
+  }
+}
+
+// ------------------------------------------- define a multilevel list (dialog)
+// Nine levels, one a row, with the first few drawn below as they will number.
+.trevixal-listscheme {
+  width: min(36rem, 100%);
+
+  &__scroller {
+    max-height: 14rem;
+    overflow-y: auto;
+    @include t.slim-scrollbar;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+  }
+
+  &__levels {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+
+    th,
+    td {
+      padding: 2px 4px;
+      text-align: start;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: t.token('color-surface');
+      color: t.token('color-text-muted');
+      font-weight: 500;
+    }
+
+    tbody th {
+      width: 2.5rem;
+      color: t.token('color-text-muted');
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .trevixal-dialog__input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 2px 4px;
+    }
+
+    input[type='number'] {
+      width: 4.5rem;
+    }
+  }
+
+  // As the list lays it out: each level's text starts at its indent, and
+  // its marker hangs in the gutter before it, however long the marker is.
+  &__preview {
+    padding: t.token('space-2') t.token('space-3');
+    padding-inline-start: 5em;
+    overflow: hidden;
+    background: t.token('color-surface');
+    border-radius: t.token('radius-sm');
+    font-size: 0.85rem;
+  }
+
+  &__line {
+    position: relative;
+    display: flex;
+    align-items: center;
+    // The marker is out of the flow, so the line is as tall as a line of text itself.
+    min-height: 1.8em;
+    padding-inline-start: var(--tvx-preview-indent, 0);
+  }
+
+  &__marker {
+    position: absolute;
+    inset-inline-end: calc(100% - var(--tvx-preview-indent, 0) + 0.3em);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar {
+    flex: 1;
+    max-width: 12rem;
+    height: 2px;
+    background: t.token('color-border');
+  }
 }
 
 // ------------------------------------------------------------ table design
@@ -494,7 +624,7 @@
     &::after {
       content: '';
       position: absolute;
-      left: 4px;
+      inset-inline-start: 4px;
       top: 1px;
       width: 4px;
       height: 8px;
@@ -601,6 +731,265 @@
 
 // ----------------------------------------------------------------- dialogs
 
+// The media dialogs are wider than a form: a drawing board, an image to
+// mark up, a camera's picture.
+.trevixal-dialog:is(.trevixal-drawing-editor, .trevixal-markup, .trevixal-capture) {
+  width: min(52rem, 100%);
+  max-height: 92vh;
+}
+
+.trevixal-drawing-editor__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: t.token('space-1');
+  align-items: center;
+}
+
+.trevixal-drawing-editor__tool {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: t.token('color-bg');
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    border-color: t.token('color-accent');
+    background: t.token('color-selection');
+  }
+}
+
+// The toolbar's text box and size menu, as tall as the buttons beside them.
+.trevixal-drawing-editor__words,
+.trevixal-drawing-editor__size {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: t.token('color-bg');
+  color: inherit;
+  font: inherit;
+}
+
+.trevixal-drawing-editor__swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid t.token('color-border');
+  border-radius: 50%;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    outline: 2px solid t.token('color-accent');
+    outline-offset: 2px;
+  }
+}
+
+.trevixal-drawing-editor__board,
+.trevixal-markup__stage {
+  position: relative;
+  width: 100%;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.trevixal-markup__stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.trevixal-markup__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.trevixal-capture__live,
+.trevixal-capture__still {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  background: #000;
+  border-radius: t.token('radius-sm');
+
+  // The display above outranks the user agent's rule for `[hidden]`, and the
+  // live picture would stay up beside the still, pushing the buttons away.
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-recorder__meter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 3rem;
+
+  > span {
+    flex: 1;
+    min-height: 6%;
+    border-radius: 1px;
+    background: t.token('color-accent');
+  }
+}
+
+.trevixal-recorder__time {
+  margin: 0;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+// The link report: each broken link, why, and a button to go to it.
+.trevixal-link-report__list {
+  margin: 0 0 t.token('space-3');
+  padding: 0;
+  list-style: none;
+
+  > li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 t.token('space-2');
+    align-items: center;
+    padding: t.token('space-1') 0;
+    border-bottom: 1px solid t.token('color-border');
+  }
+
+  .trevixal-dialog__hint {
+    grid-column: 1;
+  }
+
+  .trevixal-dialog__button {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+}
+
+.trevixal-link-report__text {
+  overflow-wrap: anywhere;
+}
+
+// The backlinks under the folders: the documents that link here.
+.trevixal-backlinks {
+  padding: t.token('space-2') 0;
+  border-top: 1px solid t.token('color-border');
+
+  &__title {
+    margin: 0 0 t.token('space-1');
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: t.token('color-text-muted');
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    width: 100%;
+    overflow: hidden;
+    padding: 0.25rem 0.4rem;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    background: none;
+    color: inherit;
+    font: inherit;
+    // The size of the document list above, one line each as its titles are.
+    font-size: 0.8rem;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: t.token('color-selection');
+    }
+  }
+
+  &__empty {
+    margin: 0;
+    font-size: 0.85rem;
+    color: t.token('color-text-muted');
+  }
+}
+
+// The lightbox: an image full size over a dark page, the arrows either side.
+.trevixal-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: t.token('space-2');
+  padding: t.token('space-4');
+  background: rgba(8, 8, 16, 0.88);
+  color: #fff;
+  // Mounted on the page's body, so it would take the page's font otherwise.
+  font-family: t.token('font-family');
+
+  &__image {
+    max-width: 92vw;
+    max-height: 82vh;
+    object-fit: contain;
+  }
+
+  &__caption {
+    margin: 0;
+    max-width: 60ch;
+    text-align: center;
+  }
+
+  &__button {
+    position: absolute;
+    border: 0;
+    border-radius: 50%;
+    width: 2.75rem;
+    height: 2.75rem;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    &--previous {
+      inset-inline-start: t.token('space-3');
+      top: 50%;
+    }
+
+    &--next {
+      inset-inline-end: t.token('space-3');
+      top: 50%;
+    }
+
+    &--close {
+      inset-inline-end: t.token('space-3');
+      top: t.token('space-3');
+    }
+  }
+}
+
 .trevixal-dialog-overlay {
   position: fixed;
   inset: 0;
@@ -629,8 +1018,18 @@
     width: min(24rem, 100%);
   }
 
+  // A dialog taller than the window scrolls, but its name stays at the top
+  // and its buttons at the foot. The negative margins give back the padding
+  // the sticky parts carry, so a dialog that fits looks the same; the
+  // negative offsets let them reach the dialog's edge, as sticking keeps
+  // clear of the padding otherwise.
   &__title {
-    margin: 0 0 t.token('space-3');
+    position: sticky;
+    top: calc(-1 * #{t.token('space-4')});
+    z-index: 1;
+    margin: calc(-1 * #{t.token('space-4')}) 0 t.token('space-3');
+    padding-top: t.token('space-4');
+    background: t.token('color-bg');
     font-size: 1rem;
     font-weight: 600;
   }
@@ -645,6 +1044,12 @@
     display: flex;
     flex-direction: column;
     gap: t.token('space-1');
+
+    // A field shown only for some choices (`visibleWhen`) is hidden with the
+    // attribute, which the display above would otherwise override.
+    &[hidden] {
+      display: none;
+    }
   }
 
   &__label {
@@ -667,9 +1072,29 @@
   }
 
   &__actions {
+    position: sticky;
+    bottom: calc(-1 * #{t.token('space-4')});
+    z-index: 1;
     display: flex;
     justify-content: flex-end;
     gap: t.token('space-2');
+    margin-bottom: calc(-1 * #{t.token('space-4')});
+    padding-bottom: t.token('space-4');
+    background: t.token('color-bg');
+  }
+
+  // Beside a list or a table rather than inside a form, which spaces its rows.
+  > .trevixal-dialog__actions {
+    margin-top: t.token('space-3');
+  }
+
+  // A colour field shows its colour: the text padding would squeeze the
+  // swatch to a line.
+  &__input[type='color'] {
+    width: 3.5rem;
+    height: 2.25rem;
+    padding: 3px;
+    cursor: pointer;
   }
 
   &__button {
@@ -685,6 +1110,13 @@
       background: t.token('color-accent');
       color: t.token('color-accent-contrast');
       border-color: t.token('color-accent');
+    }
+
+    // A button that cannot act yet, Compare the two before two are ticked or
+    // Take photo without a camera, must not look like one that can.
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     &:focus-visible {
@@ -734,12 +1166,20 @@
   font-family: t.token('font-family');
   font-size: 0.75rem;
 
+  // Both read in English, so a mirrored chrome keeps their English order
+  // ("62 words", not "words 62"). `dir="auto"` would do it too, but would
+  // also flip the margin that holds the counts at the far end.
+  &__path,
+  &__counts {
+    unicode-bidi: plaintext;
+  }
+
   &__path {
     text-transform: lowercase;
   }
 
   &__counts {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-variant-numeric: tabular-nums;
   }
 }
@@ -958,12 +1398,14 @@
 // ------------------------------------------------------- block drag handle
 // A grip beside the block under the pointer. Space picks the block up, the
 // arrow keys move it, Enter drops it, Escape puts it back.
+$blockgrip-width: 1.2rem;
+
 .trevixal-blockgrip {
   position: absolute;
   z-index: 5;
   display: grid;
   place-items: center;
-  width: 1.2rem;
+  width: $blockgrip-width;
   height: 1.6rem;
   padding: 0;
   color: t.token('color-text-muted');
@@ -1014,6 +1456,128 @@
   }
 }
 
+// The grip's menu: turn the block into another kind, duplicate, move, link, delete.
+.trevixal-blockmenu {
+  position: absolute;
+  z-index: 46;
+  min-width: 13rem;
+  padding: t.token('space-1');
+  background: t.token('color-bg');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-md');
+  box-shadow: t.token('shadow-raised');
+  font-family: t.token('font-family');
+  font-size: 0.875rem;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__heading {
+    margin: t.token('space-1') t.token('space-2');
+    color: t.token('color-text-muted');
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: t.token('space-2');
+    width: 100%;
+    padding: t.token('space-1') t.token('space-2');
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: t.token('radius-sm');
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      outline: none;
+      background: t.token('color-selection');
+    }
+
+    &:disabled {
+      color: t.token('color-text-muted');
+      cursor: default;
+      opacity: 0.55;
+    }
+  }
+
+  &__rule {
+    margin: t.token('space-1') 0;
+    border: 0;
+    border-top: 1px solid t.token('color-border');
+  }
+}
+
+// ------------------------------------------------------------ line numbers
+// The editor's are drawn in a layer beside the surface; a print's inside the
+// content itself. One rule serves both, and it names `.trevixal` so the print
+// and a saved page collect it with the rest of the editor's CSS.
+//
+// On screen they stand in a gutter, as a code editor's do: right-aligned in a
+// column four digits wide, then room for the grip beside each block, then the
+// text. The gap is the grip, 6px from its block, and 6px more.
+$line-number-column: 2rem;
+$line-number-gap: calc(#{$blockgrip-width} + 12px);
+
+// Page view keeps its page margin, which holds the numbers already: that rule
+// comes later in the stylesheet and is as specific as this one. The width is a
+// property too, for a host whose own rule for the surface's padding wins.
+.trevixal-content[data-line-numbers] {
+  --tvx-line-gutter: calc(#{t.token('space-2')} + #{$line-number-column} + #{$line-number-gap});
+  padding-inline-start: var(--tvx-line-gutter);
+}
+
+.trevixal-line-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+
+  // Each number is placed at the text's edge, and set off from it here.
+  > .trevixal-line-number {
+    transform: translateX(calc(-100% - #{$line-number-gap}));
+  }
+
+  &[data-side='right'] > .trevixal-line-number {
+    transform: translateX($line-number-gap);
+  }
+
+  // The caret's line, in the text's own colour.
+  > .trevixal-line-number--active {
+    color: t.token('color-text');
+  }
+}
+
+.trevixal-line-number {
+  position: absolute;
+  color: t.token('color-text-muted');
+  font-family: t.token('font-family-mono');
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+// Right-to-left chrome turns the icons drawn for a direction round with it.
+[dir='rtl'] .trevixal-icon--directional {
+  transform: scaleX(-1);
+}
+
 // ------------------------------------------- floating code-language select
 // Sits over the code block holding the caret, so the control is where the
 // code is rather than in a separate bar above the document.
@@ -1030,9 +1594,10 @@
   }
 }
 
-// The copy button: the same pill as the picker's trigger, so the bar reads as
-// one control strip.
-.trevixal-codelang__copy {
+// The copy and run buttons: the same pill as the picker's trigger, so the bar
+// reads as one control strip.
+.trevixal-codelang__copy,
+.trevixal-codelang__run {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -1072,6 +1637,22 @@
     color: var(--tvx-color-danger);
     border-color: var(--tvx-color-danger);
   }
+}
+
+// Run reads as the block's action: the accent, not the muted chrome.
+.trevixal-codelang__run {
+  color: var(--tvx-color-accent);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// The options trigger is its glyph alone; the panel's rows say what it holds.
+.trevixal-codelang__options-trigger > svg:last-child {
+  width: 14px;
+  height: 14px;
+  opacity: 1;
 }
 
 // What Enter does inside the block, and how to leave it. Muted: it is a
@@ -1192,8 +1773,8 @@
 .trevixal-menu__check {
   display: grid;
   place-items: center;
-  margin-left: auto;
-  padding-left: var(--tvx-space-2);
+  margin-inline-start: auto;
+  padding-inline-start: var(--tvx-space-2);
   visibility: hidden;
 
   svg {
@@ -1350,4 +1931,98 @@
 .trevixal-codelang[data-trevixal-detected] .trevixal-select__label {
   font-style: italic;
   color: t.token("color-text-muted");
+}
+
+// The equation dialog: the palette's keys in groups, the source, and a
+// preview of what it draws.
+.trevixal-equation {
+  width: min(40rem, calc(100vw - 2rem));
+}
+
+.trevixal-equation__palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: t.token('space-2');
+  margin-block-end: t.token('space-2');
+}
+
+.trevixal-equation__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+}
+
+.trevixal-equation__key {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.35rem;
+  color: inherit;
+  background: t.token('color-surface');
+  border: 0;
+  border-radius: t.token('radius-sm');
+  font: inherit;
+  font-family: 'Cambria Math', 'STIX Two Math', serif;
+  cursor: pointer;
+
+  &:hover {
+    background: t.token('color-selection');
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: t.token('focus-ring');
+  }
+}
+
+.trevixal-equation__source {
+  font-family: t.token('font-family-mono');
+}
+
+.trevixal-equation__preview {
+  min-height: 3rem;
+  padding: t.token('space-2');
+  overflow-x: auto;
+  border: 1px dashed t.token('color-border');
+  border-radius: t.token('radius-sm');
+  text-align: center;
+  color: t.token('color-text-muted');
+
+  math {
+    color: t.token('color-text');
+    font-size: 1.25em;
+  }
+}
+
+// The snippets: each abbreviation and what it puts in, a Delete each.
+.trevixal-snippets__list {
+  display: flex;
+  flex-direction: column;
+  gap: t.token('space-1');
+  max-height: 30vh;
+  margin: 0 0 t.token('space-3');
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.trevixal-snippets__item {
+  display: flex;
+  align-items: center;
+  gap: t.token('space-2');
+}
+
+.trevixal-snippets__label {
+  margin-inline-end: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+
+  kbd {
+    padding: 0 0.3rem;
+    border: 1px solid t.token('color-border');
+    border-radius: t.token('radius-sm');
+    font-family: t.token('font-family-mono');
+  }
 }

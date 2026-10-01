@@ -18,7 +18,12 @@ export function emptyParagraph(schema: Schema): EditorNode {
 }
 
 /** Whether `parent` still holds valid content with `node` spliced into it. */
-function acceptsBlock(parent: EditorNode, from: number, to: number, node: EditorNode): boolean {
+export function acceptsBlock(
+  parent: EditorNode,
+  from: number,
+  to: number,
+  node: EditorNode,
+): boolean {
   const children = [...parent.content.children]
   children.splice(from, to - from, node)
   return parent.type.validContent(Fragment.from(children))

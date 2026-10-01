@@ -341,3 +341,136 @@ describe('task lists in markdown', () => {
     expect(parseMarkdown('- a', testSchema).child(0).type.name).toBe('bulletList')
   })
 })
+
+describe('code block options in markdown', () => {
+  const shown = (attrs: Record<string, unknown>, body = 'let a = 1'): EditorNode =>
+    testSchema.node('codeBlock', { language: 'ts', ...attrs }, Fragment.of(testSchema.text(body)))
+
+  it('writes a title, picked-out lines and the display options after the language', () => {
+    const block = shown({
+      title: 'app.ts',
+      highlightLines: '1,3-5',
+      lineNumbers: true,
+      wrap: true,
+      collapsed: true,
+    })
+    expect(md(doc(block))).toBe(
+      '```ts title="app.ts" {1,3-5} showLineNumbers wrap collapsed\nlet a = 1\n```\n',
+    )
+    roundTrip(doc(block))
+  })
+
+  it('names the language text when only the options are set', () => {
+    const block = testSchema.node(
+      'codeBlock',
+      { title: 'notes' },
+      Fragment.of(testSchema.text('plain')),
+    )
+    expect(md(doc(block))).toBe('```text title="notes"\nplain\n```\n')
+    roundTrip(doc(block))
+  })
+
+  it('reads a fence with a title it did not write', () => {
+    const parsed = parseMarkdown("```js title='index.js' {2}\na\nb\n```", testSchema)
+    expect(parsed.child(0).attrs).toMatchObject({
+      language: 'js',
+      title: 'index.js',
+      highlightLines: '2',
+      lineNumbers: false,
+    })
+  })
+})
+
+describe('front matter', () => {
+  const withFront = testSchema.topType.create(
+    { frontMatter: 'title: Notes\ntags: [a, b]' },
+    Fragment.of(p('Body')),
+  )
+
+  it('keeps the YAML between the fences as the document’s', () => {
+    const parsed = parseMarkdown('---\ntitle: Notes\ntags: [a, b]\n---\n\nBody\n', testSchema)
+    expect(parsed.attrs.frontMatter).toBe('title: Notes\ntags: [a, b]')
+    expect(parsed.child(0).textContent).toBe('Body')
+  })
+
+  it('writes it back first, fenced', () => {
+    expect(md(withFront)).toBe('---\ntitle: Notes\ntags: [a, b]\n---\n\nBody\n')
+    roundTrip(withFront)
+  })
+
+  it('reads a rule later in the file as a rule, not front matter', () => {
+    const parsed = parseMarkdown('Intro\n\n---\n\nMore\n', testSchema)
+    expect(parsed.attrs.frontMatter).toBeNull()
+    expect(parsed.child(1).type.name).toBe('horizontalRule')
+  })
+})
+
+describe('MDX', () => {
+  const source = [
+    "import { Chart } from './chart'",
+    'export const meta = { draft: true }',
+    '',
+    '# Results',
+    '',
+    '<Chart data={[1, 2, 3]} />',
+    '',
+    'Some text.',
+    '',
+  ].join('\n')
+
+  it('keeps imports, exports and components as MDX blocks', () => {
+    const parsed = parseMarkdown(source, testSchema, { mdx: true })
+    expect(parsed.content.children.map((child) => child.type.name)).toEqual([
+      'codeBlock',
+      'heading',
+      'codeBlock',
+      'paragraph',
+    ])
+    expect(parsed.child(0).attrs.language).toBe('mdx')
+    expect(parsed.child(0).textContent).toBe(
+      "import { Chart } from './chart'\nexport const meta = { draft: true }",
+    )
+    expect(parsed.child(2).textContent).toBe('<Chart data={[1, 2, 3]} />')
+  })
+
+  it('writes them back as they were, and fences them in plain Markdown', () => {
+    const parsed = parseMarkdown(source, testSchema, { mdx: true })
+    expect(serializeToMarkdown(parsed, { mdx: true })).toBe(source)
+    expect(serializeToMarkdown(parsed)).toContain('```mdx\n<Chart data={[1, 2, 3]} />\n```')
+  })
+
+  it('reads a component tag as HTML text when MDX is off', () => {
+    const parsed = parseMarkdown('<Chart />', testSchema)
+    expect(parsed.child(0).type.name).toBe('paragraph')
+  })
+})
+
+describe('pictures where the schema keeps them as blocks', () => {
+  const blockImages = new Schema({
+    nodes: {
+      ...defaultNodes(),
+      image: {
+        group: 'block',
+        atom: true,
+        attrs: { src: { default: '' }, alt: { default: '' }, title: { default: null } },
+      },
+    },
+    marks: defaultMarks(),
+  })
+
+  it('lifts a picture out of its paragraph rather than losing it', () => {
+    const parsed = parseMarkdown('Before ![A dot](https://example.com/dot.png) after', blockImages)
+    expect(parsed.content.children.map((block) => block.type.name)).toEqual([
+      'paragraph',
+      'image',
+      'paragraph',
+    ])
+    expect(parsed.child(1).attrs.src).toBe('https://example.com/dot.png')
+    expect(parsed.child(1).attrs.alt).toBe('A dot')
+  })
+
+  it('keeps a picture alone on its line as just the picture', () => {
+    const parsed = parseMarkdown('![Map](https://example.com/map.png)', blockImages)
+    expect(parsed.content.children.map((block) => block.type.name)).toEqual(['image'])
+  })
+})

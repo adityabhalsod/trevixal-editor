@@ -1,6 +1,9 @@
-import type { Fragment } from '../model/fragment'
+import { Fragment } from '../model/fragment'
 import type { Mark } from '../model/mark'
 import type { EditorNode, TextNode } from '../model/node'
+import { TableMap } from '../model/table-map'
+import { codeBlockTitle, normalizeLineRanges } from '../schema/code-block'
+import { frontMatterOf } from '../schema/document-settings'
 
 export interface MarkdownSerializeOptions {
   /** Bullet marker for unordered lists; `"-"` by default. */
@@ -16,6 +19,11 @@ export interface MarkdownSerializeOptions {
     readonly row?: string
     readonly cell?: string
   }
+  /**
+   * Write MDX: a code block in the `mdx` language goes out as the imports,
+   * exports and components it holds, rather than fenced as code.
+   */
+  readonly mdx?: boolean
 }
 
 interface Resolved {
@@ -24,7 +32,11 @@ interface Resolved {
   readonly table: string
   readonly row: string
   readonly cell: string
+  readonly mdx: boolean
 }
+
+/** The code block language MDX's own syntax is kept in. */
+export const MDX_LANGUAGE = 'mdx'
 
 /**
  * Markdown (GFM) export. Covers everything the default schema can hold, plus
@@ -43,10 +55,30 @@ export function serializeToMarkdown(
     table: options.tableNames?.table ?? 'table',
     row: options.tableNames?.row ?? 'tableRow',
     cell: options.tableNames?.cell ?? 'tableCell',
+    mdx: options.mdx === true,
   }
   const blocks = doc.content.children.map((child) => serializeBlock(child, config, ''))
+  const frontMatter = frontMatterOf(doc.attrs.frontMatter)
+  const head = frontMatter ? `---\n${frontMatter}\n---\n\n` : ''
   // A trailing newline is conventional and makes the output diff-friendly.
-  return `${blocks.filter((block) => block !== null).join('\n\n')}\n`
+  return `${head}${blocks.filter((block) => block !== null).join('\n\n')}\n`
+}
+
+/**
+ * What follows a fence's language: the title, the lines picked out and how
+ * the block shows, as documentation sites read it,
+ * `title="app.ts" {1,3-5} showLineNumbers`.
+ */
+function fenceMeta(node: EditorNode): string {
+  const parts: string[] = []
+  const title = codeBlockTitle(node.attrs.title)
+  if (title) parts.push(`title="${title.replace(/"/g, "'")}"`)
+  const lines = normalizeLineRanges(node.attrs.highlightLines)
+  if (lines) parts.push(`{${lines}}`)
+  if (node.attrs.lineNumbers === true) parts.push('showLineNumbers')
+  if (node.attrs.wrap === true) parts.push('wrap')
+  if (node.attrs.collapsed === true) parts.push('collapsed')
+  return parts.join(' ')
 }
 
 /**
@@ -65,12 +97,22 @@ function serializeBlock(node: EditorNode, config: Resolved, indent: string): str
     case 'codeBlock': {
       const language = typeof node.attrs.language === 'string' ? node.attrs.language : ''
       const body = node.textContent
+      // MDX's own syntax is the file's, not code shown in it.
+      if (config.mdx && language === MDX_LANGUAGE) {
+        return body
+          .split('\n')
+          .map((line) => indent + line)
+          .join('\n')
+      }
       // A fence must be longer than the longest backtick run inside it, or the
       // code closes the block early.
       const fence = '`'.repeat(Math.max(3, longestBacktickRun(body) + 1))
       const lines = body.length > 0 ? body.split('\n') : ['']
+      const meta = fenceMeta(node)
+      // With no language the first word of the meta would be read as one.
+      const info = meta ? `${language || 'text'} ${meta}` : language
       return [
-        `${indent}${fence}${language}`,
+        `${indent}${fence}${info}`,
         ...lines.map((line) => indent + line),
         `${indent}${fence}`,
       ].join('\n')
@@ -135,33 +177,34 @@ function taskMarker(item: EditorNode): string {
   return item.attrs.checked === true ? '[x] ' : '[ ] '
 }
 
-/** A GFM pipe table. Alignment comes from the first row's cell attrs. */
+/**
+ * A GFM pipe table. Alignment comes from the first row's cell attrs. A pipe
+ * table has no spans, so a merged cell gives its text once, at its top-left,
+ * and leaves the rest of the grid it covers empty: every row keeps its
+ * columns.
+ */
 function serializeTable(table: EditorNode, config: Resolved, indent: string): string {
   const rows = table.content.children.filter((row) => row.type.name === config.row)
   if (rows.length === 0) return ''
-  const cellsOf = (row: EditorNode): EditorNode[] =>
-    row.content.children.filter((cell) => cell.type.name === config.cell)
-
-  const columns = Math.max(...rows.map((row) => cellsOf(row).length))
-  const renderRow = (row: EditorNode): string => {
-    const cells = cellsOf(row)
+  const grid = TableMap.of(table.withContent(Fragment.from(rows)))
+  const columns = Math.max(1, grid.width)
+  const renderRow = (rowIndex: number): string => {
     const rendered: string[] = []
-    for (let index = 0; index < columns; index++) {
-      const cell = cells[index]
-      rendered.push(cell ? cellText(cell, config) : '')
+    for (let column = 0; column < columns; column++) {
+      const cell = grid.at(rowIndex, column)
+      const own = cell && cell.top === rowIndex && cell.left === column
+      rendered.push(own && cell.node.type.name === config.cell ? cellText(cell.node, config) : '')
     }
     return `${indent}| ${rendered.join(' | ')} |`
   }
 
-  const first = rows[0] as EditorNode
-  const headerCells = cellsOf(first)
   // One delimiter per column, taking its alignment from the header cell --
   // a short header row still needs a rule for every column.
-  const delimiter = Array.from({ length: columns }, (_unused, index) =>
-    alignmentRule(headerCells[index]?.attrs.align),
+  const delimiter = Array.from({ length: columns }, (_unused, column) =>
+    alignmentRule(grid.at(0, column)?.node.attrs.align),
   )
-  const lines = [renderRow(first), `${indent}| ${delimiter.join(' | ')} |`]
-  for (const row of rows.slice(1)) lines.push(renderRow(row))
+  const lines = [renderRow(0), `${indent}| ${delimiter.join(' | ')} |`]
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) lines.push(renderRow(rowIndex))
   return lines.join('\n')
 }
 
@@ -174,14 +217,28 @@ function alignmentRule(align: unknown): string {
 
 /**
  * A cell's content flattened to one line: a pipe table has no way to express
- * a block break, so paragraphs join with a space and pipes are escaped.
+ * a block break, so paragraphs join with a space and pipes are escaped. A
+ * list or a table in the cell gives its text the same way, a space between
+ * each of its items and cells.
  */
 function cellText(cell: EditorNode, config: Resolved): string {
-  return cell.content.children
-    .map((block) => serializeInline(block.content, config))
+  const text = cell.content.children
+    .map((block) => blockLine(block, config))
     .join(' ')
     .replaceAll('|', '\\|')
     .trim()
+  // A checkbox cell's box, as a task list writes it.
+  if (cell.attrs.valueType !== 'checkbox') return text
+  return `${cell.attrs.checked === true ? '[x]' : '[ ]'} ${text}`.trim()
+}
+
+/** A block's text on one line: a textblock's inline content, or its own textblocks', spaced. */
+function blockLine(block: EditorNode, config: Resolved): string {
+  if (block.isTextblock) return serializeInline(block.content, config)
+  return block.content.children
+    .map((child) => blockLine(child, config))
+    .filter(Boolean)
+    .join(' ')
 }
 
 /** Inline content: text with marks, hard breaks, images and inline atoms. */

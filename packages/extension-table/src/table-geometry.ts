@@ -33,19 +33,32 @@ export interface GridCell {
   readonly span: number
 }
 
-/** Every cell of a rendered table placed on the grid, and how wide the grid is. */
+/**
+ * Every cell of a rendered table placed on the grid, and how wide the grid
+ * is. A cell takes the first column no cell spanning down from a row above
+ * already covers, as the browser lays it out.
+ */
 export function gridOf(table: HTMLTableElement): { cells: GridCell[]; columnCount: number } {
   const cells: GridCell[] = []
+  const rows = [...table.rows]
+  const covered: boolean[][] = rows.map(() => [])
   let columnCount = 0
-  for (const row of [...table.rows]) {
+  rows.forEach((row, rowIndex) => {
+    const line = covered[rowIndex] as boolean[]
     let start = 0
     for (const element of [...row.cells]) {
+      while (line[start]) start++
       const span = Math.max(1, element.colSpan)
+      const down = Math.min(Math.max(1, element.rowSpan || 1), rows.length - rowIndex)
+      for (let r = rowIndex; r < rowIndex + down; r++) {
+        const target = covered[r] as boolean[]
+        for (let c = start; c < start + span; c++) target[c] = true
+      }
       cells.push({ element, start, span })
       start += span
+      columnCount = Math.max(columnCount, start)
     }
-    columnCount = Math.max(columnCount, start)
-  }
+  })
   return { cells, columnCount }
 }
 

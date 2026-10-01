@@ -55,6 +55,18 @@ function decorated(editor: Editor, kind: WritingIssueKind | 'all' = 'all'): stri
 const PASSIVE_AND_REPEAT = '<p>The report was written by the team. this is is bad.</p>'
 
 describe('createWritingAssistant decorations', () => {
+  it('leaves inline code alone, which quotes its text rather than writes it', () => {
+    const editor = mount('<p>Type <code>:</code> for emoji, or <code>teh</code> for a typo.</p>')
+    const assistant = createWritingAssistant(editor, { debounceMs: 0 })
+    expect(assistant.report().issues.map((issue) => issue.text)).toEqual([])
+    assistant.destroy()
+    // The same words outside code are still the writer's, and still checked.
+    const plain = mount('<p>Type : for emoji.</p>')
+    const checked = createWritingAssistant(plain, { debounceMs: 0 })
+    expect(checked.report().issues.map((issue) => issue.kind)).toEqual(['grammar'])
+    checked.destroy()
+  })
+
   it('paints a class per issue kind without touching the document', () => {
     const editor = mount(PASSIVE_AND_REPEAT)
     const assistant = createWritingAssistant(editor, { debounceMs: 0 })

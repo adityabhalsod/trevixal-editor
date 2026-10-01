@@ -111,12 +111,19 @@ describe('the theme on the export context', () => {
 })
 
 describe('format registries', () => {
-  it('lists both exporters, DOCX first', () => {
-    expect(exportFormats().map((format) => format.name)).toEqual(['docx', 'rtf'])
+  it('lists every exporter, DOCX first', () => {
+    expect(exportFormats().map((format) => format.name)).toEqual([
+      'docx',
+      'rtf',
+      'odt',
+      'epub',
+      'latex',
+      'pptx',
+    ])
   })
 
-  it('lists the DOCX importer', () => {
-    expect(importFormats().map((format) => format.name)).toEqual(['docx'])
+  it('lists every importer, DOCX first', () => {
+    expect(importFormats().map((format) => format.name)).toEqual(['docx', 'odt', 'pdf', 'archive'])
   })
 
   it('hands back fresh descriptors so a caller may not mutate the registry', () => {

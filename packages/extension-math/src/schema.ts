@@ -1,4 +1,4 @@
-import type { NodeSpec } from '@trevixal/core'
+import { type NodeSpec, escapeHTML, safeElementId } from '@trevixal/core'
 import { type MathRenderer, defaultMathRenderer } from './mathml'
 
 /** Node name of the inline formula atom, so callers never spell it by hand. */
@@ -120,25 +120,47 @@ export function mathNodes(options: MathNodeOptions = {}): Record<string, NodeSpe
     [MATH_BLOCK_NODE]: {
       group: 'block',
       atom: true,
-      attrs: { latex: { default: '' } },
+      // A numbered equation carries its number, "(2)", at the right, as
+      // LaTeX's `equation` does: `number` is the result the field updater
+      // works out (see extension-blocks), `id` what a cross-reference names.
+      attrs: {
+        latex: { default: '' },
+        numbered: { default: false },
+        number: { default: null },
+        id: { default: null },
+      },
       toHTML: (node) => {
         const latex = latexOf(node.attrs.latex)
+        const numbered = node.attrs.numbered === true
+        const number = numbered && typeof node.attrs.number === 'string' ? node.attrs.number : null
+        const id = safeElementId(node.attrs.id)
+        const tag = number
+          ? `<span class="${MATH_CLASS}__number" aria-hidden="true">(${escapeHTML(number)})</span>`
+          : ''
         return {
           tag: 'div',
           attrs: {
             class: `${MATH_CLASS} ${MATH_CLASS}--block`,
             'data-latex': latex,
             role: 'math',
-            'aria-label': latex,
+            'aria-label': number ? `${latex}, equation ${number}` : latex,
+            ...(numbered ? { 'data-numbered': 'true' } : {}),
+            ...(number ? { 'data-number': number } : {}),
+            ...(id ? { id } : {}),
           },
-          innerHTML: latex === '' ? EMPTY_MARKUP : render(latex, true),
+          innerHTML: (latex === '' ? EMPTY_MARKUP : render(latex, true)) + tag,
         }
       },
       parseHTML: [
         {
           tag: 'div',
           attribute: 'data-latex',
-          getAttrs: (element) => ({ latex: element.getAttribute('data-latex') ?? '' }),
+          getAttrs: (element) => ({
+            latex: element.getAttribute('data-latex') ?? '',
+            numbered: element.getAttribute('data-numbered') === 'true',
+            number: element.getAttribute('data-number'),
+            id: safeElementId(element.getAttribute('id')),
+          }),
         },
         {
           tag: 'math',

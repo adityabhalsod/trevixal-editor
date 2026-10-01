@@ -1,6 +1,7 @@
 // Toolbar
 export {
   type BlockCommands,
+  type ReferenceTargetInfo,
   type CodeFormatCommands,
   createToolbar,
   defaultToolbarGroups,
@@ -14,10 +15,39 @@ export {
   type ToolbarGroupInfo,
   type ToolbarItem,
   type ToolbarOptions,
+  type ToolbarPreset,
+  TOOLBAR_PRESETS,
+  toolbarPresetGroups,
 } from './toolbar'
+
+// List tools: sort, fold, task details, defined multilevel schemes
+export {
+  bindListFolding,
+  defineListNumbering,
+  highlightOverdueTasks,
+  isFoldable,
+  type ListSortDirection,
+  localToday,
+  nextListSchemeId,
+  revealSelection,
+  setListItemFolded,
+  setTaskDetails,
+  sortList,
+  type TaskDetails,
+  taskDetailsAt,
+  toggleListItemFold,
+} from './list-tools'
+export {
+  editableLevels,
+  listDialogEntries,
+  openDefineListNumbering,
+  openListSchemeDialog,
+  type ListSchemeDialogOptions,
+} from './list-dialogs'
 
 // Menubar
 export {
+  CELL_PADDING_ENTRIES,
   createMenubar,
   defaultMenus,
   type Menu,
@@ -41,6 +71,7 @@ export {
   defaultFontFamilies,
   defaultFontSizes,
   defaultListNumberings,
+  definedListNumberings,
   DEFAULT_SWATCHES,
   type ListNumberingControlOptions,
   type ListNumberingOption,
@@ -68,10 +99,82 @@ export {
 } from './bubble-menu'
 export { type LinkPopover, type LinkPopoverOptions, createLinkPopover } from './link-popover'
 export {
+  type BlockTarget,
+  blockTargets,
+  brokenInternalLinks,
+  type CheckLinksOptions,
+  checkLinks,
+  enableLinkTitles,
+  ensureBlockId,
+  type LinkRef,
+  type LinkReport,
+  type LinkStatus,
+  linksIn,
+  openLinkReport,
+  reachableURL,
+  selectLink,
+} from './link-tools'
+export {
+  type ComparisonOptions,
+  type ComparisonRow,
+  type WordPart,
+  compareDocuments,
+  comparisonCounts,
+  openComparison,
+  wordDiff,
+} from './compare'
+export { clipWebPage, fetchPageHTML } from './web-clip'
+export {
+  EQUATION_PALETTE,
+  type EquationDialogOptions,
+  type EquationDialogResult,
+  bindEquationEditing,
+  insertAtCaret,
+  openEquationDialog,
+} from './equation-dialog'
+export { type GoToTarget, goToLine, goToTargets, openGoToDialog } from './go-to'
+export { type MacroStep, type Macros, createMacros } from './macros'
+export { type MultipleCarets, enableMultipleCarets } from './multi-caret'
+export {
+  type Snippet,
+  type SnippetStore,
+  abbreviationAt,
+  enableSnippetExpansion,
+  expandAbbreviation,
+  insertSnippet,
+  isAbbreviation,
+  openSnippetsDialog,
+  selectionContent,
+  textContent as snippetText,
+} from './snippets'
+export {
+  type KeyPreset,
+  type KeyPresetOptions,
+  type VimMode,
+  installKeyPreset,
+} from './key-presets'
+export {
   type BlockDragHandle,
   type BlockDragHandleOptions,
   createBlockDragHandle,
 } from './block-drag-handle'
+// Line numbers in the margin, and following references to their targets
+export {
+  createLineNumbers,
+  type LineNumbers,
+  type LineNumbersOptions,
+  type MeasuredLine,
+  measureLines,
+  numberLinesIn,
+} from './line-numbers'
+export { createTabLayout, layoutTabsIn, type TabLayout } from './tab-layout'
+export { createNamedStyleSheet, type NamedStyleSheet } from './named-style-sheet'
+export { createStylesPane, type StylesPane, type StylesPaneOptions } from './styles-pane'
+export {
+  createReferenceNavigation,
+  type ReferenceNavigation,
+  referenceTarget,
+} from './reference-navigation'
 
 // Floating code-language select
 export {
@@ -100,6 +203,7 @@ export {
   TOOLBAR_KEY,
   type Translator,
 } from './i18n'
+export { languageItemName, type UILanguage, UI_LANGUAGES } from './languages'
 
 // CSS collection, for exporting a self-contained document
 export { type CollectCSSOptions, collectDocumentCSS } from './collect-css'
@@ -234,11 +338,13 @@ export {
   type ImportOptions,
   importFile,
   importerFor,
+  readDocumentFile,
   openPrintPreview,
   pickFile,
   printDocument,
   printableHTML,
   type PrintOptions,
+  repeatHeaderRowsIn,
   readFileText,
   selectionDocument,
   suggestFileName,
@@ -282,11 +388,13 @@ export { createHistoryPanel, type HistoryPanel, type HistoryPanelOptions } from 
 // Themes, fonts, custom CSS and the page view
 export {
   buildCustomTheme,
+  currentTheme,
   createCustomStyles,
   createFontManager,
   createPageView,
   createThemeController,
   CUSTOM_THEME_TOKENS,
+  followPageSetup,
   type CustomStyles,
   type CustomThemeInput,
   defaultThemePresets,
@@ -301,14 +409,45 @@ export {
   type PageView,
   type PageViewOptions,
   parseColor,
+  parseTheme,
   readThemeSnapshot,
   scopeCSS,
+  serializeTheme,
+  THEME_FILE_FORMAT,
   type ThemeController,
   type ThemeControllerOptions,
   type ThemeMode,
+  ThemeFileError,
   type ThemePreset,
   type ThemeSnapshot,
 } from './theming'
+
+// The document's own theme and fonts, saved with it
+export {
+  bindDocumentTheme,
+  DOCUMENT_THEME,
+  documentFonts,
+  documentTheme,
+  type DocumentFonts,
+  setDocumentFonts,
+  setDocumentTheme,
+} from './document-appearance'
+
+// Reduced motion
+export { MOTION_ATTRIBUTE, scrollBehavior } from './motion'
+
+// Long documents
+export {
+  enableLongDocumentMode,
+  LONG_DOCUMENT_ATTRIBUTE,
+  LONG_DOCUMENT_BLOCKS,
+} from './long-document'
+
+// Phones
+export { KEYBOARD_INSET_PROPERTY, trackVirtualKeyboard } from './mobile'
+
+// Dictation and read-aloud
+export { createSpeech, type Speech, type SpeechOptions } from './speech'
 
 // Quick insert, recent tools, favourites and toolbar customization
 export {
@@ -338,6 +477,8 @@ export {
 
 // Assembled chrome
 export {
+  type ChromeLanguage,
+  type CodeCommands,
   createEditorUI,
   type DiagramCommands,
   type EditorUI,
@@ -346,7 +487,11 @@ export {
   type FileActions,
   type ImageActions,
   type MathCommands,
+  type SecurityCommands,
+  type TableColumnType,
   type TableCommands,
+  type TableRowFilter,
+  type TableLayoutState,
   VIEW_TOGGLES,
   type ViewActions,
   type ViewToggle,

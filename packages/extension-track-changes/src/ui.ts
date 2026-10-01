@@ -75,6 +75,21 @@ export function nextSuggestion(
   return null
 }
 
+/** Everyone who has a suggestion pending, in alphabetical order. */
+export function suggestionAuthors(track: TrackChanges): string[] {
+  const authors = new Set(track.suggestions().map((suggestion) => suggestion.author))
+  return [...authors].sort((a, b) => a.localeCompare(b))
+}
+
+/** The suggestions one author made; everyone's for null. */
+export function suggestionsBy(
+  track: TrackChanges,
+  author: string | null,
+): readonly SuggestionRange[] {
+  const all = track.suggestions()
+  return author === null ? all : all.filter((suggestion) => suggestion.author === author)
+}
+
 function countLabel(count: number): string {
   if (count === 0) return 'No suggestions'
   return count === 1 ? '1 suggestion' : `${count} suggestions`
@@ -158,13 +173,20 @@ export function createTrackChangesBar(
   )
   const accept = control('trevixal-trackchanges__accept', 'Accept', () => track.accept(current()))
   const reject = control('trevixal-trackchanges__reject', 'Reject', () => track.reject(current()))
+  // Whose suggestions Accept all and Reject all act on: everyone's, or one
+  // reviewer's, as Word's Accept All Changes by This Reviewer.
+  const authors = doc.createElement('select')
+  authors.className = 'trevixal-trackchanges__authors'
+  authors.setAttribute('aria-label', 'Suggestions by')
+  authors.addEventListener('change', () => refresh())
+  const chosen = (): string | null => authors.value || null
   const acceptAll = control('trevixal-trackchanges__accept-all', 'Accept all', () =>
-    track.acceptAll(),
+    track.accept(suggestionsBy(track, chosen())),
   )
   const rejectAll = control('trevixal-trackchanges__reject-all', 'Reject all', () =>
-    track.rejectAll(),
+    track.reject(suggestionsBy(track, chosen())),
   )
-  group.append(previous, next, accept, reject, acceptAll, rejectAll)
+  group.append(previous, next, accept, reject, authors, acceptAll, rejectAll)
   root.appendChild(group)
   options.container.appendChild(root)
 
@@ -178,8 +200,28 @@ export function createTrackChangesBar(
     reject.disabled = !atCaret
     previous.disabled = nextSuggestion(track, editor.state, -1) === null
     next.disabled = nextSuggestion(track, editor.state, 1) === null
-    acceptAll.disabled = total === 0
-    rejectAll.disabled = total === 0
+    // The choices are the authors with something pending; one whose last
+    // suggestion was just settled goes back to everyone.
+    const names = suggestionAuthors(track)
+    const wanted = names.includes(authors.value) ? authors.value : ''
+    const listed = [...authors.options].map((option) => option.value)
+    if (listed.join('\n') !== ['', ...names].join('\n')) {
+      authors.replaceChildren(
+        ...['', ...names].map((name) => {
+          const option = doc.createElement('option')
+          option.value = name
+          option.textContent = name ? `By ${name}` : 'By everyone'
+          return option
+        }),
+      )
+    }
+    authors.value = wanted
+    authors.hidden = names.length < 2
+    const scoped = suggestionsBy(track, chosen()).length
+    acceptAll.textContent = wanted ? `Accept ${wanted}’s` : 'Accept all'
+    rejectAll.textContent = wanted ? `Reject ${wanted}’s` : 'Reject all'
+    acceptAll.disabled = scoped === 0
+    rejectAll.disabled = scoped === 0
   }
 
   disposers.push(editor.on('transaction', refresh))

@@ -18,6 +18,7 @@ export interface DialogField {
     | 'color'
     | 'password'
     | 'email'
+    | 'date'
   readonly value?: string
   readonly placeholder?: string
   readonly required?: boolean
@@ -188,7 +189,18 @@ export function openDialog(options: DialogOptions): Promise<DialogValues | null>
 
     const first = [...inputs.values()][0]
     first?.focus()
+    if (first instanceof HTMLTextAreaElement) caretToStart(first)
   })
+}
+
+/**
+ * Put a text box's caret before its first character. A box focused with its
+ * value already set has the caret after the last line and scrolls there, so
+ * a list or a source would open at its end.
+ */
+export function caretToStart(box: HTMLTextAreaElement): void {
+  box.setSelectionRange(0, 0)
+  box.scrollTop = 0
 }
 
 /** Build the form control a field asks for, seeded with its value. */

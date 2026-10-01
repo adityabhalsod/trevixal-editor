@@ -2,6 +2,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { type Editor, createEditor } from '../src/editor/editor'
 import { pos } from '../src/model/position'
+import { Schema } from '../src/model/schema'
+import { defaultMarks, defaultNodes } from '../src/schema/basic'
 import { TextSelection } from '../src/state/selection'
 import { domPointFromPosition, positionFromDOMPoint } from '../src/view/dom-point'
 import type { EditorView } from '../src/view/editor-view'
@@ -84,6 +86,47 @@ describe('DOM ↔ model position mapping', () => {
         expect(back).toEqual({ path, offset })
       }
     }
+  })
+
+  it('maps a point inside an inline atom to beside it, not to nowhere', () => {
+    // Chromium and Firefox put the caret inside an atom that ends a line
+    // (End, a click past it); the model has no offsets inside one.
+    const schema = new Schema({
+      nodes: {
+        ...defaultNodes(),
+        chip: {
+          inline: true,
+          group: 'inline',
+          atom: true,
+          toHTML: () => ({ tag: 'span', text: 'chip' }),
+        },
+      },
+      marks: defaultMarks(),
+    })
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const editor = createEditor({
+      schema,
+      element: host,
+      doc: schema.node('doc', {}, [
+        schema.node('paragraph', {}, [schema.text('ab'), schema.node('chip')]),
+      ]),
+    })
+    const view = editor.view as EditorView
+    const chipText = view.dom.querySelector('p span')?.firstChild as globalThis.Node
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 0)).toEqual(pos([0], 2))
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 2)).toEqual(pos([0], 3))
+    expect(positionFromDOMPoint(view.dom, view.renderer, chipText, 4)).toEqual(pos([0], 3))
+
+    // And the caret is moved out, beside it: Firefox will not break a line,
+    // or delete, from inside an element that is not editable.
+    view.focus()
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 3))))
+    document.getSelection()?.setBaseAndExtent(chipText, 4, chipText, 4)
+    view.syncSelectionFromDOM()
+    expect(document.getSelection()?.anchorNode).not.toBe(chipText)
+    expect(editor.state.selection.from).toEqual(pos([0], 3))
+    editor.destroy()
   })
 })
 
@@ -183,6 +226,47 @@ describe('mutation repair', () => {
     textNode.data = 'hallo' // autocorrect/extension writing behind our back
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(editor.getText()).toBe('hallo')
+  })
+
+  it('leaves a widget’s own redraw alone, and the caret the browser has yet to report', async () => {
+    const { editor, view } = mount(
+      doc(
+        h(1, 'Trevixal'),
+        p('The full editor'),
+        testSchema.node('codeBlock', undefined, [text('graph TD')]),
+      ),
+    )
+    // Chrome an extension appends inside a block, the way the diagram preview
+    // sits in its code block's `<pre>` after the `<code>`.
+    const widget = window.document.createElement('div')
+    widget.contentEditable = 'false'
+    widget.dataset.trevixalWidget = 'true'
+    widget.textContent = 'Rendering diagram…'
+    view.dom.querySelector('pre')?.appendChild(widget)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // A click in the paragraph. WebKit reports it with a `selectionchange`
+    // that can arrive a long task later, so the model still has the caret at
+    // the start of the heading. happy-dom reports it at once, so the report is
+    // held back here and delivered by hand below.
+    view.dom.focus()
+    const clicked = view.dom.querySelector('p')?.firstChild as globalThis.Node
+    const holdBack = (event: Event): void => event.stopImmediatePropagation()
+    window.addEventListener('selectionchange', holdBack, { capture: true })
+    window.document.getSelection()?.setBaseAndExtent(clicked, 4, clicked, 4)
+    window.removeEventListener('selectionchange', holdBack, { capture: true })
+
+    // The diagram finishes drawing in that gap. Re-rendering for it wrote the
+    // model's stale caret over the click, and the typing that followed went
+    // into the heading.
+    widget.innerHTML = '<svg></svg>'
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(window.document.getSelection()?.focusNode).toBe(clicked)
+    expect(window.document.getSelection()?.focusOffset).toBe(4)
+
+    window.document.dispatchEvent(new Event('selectionchange'))
+    expect(editor.state.selection.eq(new TextSelection(pos([1], 4)))).toBe(true)
+    editor.destroy()
   })
 })
 

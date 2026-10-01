@@ -48,13 +48,13 @@ ui.openLinkDialog()
 | --- | --- | --- |
 | `tableCommands` | `TableCommands` | The Table menu and grid: `insertTable(rows, cols)` plus optional row, column, merge, split, header and delete commands, `setCellAlign`, `setCellBackground`, `setTableBorders`, `setTableBorderColor`, `sortAscending` / `sortDescending`, `convertTextToTable`, `convertTableToText`, `insertTableFromCSV`, `csvAtSelection`, `distributeColumns`, `clearSizing` |
 | `images` | `ImageActions` | `pickFiles()`, `insertImage({ src, alt?, title? })`: the image button and dialog |
-| `blockCommands` | from `blockUICommands()` | Insert > Callout, Toggle, Columns, Card, Timeline, Tabs, Accordion, Badge, Button, Anchor, Footnote, Citation, References, Page break |
+| `blockCommands` | from `blockUICommands()` | Insert > Callout, Toggle, Columns, Card, Timeline, Tabs, Accordion, Badge, Button, Anchor, Footnote, Endnote, Citation, References, Caption…, Cross-reference…, Table of figures, Mark index entry…, Index, Page break |
 | `embedCommands` | `EmbedCommands` | `insertEmbed(url)`, `insertVideo`, `insertAudio`, `insertIframe`, `insertLinkCard`, `pickAttachment` |
 | `mathCommands` | `MathCommands` | `insertMath(latex)`, `insertMathBlock(latex)` |
 | `diagramCommands` | `DiagramCommands` | `insertDiagram(code?)` |
 | `codeFormatCommands` | from `codeFormatUICommands()` | Format JSON, Format XML, Minify |
 | `fileActions` | `FileActions` | `newDocument`, `openDocument`, `saveDocument`, `downloadAs(format)`, `importDocument`, `exportSelection`, `printPreview`, `exportPDF` (File > Print... runs it too; a host without one still prints the document alone, never the page around it), `backups`, `protectDocument`, `documentRestrictions` |
-| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
+| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleStylesPane`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), AutoFormat (`toggleSmartTypography`, `toggleAutocorrect`, `autocorrectOptions`), `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
 | `menus`, `toolbar`, `showMenubar`, `showStatusBar`, `shortcutLabels`, `messages` | | Replace the menu tree, pass `ToolbarOptions`, hide pieces, print the shortcut manager's labels, translate |
 
 ### Menus that report state
@@ -101,19 +101,25 @@ createToolbar(editor, container, {
 | --- | --- |
 | Chrome | `createEditorUI`, `createMenubar` + `defaultMenus`, `createToolbar` + `defaultToolbarGroups` + `defaultToolbarItems`, `createStatusBar` |
 | Controls | `createSelectControl`, `createColorControl` (`DEFAULT_SWATCHES`), `createTableGridControl`, `defaultBlockFormats`, `defaultFontFamilies`, `defaultFontSizes` (8 to 48 pt), `applyBlockFormat`, `blockFormatValue` |
-| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (173 icons) |
+| Primitives | `createDropdown`, `bindListNavigation`, `focusFirstItem`, `createIcon` + `iconNames()` (191 icons) |
 | Popups and dialogs | `createSuggestionPopup` (`iconOf`, `detailOf` for richer rows), `openDialog`, `openConfirmDialog`, `openInfoDialog`, `openCharacterPicker` (`SPECIAL_CHARACTERS`) |
 | Code | `createCodeLanguageSelect` (floating picker with detection), `createTableToolbar` (floating table controls) |
 | Navigation | `createTableOfContents`, `createDocumentOutline` + `defaultOutlineBlockKinds`, `createFindReplace` + `compileSearch` + `findAll`, `createCommandPalette` (`recent` + `onRecent` to open on what ran last) + `paletteCommandsFromMenus(menus, shortcutLabels?)` + `filterCommands` + `fuzzyScore`, `createHistoryPanel` |
 | Shortcuts | `createShortcutManager({ actions, overrides?, onChange?, scopes?, isMac? })`, `openShortcutsDialog`, `formatShortcut`, `parseShortcut`, `isApplePlatform`; `toolbar.setShortcutLabels(manager.labels())` (or the toolbar's `shortcutLabels` option) makes each tooltip name the key that fires, which `ui.setShortcutLabels` does for menus and toolbar together |
 | View modes | `createFocusMode`, `createTypewriter`, `createFullscreenToggle`, `setEditorWidth` + `EDITOR_WIDTHS` (narrow 38rem, normal 48rem, wide 64rem, full) |
+| Long documents | `createLineNumbers(editor, { container })` (drawn while the document's `lineNumbers` is on; `measureLines`, `numberLinesIn` for a rendered page, which the print uses), `createReferenceNavigation(editor)` (Ctrl/⌘+click follows a `data-href`, and the page's `#id` scrolls to its block), `referenceTarget`; the block grip's menu (turn into, duplicate, move, copy link, delete) comes with `createBlockDragHandle`; a right-to-left document sets `dir` on the chrome |
+| Formatting tools | `createStylesPane(editor, { container })` (Word's Styles pane: apply, modify, make and delete named styles), `createNamedStyleSheet(editor)` (the document's named styles drawn on its own surface, which `createEditorUI` installs), `createTabLayout(editor)` (each tab taken to its paragraph's stop, with its leader; `layoutTabsIn(root, wrap)` for a rendered page, which the print and a saved page use); Borders and shading…, Drop cap options… and Tabs… come with `createEditorUI` |
 | Files | `builtinExporters({ scripts? })` (html, markdown, text, json), `builtinImporters()`, `exportDocument`, `importFile`, `importerFor`, `acceptFor`, `pickFile`, `readFileText`, `downloadFile`, `suggestFileName`, `documentTitle`, `selectionDocument`, `textToDocument`, `printDocument`, `openPrintPreview`, `printableHTML`, `editorTheme` |
 | Source modes | `createSourceMode(editor, { format: 'markdown' \| 'html' })` |
 | Persistence | `createAutosave(editor, { storage, key?, delayMs?, backups?: { intervalMs?, keep? } \| false, onState? })`, `createAutosaveIndicator`, `offerDraftRecovery`, `openBackupsDialog`, `createWebStorage`, `createMemoryStorage`, `formatSavedAt` |
-| Theming | `createThemeController(document, { targets?, mode?, preset?, presets?, onChange? })`, `defaultThemePresets`, `buildCustomTheme` + `CUSTOM_THEME_TOKENS`, `readThemeSnapshot`, `createFontManager` + `googleFontURL`, `createCustomStyles` + `scopeCSS`, `createPageView` + `PAGE_SIZES`, `parseColor`, `isDarkColor`, `mixColors` |
+| Theming | `createThemeController(document, { targets?, mode?, preset?, presets?, onChange? })`, `defaultThemePresets`, `buildCustomTheme` + `CUSTOM_THEME_TOKENS`, `readThemeSnapshot`, `createFontManager` + `googleFontURL`, `createCustomStyles` + `scopeCSS`, `createPageView` + `PAGE_SIZES` (a view's `setPage(setup)` sets the sheet as a page setup says) + `followPageSetup(editor, view)`, `parseColor`, `isDarkColor`, `mixColors` |
 | Quick tools | `createQuickInsertControl`, `quickInsertItemsFromMenus`, `createRecentToolsControl`, `createToolUsageTracker`, `openCustomizeToolbarDialog`, `applyGroupOrder`, `bindGroupReorder`, `groupOrder`; the toolbar's `quickAccess: { insertItems?, tracker? }` puts the first two in a Quick access group (`QUICK_ACCESS_GROUP`), and `toolbar.groups` + `toolbar.setVisibleGroups(names)` hide and show groups without a rebuild |
 | Export support | `collectDocumentCSS`, `captureRenderedBlocks`, `rasterizeDiagrams`, `renderedNodeHTML`, `documentBehaviourScript` |
-| Translation | `defaultMessages()`, the `messages` option |
+| Translation | `defaultMessages()`, the `messages` and `language` options, `ui.setLanguage()`, `UI_LANGUAGES`, the `@trevixal/ui/locales/*` catalogues |
+| The document's look | `bindDocumentTheme`, `documentTheme`, `setDocumentTheme`, `documentFonts`, `setDocumentFonts`; theme files through `serializeTheme`, `parseTheme` (`ThemeFileError`) and `currentTheme` |
+| Reading settings | `MOTION_ATTRIBUTE`, `scrollBehavior`; toolbar presets through `TOOLBAR_PRESETS` and `toolbarPresetGroups` |
+| Phones | `trackVirtualKeyboard(root)` keeps `--tvx-keyboard-inset` at the height the on-screen keyboard covers, which the phone toolbar rides on |
+| Speech | `createSpeech(editor, { lang?, onChange? })`: `toggleDictation()`, `toggleReadAloud()`, `canDictate`, `canReadAloud`, over the browser's Web Speech API |
 
 ## Translation
 
@@ -129,11 +135,38 @@ createEditorUI(editor, {
 
 Anything you leave out keeps its English, so a partial catalogue is a working
 one. `defaultMessages()` returns every key with the text it would otherwise
-show (268 keys); print it to see what there is to translate. It is derived
+show; print it to see what there is to translate. It is derived
 from the menus and toolbar rather than written out beside them, so the key
 list is complete by construction. Keying on names rather than English is the
 point: a catalogue keyed on the words breaks the day somebody rewords a label,
 and breaks silently.
+
+### Shipped catalogues
+
+German, French, Spanish, Portuguese, Hindi, Japanese, Chinese (simplified) and
+Arabic ship as `@trevixal/ui/locales/<code>`, one module each, so a page loads
+only the language it shows. File names, format names such as `LaTeX (.tex)`,
+and the language names themselves stay as they are.
+
+```ts
+import ar from '@trevixal/ui/locales/ar'
+
+const ui = createEditorUI(editor, {
+  container,
+  messages: ar,
+  language: { code: 'ar', direction: 'rtl' },
+})
+
+// Or switch while the editor is open: every label is rewritten in place.
+const de = (await import('@trevixal/ui/locales/de')).default
+ui.setLanguage({ code: 'de', messages: de })
+```
+
+The chrome takes the language's `lang`, and a right-to-left language mirrors
+it: the menus open from the right and the toolbar runs right to left. The
+document keeps its own direction. With `viewActions.setLanguage`,
+`languages` and `activeLanguage`, View > Language lists the languages by
+their own names (`UI_LANGUAGES`), with a tick beside the one in force.
 
 ## Accessibility
 

@@ -433,9 +433,15 @@ describe('deleteMath', () => {
 })
 
 describe('mathUICommands', () => {
-  it('exposes the three commands the UI needs', () => {
+  it('exposes the commands and the renderer the UI needs', () => {
     const commands = mathUICommands()
-    expect(Object.keys(commands).sort()).toEqual(['insertMath', 'insertMathBlock', 'setMathLatex'])
+    expect(Object.keys(commands).sort()).toEqual([
+      'insertMath',
+      'insertMathBlock',
+      'render',
+      'setMathLatex',
+      'setMathNumbered',
+    ])
   })
 
   it('drives the same behaviour as the bare commands', () => {

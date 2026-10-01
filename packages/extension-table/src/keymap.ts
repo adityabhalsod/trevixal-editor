@@ -1,4 +1,9 @@
-import { type Keymap, indentInPreformatted, outdentInPreformatted } from '@trevixal/core'
+import {
+  type Keymap,
+  indentInPreformatted,
+  insertTabAtStop,
+  outdentInPreformatted,
+} from '@trevixal/core'
 import { escapeTableOnEnter, goToNextCell } from './commands'
 
 /**
@@ -7,16 +12,17 @@ import { escapeTableOnEnter, goToNextCell } from './commands'
  *
  * Each binding chains through every context Tab means something in, because
  * an override replaces the base binding wholesale: cell navigation inside a
- * table, then code-block indentation, then list indentation. Dropping a link
- * from this chain silently removes that behaviour from any host installing
- * this keymap.
+ * table, then code-block indentation, then list indentation, then a tab in a
+ * paragraph with tab stops of its own. Dropping a link from this chain
+ * silently removes that behaviour from any host installing this keymap.
  */
 export function tableKeymap(): Keymap {
   return {
     Tab: (editor) =>
       editor.exec(goToNextCell(1)) ||
       editor.exec(indentInPreformatted) ||
-      editor.commands.sinkListItem(),
+      editor.commands.sinkListItem() ||
+      editor.exec(insertTabAtStop),
     'Shift-Tab': (editor) =>
       editor.exec(goToNextCell(-1)) ||
       editor.exec(outdentInPreformatted) ||

@@ -1,5 +1,28 @@
-import type { EditorNode, NodeSpec } from '@trevixal/core'
-import { escapeHTML, safeHref, safeLength } from '@trevixal/core'
+import type { EditorNode, NodeSpec, PageSection } from '@trevixal/core'
+import { escapeHTML, pageSectionOf, safeHref, safeLength } from '@trevixal/core'
+import { DEFAULT_CITATION_STYLE, isCitationStyle, parseSource } from './citation-styles'
+import { safeAnchorId } from './ids'
+import { referenceNodes } from './references'
+
+/** What a section break changes, said on screen: "Section break: landscape, 2 columns". */
+export function sectionLabel(section: PageSection): string {
+  const changes = [
+    section.orientation ?? '',
+    section.columns === null
+      ? ''
+      : section.columns === 1
+        ? 'one column'
+        : `${section.columns} columns`,
+    section.margin === null ? '' : `${section.margin} mm margins`,
+  ].filter(Boolean)
+  return changes.length > 0 ? `Section break: ${changes.join(', ')}` : 'Section break'
+}
+
+/** A reference list's style, read back from its markup. */
+function citationStyleAttrs(element: HTMLElement): Record<string, unknown> {
+  const style = element.getAttribute('data-citation-style')
+  return { style: isCitationStyle(style) ? style : DEFAULT_CITATION_STYLE }
+}
 
 /** Callout flavors, in the order a variant picker should present them. */
 export type CalloutVariant = 'info' | 'success' | 'warning' | 'danger' | 'note'
@@ -24,19 +47,7 @@ export const MAX_COLUMNS = 4
 /** A tab strip or accordion with more than this many entries stops being navigable. */
 export const MAX_SECTIONS = 12
 
-/**
- * Ids reach the DOM as both an `id` attribute and a `#fragment` href, so
- * they are held to a strict allowlist rather than escaped. This rejects the
- * whole class of `../`, `javascript:` and quote-breaking payloads outright.
- * A malformed id drops the attribute instead of emitting something clever.
- */
-const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/
-
-/** A document-fragment-safe identifier, or null when it fails the allowlist. */
-export function safeAnchorId(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  return SAFE_ID.test(value) ? value : null
-}
+export { safeAnchorId } from './ids'
 
 /** Coerce any input to a known callout variant, falling back to `info`. */
 export function calloutVariant(value: unknown): CalloutVariant {
@@ -268,6 +279,49 @@ export function blockNodes(): Record<string, NodeSpec> {
         attrs: { class: 'trevixal-page-break', 'data-page-break': 'true', 'aria-hidden': 'true' },
       }),
       parseHTML: [{ tag: 'div', attribute: 'data-page-break' }],
+    },
+
+    // Where a section with its own pages starts: turned, in columns, or with
+    // other margins, until the next section break. Its pages start afresh.
+    sectionBreak: {
+      group: 'block',
+      atom: true,
+      attrs: {
+        orientation: { default: null },
+        columns: { default: null },
+        margin: { default: null },
+      },
+      toHTML: (node) => {
+        const section = pageSectionOf(node.attrs)
+        const attrs: Record<string, string> = {
+          class: 'trevixal-section-break',
+          'data-section-break': '',
+          'data-label': sectionLabel(section),
+          'aria-hidden': 'true',
+        }
+        if (section.orientation) attrs['data-orientation'] = section.orientation
+        if (section.columns !== null) attrs['data-columns'] = String(section.columns)
+        if (section.margin !== null) attrs['data-margin'] = String(section.margin)
+        return { tag: 'div', attrs }
+      },
+      parseHTML: [
+        {
+          tag: 'div',
+          attribute: 'data-section-break',
+          getAttrs: (element) => {
+            const number = (name: string): number | null => {
+              const value = element.getAttribute(name)
+              return value === null ? null : Number(value)
+            }
+            const section = pageSectionOf({
+              orientation: element.getAttribute('data-orientation'),
+              columns: number('data-columns'),
+              margin: number('data-margin'),
+            })
+            return { ...section }
+          },
+        },
+      ],
     },
 
     badge: {
@@ -575,15 +629,21 @@ export function blockNodes(): Record<string, NodeSpec> {
        */
       toHTML: (node) => {
         const id = safeAnchorId(node.attrs.id)
-        const label = escapeHTML(stringAttr(node.attrs.label) || '?')
+        const raw = stringAttr(node.attrs.label) || '?'
+        const label = escapeHTML(raw)
+        // A number is bracketed, IEEE's [1]; an author-date label brings its
+        // own parentheses, APA's (Smith, 2020).
+        const numbered = /^(?:\d+|\?)$/.test(raw)
         const attrs: Record<string, string> = { class: 'trevixal-citation' }
-        // A rejected id renders a bare bracketed label rather than a link
-        // pointing somewhere unvalidated.
-        if (!id) return { tag: 'span', attrs, innerHTML: `[${label}]` }
+        if (!numbered) attrs.class = 'trevixal-citation trevixal-citation--author-date'
+        // A rejected id renders a bare label rather than a link pointing
+        // somewhere unvalidated.
+        if (!id) return { tag: 'span', attrs, innerHTML: numbered ? `[${label}]` : label }
+        const link = `<a href="#ref-${id}">${label}</a>`
         return {
           tag: 'span',
           attrs: { ...attrs, 'data-trevixal-citation': id },
-          innerHTML: `[<a href="#ref-${id}">${label}</a>]`,
+          innerHTML: numbered ? `[${link}]` : link,
         }
       },
       parseHTML: [
@@ -593,8 +653,10 @@ export function blockNodes(): Record<string, NodeSpec> {
           getAttrs: (element) => {
             const id = safeAnchorId(element.getAttribute('data-trevixal-citation'))
             if (!id) return false
-            const text = (element.textContent ?? '').trim().replace(/^\[|\]$/g, '')
-            return { id, label: text || '?' }
+            const text = (element.textContent ?? '').trim()
+            // A number came bracketed; an author-date label is kept whole.
+            const label = /^\[.*\]$/.test(text) ? text.slice(1, -1) : text
+            return { id, label: label || '?' }
           },
         },
       ],
@@ -602,16 +664,31 @@ export function blockNodes(): Record<string, NodeSpec> {
     referenceList: {
       content: 'referenceItem+',
       group: 'block',
-      toHTML: () => ({
-        tag: 'ol',
-        attrs: { class: 'trevixal-references', 'data-trevixal-references': 'true' },
-      }),
+      // The citation style: numbered IEEE unless the list says otherwise.
+      attrs: { style: { default: DEFAULT_CITATION_STYLE } },
+      toHTML: (node) => {
+        const style = isCitationStyle(node.attrs.style) ? node.attrs.style : DEFAULT_CITATION_STYLE
+        return {
+          // An author-date list is not numbered; its entries are alphabetical.
+          tag: style === 'ieee' ? 'ol' : 'ul',
+          attrs: {
+            class: `trevixal-references trevixal-references--${style}`,
+            'data-trevixal-references': 'true',
+            'data-citation-style': style,
+          },
+        }
+      },
       // `ol` is orderedList's tag; the marker attribute outranks its rule.
-      parseHTML: [{ tag: 'ol', attribute: 'data-trevixal-references' }],
+      parseHTML: [
+        { tag: 'ol', attribute: 'data-trevixal-references', getAttrs: citationStyleAttrs },
+        { tag: 'ul', attribute: 'data-trevixal-references', getAttrs: citationStyleAttrs },
+      ],
     },
     referenceItem: {
       content: 'inline*',
-      attrs: { id: {} },
+      // `source`: the entry's details as JSON, when it has any, which is what
+      // lets a new citation style write the entry again.
+      attrs: { id: {}, source: { default: null } },
       toHTML: (node) => {
         const id = safeAnchorId(node.attrs.id)
         const attrs: Record<string, string> = { class: 'trevixal-references__item' }
@@ -619,6 +696,8 @@ export function blockNodes(): Record<string, NodeSpec> {
           attrs.id = `ref-${id}`
           attrs['data-reference-id'] = id
         }
+        const source = parseSource(node.attrs.source)
+        if (source) attrs['data-reference-source'] = JSON.stringify(source)
         return { tag: 'li', attrs }
       },
       parseHTML: [
@@ -627,7 +706,9 @@ export function blockNodes(): Record<string, NodeSpec> {
           attribute: 'data-reference-id',
           getAttrs: (element) => {
             const id = safeAnchorId(element.getAttribute('data-reference-id'))
-            return id ? { id } : false
+            if (!id) return false
+            const source = parseSource(element.getAttribute('data-reference-source'))
+            return { id, source: source ? JSON.stringify(source) : null }
           },
         },
       ],
@@ -655,6 +736,9 @@ export function blockNodes(): Record<string, NodeSpec> {
         },
       ],
     },
+
+    // Captions, cross-references, tables of figures, the index and endnotes.
+    ...referenceNodes(),
   }
 }
 

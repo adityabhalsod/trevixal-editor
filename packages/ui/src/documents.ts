@@ -5,9 +5,12 @@ import {
   Fragment,
   type Schema,
   blocksInRange,
+  escapeHTML,
   insertContent,
   nodeFromJSON,
   normalizeDoc,
+  pageDimensions,
+  pageSetupOf,
   parseHTML,
   parseMarkdown,
   serializeToHTMLDocument,
@@ -23,6 +26,9 @@ import {
   renderedNodeHTML,
 } from './export-render'
 import { documentBehaviourScript } from './export-script'
+import { numberLinesIn } from './line-numbers'
+import { pageLayoutCSS, paginate } from './page-layout'
+import { layoutTabsIn } from './tab-layout'
 import { type ThemeSnapshot, readThemeSnapshot } from './theming'
 
 /**
@@ -88,22 +94,92 @@ export interface BuiltinExporterOptions {
   readonly scripts?: () => string
 }
 
+/** Bytes as base64, for a `data:` URL. */
+function base64Of(bytes: Uint8Array): string {
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+  }
+  return btoa(binary)
+}
+
+/** What a page loads from elsewhere, as data: the picture or the stylesheet itself. */
+async function fetched(
+  url: string,
+  fetcher: typeof fetch,
+): Promise<{ type: string; bytes: Uint8Array } | null> {
+  try {
+    const response = await fetcher(url)
+    if (!response.ok) return null
+    const type =
+      response.headers.get('content-type')?.split(';')[0]?.trim() || 'application/octet-stream'
+    return { type, bytes: new Uint8Array(await response.arrayBuffer()) }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A page that needs nothing else: its pictures as `data:` URLs and its
+ * stylesheets written into it, so the one file opens anywhere, offline, the
+ * same. What cannot be fetched stays a link, and the page still opens.
+ */
+export async function inlinePageResources(
+  html: string,
+  fetcher: typeof fetch = fetch,
+): Promise<string> {
+  const sources = new Set<string>()
+  for (const match of html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)) {
+    const src = (match[1] as string).replace(/&amp;/g, '&')
+    if (!src.startsWith('data:')) sources.add(src)
+  }
+  const images = new Map<string, string>()
+  for (const src of sources) {
+    const got = await fetched(src, fetcher)
+    if (got?.type.startsWith('image/'))
+      images.set(src, `data:${got.type};base64,${base64Of(got.bytes)}`)
+  }
+  let out = html.replace(
+    /(<img\b[^>]*\bsrc=")([^"]+)(")/g,
+    (whole, open: string, src: string, close: string) => {
+      const inlined = images.get(src.replace(/&amp;/g, '&'))
+      return inlined ? `${open}${inlined}${close}` : whole
+    },
+  )
+  const sheets = [...out.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g)]
+  for (const match of sheets) {
+    const got = await fetched((match[1] as string).replace(/&amp;/g, '&'), fetcher)
+    if (!got) continue
+    const css = new TextDecoder().decode(got.bytes).replace(/<\/style/gi, '<\\/style')
+    out = out.replace(match[0], `<style>${css}</style>`)
+  }
+  return out
+}
+
 /** HTML (standalone page), Markdown, plain text and the native JSON. */
 export function builtinExporters(options: BuiltinExporterOptions = {}): DocumentExporter[] {
+  const page = (doc: EditorNode, context: ExportContext): string =>
+    serializeToHTMLDocument(doc, {
+      title: context.title,
+      inlineCSS: options.styles?.(),
+      inlineJS: (options.scripts ?? documentBehaviourScript)(),
+      theme: context.theme,
+      ...(context.rendered ? { renderNode: renderedNodeHTML(context.rendered) } : {}),
+    })
   return [
     {
       name: 'html',
       label: 'Web page (.html)',
       extension: 'html',
       mime: 'text/html',
-      serialize: (doc, context) =>
-        serializeToHTMLDocument(doc, {
-          title: context.title,
-          inlineCSS: options.styles?.(),
-          inlineJS: (options.scripts ?? documentBehaviourScript)(),
-          theme: context.theme,
-          ...(context.rendered ? { renderNode: renderedNodeHTML(context.rendered) } : {}),
-        }),
+      serialize: page,
+    },
+    {
+      name: 'htmlSingle',
+      label: 'Web page, one file (.html)',
+      extension: 'html',
+      mime: 'text/html',
+      serialize: (doc, context) => inlinePageResources(page(doc, context)),
     },
     {
       name: 'markdown',
@@ -111,6 +187,13 @@ export function builtinExporters(options: BuiltinExporterOptions = {}): Document
       extension: 'md',
       mime: 'text/markdown',
       serialize: (doc) => serializeToMarkdown(doc),
+    },
+    {
+      name: 'mdx',
+      label: 'MDX (.mdx)',
+      extension: 'mdx',
+      mime: 'text/mdx',
+      serialize: (doc) => serializeToMarkdown(doc, { mdx: true }),
     },
     {
       name: 'text',
@@ -144,6 +227,13 @@ export function builtinImporters(): DocumentImporter[] {
       label: 'Markdown (.md)',
       extensions: ['md', 'markdown'],
       parse: async (file, context) => parseMarkdown(await readFileText(file), context.schema),
+    },
+    {
+      name: 'mdx',
+      label: 'MDX (.mdx)',
+      extensions: ['mdx'],
+      parse: async (file, context) =>
+        parseMarkdown(await readFileText(file), context.schema, { mdx: true }),
     },
     {
       name: 'text',
@@ -279,6 +369,21 @@ export interface ExportOptions {
   readonly title?: string
   /** Palette override; the one the editor is rendering in by default. */
   readonly theme?: ThemeSnapshot
+  /**
+   * The document as it goes out, from the document as it is: conditional
+   * content settled by its variables, say.
+   */
+  readonly transform?: (doc: EditorNode) => EditorNode
+  /**
+   * Write the file somewhere else, off the main thread, say. Null (or no
+   * option) leaves it to the exporter here, as for a format that needs the
+   * page's DOM.
+   */
+  readonly serialize?: (
+    exporter: DocumentExporter,
+    doc: EditorNode,
+    context: ExportContext,
+  ) => Promise<string | Uint8Array> | null
 }
 
 /**
@@ -297,13 +402,19 @@ export async function exportDocument(
   document: Document,
   options: ExportOptions = {},
 ): Promise<void> {
-  const doc = options.selectionOnly ? selectionDocument(editor.state) : editor.state.doc
-  const title = options.title ?? documentTitle(editor.state.doc)
+  const readerCopy = (source: EditorNode): EditorNode => options.transform?.(source) ?? source
+  const doc = readerCopy(options.selectionOnly ? selectionDocument(editor.state) : editor.state.doc)
+  // The title names the file, so it comes from the copy going out too: a
+  // heading with redacted words in it must not put them in the file name.
+  const title =
+    options.title ?? documentTitle(options.selectionOnly ? readerCopy(editor.state.doc) : doc)
   const theme = options.theme ?? editorTheme(editor)
   // Rasterized here rather than in the capture: turning an SVG into a bitmap
   // is asynchronous, and the print path below has to stay synchronous.
   const rendered = await rasterizeDiagrams(captureRenderedBlocks(editor), document)
-  const data = await exporter.serialize(doc, { schema: editor.schema, title, theme, rendered })
+  const context: ExportContext = { schema: editor.schema, title, theme, rendered }
+  const data = await (options.serialize?.(exporter, doc, context) ??
+    exporter.serialize(doc, context))
   downloadFile(document, {
     name: suggestFileName(title, exporter.extension),
     mime: exporter.mime,
@@ -365,18 +476,27 @@ export interface ImportOptions {
  * an accidental import is a Ctrl+Z away. Returns false when no importer
  * understands the file.
  */
+/** A file read as a document by whichever importer takes its type; null when none does. */
+export async function readDocumentFile(
+  file: File,
+  importers: readonly DocumentImporter[],
+  context: ImportContext,
+): Promise<EditorNode | null> {
+  const importer = importerFor(file, importers)
+  return importer ? importer.parse(file, context) : null
+}
+
 export async function importFile(
   editor: Editor,
   file: File,
   importers: readonly DocumentImporter[],
   options: ImportOptions = {},
 ): Promise<boolean> {
-  const importer = importerFor(file, importers)
-  if (!importer) return false
-  const doc = await importer.parse(file, {
+  const doc = await readDocumentFile(file, importers, {
     schema: editor.schema,
     document: editor.view?.dom.ownerDocument,
   })
+  if (!doc) return false
   if (options.mode === 'insert') {
     return editor.exec(insertContent(doc.content.children))
   }
@@ -397,6 +517,76 @@ export interface PrintOptions {
   readonly styles?: () => string
   /** Palette override; the one the editor is rendering in by default. */
   readonly theme?: ThemeSnapshot
+  /** The document as it prints, from the document as it is: redactions blacked out, say. */
+  readonly transform?: (doc: EditorNode) => EditorNode
+  /** Words set large and faint across every printed page: "Confidential". */
+  readonly watermark?: string
+}
+
+/** A watermark repeated on every page: fixed, so print sets it on each one. */
+const WATERMARK_CSS =
+  '.trevixal-watermark { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2147483647; font: 700 56px/1.2 system-ui, sans-serif; color: rgba(128, 128, 128, 0.2); transform: rotate(-30deg); white-space: nowrap; }'
+
+const LINE_NUMBERED_PAGE = [
+  // Each number hangs off the first character of its line (see `numberLinesIn`),
+  // out in the page's margin, which the page box holds and so does not clip.
+  '.trevixal-line-anchor { position: relative; }',
+  '.trevixal-line-anchor > .trevixal-line-number { position: absolute; top: 50%; transform: translateY(-50%); line-height: 1; white-space: nowrap; }',
+  "[data-line-numbers-side='left'] .trevixal-line-anchor > .trevixal-line-number { right: calc(100% + var(--trevixal-line-offset) + 3mm); }",
+  "[data-line-numbers-side='right'] .trevixal-line-anchor > .trevixal-line-number { left: calc(100% + var(--trevixal-line-offset) + 3mm); }",
+].join('\n')
+
+/** The document as it prints: the reader's copy, when the host makes one. */
+function printedDocument(editor: Editor, options: PrintOptions): EditorNode {
+  return options.transform ? options.transform(editor.state.doc) : editor.state.doc
+}
+
+/**
+ * Word's Repeat Header Rows, in print, as the Word export already has it: a
+ * browser heads every page a table runs onto with its `thead`, so each
+ * table's header row moves into one. Only the printed copy changes; the
+ * editor keeps a table's rows together, as the document does. A table inside
+ * a cell is left as it is: Word repeats no nested header row, and Chromium
+ * prints one without its top rule.
+ */
+export function repeatHeaderRowsIn(root: ParentNode): void {
+  const childrenNamed = (parent: Element, tag: string): Element[] =>
+    [...parent.children].filter((child) => child.tagName === tag)
+  for (const table of root.querySelectorAll('table')) {
+    if (table.parentElement?.closest('td, th')) continue
+    if (childrenNamed(table, 'THEAD').length > 0) continue
+    // The parser a print page goes through puts the rows in a `tbody`.
+    const body = childrenNamed(table, 'TBODY')[0] ?? table
+    const first = childrenNamed(body, 'TR')[0]
+    const cells = first ? [...first.children] : []
+    if (!first || cells.length === 0 || !cells.every((cell) => cell.tagName === 'TH')) continue
+    const head = table.ownerDocument.createElement('thead')
+    head.appendChild(first)
+    table.insertBefore(head, table.firstChild)
+  }
+}
+
+/**
+ * Lay out a loaded print frame as its print will be: its header rows made
+ * to repeat and its tabs at their stops, at the printed width; then all of
+ * it set as pages; then, when the document numbers them, the lines of each
+ * page, on from the page before. Numbered once the pages are made, as text
+ * beside a float can wrap otherwise on its page than in one long column.
+ */
+function layoutFrame(frame: HTMLIFrameElement, doc: EditorNode): void {
+  const content = frame.contentDocument?.querySelector<HTMLElement>('.trevixal-content')
+  if (!content) return
+  repeatHeaderRowsIn(content)
+  layoutTabsIn(content, true)
+  paginate(content, {
+    setup: pageSetupOf(doc.attrs.pageSetup),
+    widowControl: doc.attrs.widowControl !== false,
+  })
+  if (doc.attrs.lineNumbers !== true) return
+  let next = 1
+  for (const body of content.querySelectorAll<HTMLElement>('.trevixal-page__body')) {
+    next = numberLinesIn(body, next)
+  }
 }
 
 /** The standalone HTML a print job or preview renders. */
@@ -404,14 +594,30 @@ export function printableHTML(editor: Editor, options: PrintOptions = {}): strin
   // The SVG the editor drew goes straight in, so nothing here has to wait on
   // a bitmap: printing happens inside a click and cannot be asynchronous.
   const rendered = captureRenderedBlocks(editor)
-  return serializeToHTMLDocument(editor.state.doc, {
-    title: options.title ?? documentTitle(editor.state.doc),
-    inlineCSS: options.styles?.(),
+  const styles = options.styles?.()
+  const doc = printedDocument(editor, options)
+  const setup = pageSetupOf(doc.attrs.pageSetup)
+  // The print's own watermark (a protected document's), or the document's.
+  const watermark = options.watermark ?? (setup.watermark || undefined)
+  const page = [
+    pageLayoutCSS(setup),
+    doc.attrs.lineNumbers === true ? LINE_NUMBERED_PAGE : '',
+    watermark ? WATERMARK_CSS : '',
+  ].filter(Boolean)
+  const html = serializeToHTMLDocument(doc, {
+    title: options.title ?? documentTitle(doc),
+    inlineCSS: [styles ?? '', ...page].join('\n'),
     ...(rendered.size > 0 ? { renderNode: renderedNodeHTML(rendered) } : {}),
     // A print preview showing white while the editor behind it is dark reads
     // as the preview being broken, and "Export as PDF" is this same page.
     theme: options.theme ?? editorTheme(editor),
   })
+  // A picture that waits to near the screen never loads in a print frame,
+  // which has no screen to near: every picture on paper is fetched at once.
+  const eager = html.replaceAll(' loading="lazy"', '')
+  if (!watermark) return eager
+  const mark = `<div class="trevixal-watermark" aria-hidden="true">${escapeHTML(watermark)}</div>`
+  return eager.includes('</body>') ? eager.replace('</body>', `${mark}</body>`) : eager + mark
 }
 
 /**
@@ -428,13 +634,20 @@ export function printDocument(
   frame.className = 'trevixal-print-frame'
   frame.setAttribute('aria-hidden', 'true')
   frame.style.position = 'fixed'
-  frame.style.width = '0'
-  frame.style.height = '0'
   frame.style.border = '0'
   frame.style.opacity = '0'
+  const doc = printedDocument(editor, options)
+  const setup = pageSetupOf(doc.attrs.pageSetup)
+  // Laid out at the page's width, off to one side, so the lines, tabs and
+  // pages measured here are the ones the paper gets.
+  frame.style.width = `${pageDimensions(setup.size, setup.orientation).width}mm`
+  frame.style.height = '100px'
+  frame.style.left = '-10000px'
+  frame.style.pointerEvents = 'none'
   frame.srcdoc = printableHTML(editor, options)
   frame.addEventListener('load', () => {
     try {
+      layoutFrame(frame, doc)
       frame.contentWindow?.focus()
       frame.contentWindow?.print()
     } catch {
@@ -470,6 +683,8 @@ export function openPrintPreview(
   frame.title = 'Print preview'
   frame.setAttribute('sandbox', 'allow-same-origin allow-modals')
   frame.srcdoc = printableHTML(editor, options)
+  const doc = printedDocument(editor, options)
+  frame.addEventListener('load', () => layoutFrame(frame, doc))
 
   const actions = document.createElement('div')
   actions.className = 'trevixal-dialog__actions'

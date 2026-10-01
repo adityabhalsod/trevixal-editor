@@ -139,7 +139,19 @@ test('the command palette leaves the page where it found it', async ({ page }) =
   const server = await serveDist(distDir)
   try {
     await page.goto(server.origin)
-    await page.locator('#editor .trevixal-content').click()
+    // The start of the first paragraph, not the middle of the surface: the
+    // middle of a document this long is wherever its layout puts it, on
+    // Firefox a gap beside a link card, and the keys sent next raced the focus
+    // that click was still handing over.
+    await page
+      .locator('#editor .trevixal-content > p')
+      .first()
+      .click({ position: { x: 4, y: 6 } })
+    await expect
+      .poll(() =>
+        page.evaluate(() => !!document.activeElement?.closest('#editor .trevixal-content')),
+      )
+      .toBe(true)
     const scrollTo = async (y: number) => {
       await page.evaluate((target) => window.scrollTo(0, target), y)
       // Rounded, because a scroll position is not an integer. Firefox lands on
@@ -173,6 +185,13 @@ test('a flagged word explains itself and offers its fix', async ({ page }) => {
   const server = await serveDist(distDir)
   try {
     await page.goto(server.origin)
+    // The tour gives the checks nothing to flag, so write a slip into it.
+    await page
+      .locator('#editor .trevixal-content > p')
+      .first()
+      .click({ position: { x: 4, y: 6 } })
+    await page.keyboard.press('End')
+    await page.keyboard.type(' Read the the notes.')
     const flagged = page.locator('#editor [data-trevixal-issue]').first()
     await expect(flagged).toBeVisible()
 
@@ -392,123 +411,130 @@ const TOP_BLOCK = `(() => {
   return at + '|' + (blocks[at]?.textContent ?? '').replace(/\\s+/g, ' ').trim().slice(0, 24)
 })()`
 
-test('the preview follows the editor down the page, and the editor follows it back', async ({
-  page,
-}) => {
-  const server = await serveDist(distDir)
-  try {
-    await page.setViewportSize({ width: 1600, height: 950 })
-    await page.goto(server.origin)
-    await menu(page, 'view', 'splitPreview')
-    // Before the panes can be lined up, the document has to stop changing
-    // height. The seeded document draws a diagram asynchronously, Mermaid is
-    // fetched from a CDN the first time one renders, and a block that grows
-    // after the two panes have been measured moves everything below it in one
-    // of them before the other, which reads exactly like a broken link. It
-    // only ever showed up under a full parallel run, where the fetch is slow
-    // enough to land after the first scroll.
-    await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(1)
-    await previewSettled(page)
+// Twice: as the demo opens, and with its headings numbered too. Either way
+// the preview's blocks are inside the one element carrying the document's
+// settings, since the demo's own paragraph style and list scheme are settings.
+for (const numbered of [false, true]) {
+  const title = `the preview follows the editor down the page, and the editor follows it back${numbered ? ', with numbered headings' : ''}`
+  test(title, async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.setViewportSize({ width: 1600, height: 950 })
+      await page.goto(server.origin)
+      if (numbered) await menu(page, 'format', 'headingNumbering-outline')
+      await menu(page, 'view', 'splitPreview')
+      // Before the panes can be lined up, the document has to stop changing
+      // height. The seeded document draws a diagram asynchronously, Mermaid is
+      // fetched from a CDN the first time one renders, and a block that grows
+      // after the two panes have been measured moves everything below it in one
+      // of them before the other, which reads exactly like a broken link. It
+      // only ever showed up under a full parallel run, where the fetch is slow
+      // enough to land after the first scroll.
+      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(1)
+      await previewSettled(page)
 
-    const frame = page.frameLocator('.trevixal-split__preview')
-    const editorTop = () =>
-      page.evaluate(TOP_BLOCK.replace('SURFACE', '#editor .trevixal-content')) as Promise<string>
-    const previewTop = () =>
-      frame
-        .locator('body')
-        .evaluate(TOP_BLOCK.replace('SURFACE', '.trevixal-content')) as Promise<string>
-    const blockOf = (top: string): number => Number.parseInt(top.split('|')[0] ?? '-1', 10)
+      const frame = page.frameLocator('.trevixal-split__preview')
+      const editorTop = () =>
+        page.evaluate(TOP_BLOCK.replace('SURFACE', '#editor .trevixal-content')) as Promise<string>
+      const previewTop = () =>
+        frame
+          .locator('body')
+          .evaluate(
+            TOP_BLOCK.replace('SURFACE', '.trevixal-content > [data-trevixal-document]'),
+          ) as Promise<string>
+      const blockOf = (top: string): number => Number.parseInt(top.split('|')[0] ?? '-1', 10)
 
-    /**
-     * The block both panes are showing, or NaN while they disagree.
-     *
-     * Both read together, and the answer is a single number, because a wheel
-     * scroll is still moving when it resolves: reading one pane for the
-     * expectation and polling the other for the value compares a pane against
-     * where the other one *used to be*, which is a race that fails at exactly
-     * the moments the link is working hardest. NaN is what makes this safe to
-     * poll. Every comparison against it is false, so a disagreement can never
-     * satisfy `toBeGreaterThan` or `toBeLessThan` by accident.
-     */
-    const sharedBlock = async (): Promise<number> => {
-      const [inEditor, inPreview] = await Promise.all([editorTop(), previewTop()])
-      return inEditor === inPreview ? blockOf(inEditor) : Number.NaN
+      /**
+       * The block both panes are showing, or NaN while they disagree.
+       *
+       * Both read together, and the answer is a single number, because a wheel
+       * scroll is still moving when it resolves: reading one pane for the
+       * expectation and polling the other for the value compares a pane against
+       * where the other one *used to be*, which is a race that fails at exactly
+       * the moments the link is working hardest. NaN is what makes this safe to
+       * poll. Every comparison against it is false, so a disagreement can never
+       * satisfy `toBeGreaterThan` or `toBeLessThan` by accident.
+       */
+      const sharedBlock = async (): Promise<number> => {
+        const [inEditor, inPreview] = await Promise.all([editorTop(), previewTop()])
+        return inEditor === inPreview ? blockOf(inEditor) : Number.NaN
+      }
+
+      /**
+       * Wait until the panes agree *and* have stopped moving, and say where they
+       * settled.
+       *
+       * Agreement on its own is not enough, because a wheel scroll is animated:
+       * the two panes agree on block 21 on the way past it to 28, and recording
+       * that as where the reader ended up makes the next assertion compare
+       * against a place the page has already left. Two consecutive readings
+       * agreeing with each other is what "stopped" means here.
+       *
+       * The timeout is long for the same reason the interval is: agreement costs
+       * a frame in one pane, a message across a frame boundary and a scroll in
+       * the other, and under a full parallel run each of those is slower than
+       * all three are together on an idle machine.
+       */
+      const settled = async (): Promise<number> => {
+        let previous = Number.NaN
+        let block = Number.NaN
+        await expect
+          .poll(
+            async () => {
+              const now = await sharedBlock()
+              const quiet = !Number.isNaN(now) && now === previous
+              previous = now
+              block = now
+              return quiet ? now : -1
+            },
+            { intervals: [250], timeout: 20_000 },
+          )
+          .toBeGreaterThanOrEqual(0)
+        return block
+      }
+
+      // Put the editor's own first block against the top of the viewport before
+      // measuring anything. The demo page carries a header above the editor, and
+      // wheeling through that scrolls the page without moving the editor's first
+      // block off the top, so a check waiting for the block to change would be
+      // waiting for something that was not going to happen yet.
+      await page.evaluate(() => {
+        const content = document.querySelector('#editor .trevixal-content') as HTMLElement
+        window.scrollTo(0, Math.round(content.getBoundingClientRect().top + window.scrollY))
+      })
+      expect(await settled()).toBe(0)
+
+      // Scrolled with the wheel rather than by setting `scrollY`: a programmatic
+      // scroll inside a sandboxed frame raises no scroll event for that page's
+      // own script to see, so the reverse direction written that way would be
+      // testing something no reader ever does.
+      const surface = await page.locator('#editor .trevixal-content').boundingBox()
+      await page.mouse.move((surface?.x ?? 100) + 50, (surface?.y ?? 100) + 100)
+
+      // Several notches rather than one jump, and stopping well short of the
+      // end. Neither pane can put its last block at the top, there is nothing
+      // underneath it to scroll, so down there the two saturate at different
+      // blocks for reasons that have nothing to do with the link.
+      let reached = 0
+      for (let notch = 0; notch < 4; notch++) {
+        await page.mouse.wheel(0, 500)
+        const next = await settled()
+        expect(next, `both panes moved down together on notch ${notch}`).toBeGreaterThan(reached)
+        reached = next
+      }
+      expect(reached).toBeGreaterThan(5)
+
+      // And back, driven from the other side this time: the preview reports
+      // where the reader put it and the editor goes there.
+      const pane = await page.locator('.trevixal-split__preview').boundingBox()
+      await page.mouse.move((pane?.x ?? 900) + 100, (pane?.y ?? 100) + 200)
+      await page.mouse.wheel(0, -900)
+      expect(await settled(), 'the editor followed the preview back up').toBeLessThan(reached)
+    } finally {
+      await server.close()
     }
-
-    /**
-     * Wait until the panes agree *and* have stopped moving, and say where they
-     * settled.
-     *
-     * Agreement on its own is not enough, because a wheel scroll is animated:
-     * the two panes agree on block 21 on the way past it to 28, and recording
-     * that as where the reader ended up makes the next assertion compare
-     * against a place the page has already left. Two consecutive readings
-     * agreeing with each other is what "stopped" means here.
-     *
-     * The timeout is long for the same reason the interval is: agreement costs
-     * a frame in one pane, a message across a frame boundary and a scroll in
-     * the other, and under a full parallel run each of those is slower than
-     * all three are together on an idle machine.
-     */
-    const settled = async (): Promise<number> => {
-      let previous = Number.NaN
-      let block = Number.NaN
-      await expect
-        .poll(
-          async () => {
-            const now = await sharedBlock()
-            const quiet = !Number.isNaN(now) && now === previous
-            previous = now
-            block = now
-            return quiet ? now : -1
-          },
-          { intervals: [250], timeout: 20_000 },
-        )
-        .toBeGreaterThanOrEqual(0)
-      return block
-    }
-
-    // Put the editor's own first block against the top of the viewport before
-    // measuring anything. The demo page carries a header above the editor, and
-    // wheeling through that scrolls the page without moving the editor's first
-    // block off the top, so a check waiting for the block to change would be
-    // waiting for something that was not going to happen yet.
-    await page.evaluate(() => {
-      const content = document.querySelector('#editor .trevixal-content') as HTMLElement
-      window.scrollTo(0, Math.round(content.getBoundingClientRect().top + window.scrollY))
-    })
-    expect(await settled()).toBe(0)
-
-    // Scrolled with the wheel rather than by setting `scrollY`: a programmatic
-    // scroll inside a sandboxed frame raises no scroll event for that page's
-    // own script to see, so the reverse direction written that way would be
-    // testing something no reader ever does.
-    const surface = await page.locator('#editor .trevixal-content').boundingBox()
-    await page.mouse.move((surface?.x ?? 100) + 50, (surface?.y ?? 100) + 100)
-
-    // Several notches rather than one jump, and stopping well short of the
-    // end. Neither pane can put its last block at the top, there is nothing
-    // underneath it to scroll, so down there the two saturate at different
-    // blocks for reasons that have nothing to do with the link.
-    let reached = 0
-    for (let notch = 0; notch < 4; notch++) {
-      await page.mouse.wheel(0, 500)
-      const next = await settled()
-      expect(next, `both panes moved down together on notch ${notch}`).toBeGreaterThan(reached)
-      reached = next
-    }
-    expect(reached).toBeGreaterThan(5)
-
-    // And back, driven from the other side this time: the preview reports
-    // where the reader put it and the editor goes there.
-    const pane = await page.locator('.trevixal-split__preview').boundingBox()
-    await page.mouse.move((pane?.x ?? 900) + 100, (pane?.y ?? 100) + 200)
-    await page.mouse.wheel(0, -900)
-    expect(await settled(), 'the editor followed the preview back up').toBeLessThan(reached)
-  } finally {
-    await server.close()
-  }
-})
+  })
+}
 
 test('both panes show what the editor shows', async ({ page }) => {
   const server = await serveDist(distDir)

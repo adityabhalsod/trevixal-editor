@@ -16,6 +16,22 @@ export {
   type XmlText,
 } from './xml'
 export { type RTFOptions, serializeToRTF } from './rtf'
+export { parseExportArchive } from './archive-import'
+export { type EPUBOptions, serializeToEPUB } from './epub'
+export { type LaTeXOptions, escapeLaTeX, serializeToLaTeX } from './latex'
+export { type ODTOptions, parseODT, serializeToODT } from './odt'
+export { type PPTXOptions, serializeToPPTX } from './pptx'
+export { type Slide, documentSlides } from './slides'
+export {
+  PDFJS_CDN_URL,
+  PDFJS_WORKER_URL,
+  type PdfJsLike,
+  type PdfTextItem,
+  linesToBlocks,
+  loadPdfJs,
+  pageLines,
+  parsePDF,
+} from './pdf'
 export type {
   RenderedBlock,
   RenderedDocument,
@@ -33,8 +49,14 @@ export {
   suggestFileName,
 } from './download'
 export {
+  archiveImporter,
   docxExporter,
   docxImporter,
+  epubExporter,
+  latexExporter,
+  odtExporter,
+  odtImporter,
+  pdfImporter,
   type DocumentExporter,
   type DocumentImporter,
   type ExportContext,

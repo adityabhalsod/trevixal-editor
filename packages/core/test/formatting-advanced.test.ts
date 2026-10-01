@@ -207,7 +207,7 @@ describe('paragraph spacing', () => {
       ),
     )
     expect(html).toContain('text-align: center')
-    expect(html).toContain('margin-left: 2.5rem')
+    expect(html).toContain('margin-inline-start: 2.5rem')
     expect(html).toContain('margin-top: 4px')
   })
 })

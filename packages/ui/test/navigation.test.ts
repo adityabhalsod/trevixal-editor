@@ -364,6 +364,10 @@ describe('command palette', () => {
     const boundary = fuzzyScore('bl', 'Bullet List') as number
     const buried = fuzzyScore('bl', 'unbelievable') as number
     expect(boundary).toBeGreaterThan(buried)
+    // The letters together later on beat them strewn from the start: "docx"
+    // is Word's file, not OpenDocument's.
+    const word = fuzzyScore('docx', 'Word document (.docx)') as number
+    expect(word).toBeGreaterThan(fuzzyScore('docx', 'OpenDocument text (.odt)') as number)
   })
 
   it('filters by label and by keyword', () => {

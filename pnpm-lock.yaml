@@ -351,6 +351,30 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.1)(happy-dom@15.11.7)(jiti@2.7.0)(lightningcss@1.33.0)(sass@1.103.1)(supports-color@10.2.2)(terser@5.51.2)(yaml@2.9.0)
 
+  packages/create-trevixal-extension:
+    devDependencies:
+      '@trevixal/core':
+        specifier: workspace:*
+        version: link:../core
+      '@trevixal/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      happy-dom:
+        specifier: ^15.11.7
+        version: 15.11.7
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@10.2.2)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)(happy-dom@15.11.7)(jiti@2.7.0)(lightningcss@1.33.0)(sass@1.103.1)(supports-color@10.2.2)(terser@5.51.2)(yaml@2.9.0)
+
   packages/e2e:
     devDependencies:
       '@axe-core/playwright':
@@ -395,6 +419,9 @@ importers:
       '@trevixal/extension-code-highlight':
         specifier: workspace:*
         version: link:../extension-code-highlight
+      '@trevixal/extension-comments':
+        specifier: workspace:*
+        version: link:../extension-comments
       '@trevixal/extension-diagram':
         specifier: workspace:*
         version: link:../extension-diagram
@@ -410,6 +437,9 @@ importers:
       '@trevixal/extension-format-code':
         specifier: workspace:*
         version: link:../extension-format-code
+      '@trevixal/extension-forms':
+        specifier: workspace:*
+        version: link:../extension-forms
       '@trevixal/extension-image':
         specifier: workspace:*
         version: link:../extension-image
@@ -482,6 +512,24 @@ importers:
         version: link:../core
       happy-dom:
         specifier: ^15.11.7
+        version: 15.11.7
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@10.2.2)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)(happy-dom@15.11.7)(jiti@2.7.0)(lightningcss@1.33.0)(sass@1.103.1)(supports-color@10.2.2)(terser@5.51.2)(yaml@2.9.0)
+
+  packages/extension-comments:
+    devDependencies:
+      '@trevixal/core':
+        specifier: workspace:*
+        version: link:../core
+      happy-dom:
+        specifier: ^15.11.0
         version: 15.11.7
       tsup:
         specifier: ^8.3.5
@@ -570,6 +618,24 @@ importers:
       '@trevixal/core':
         specifier: workspace:*
         version: link:../core
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@10.2.2)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)(happy-dom@15.11.7)(jiti@2.7.0)(lightningcss@1.33.0)(sass@1.103.1)(supports-color@10.2.2)(terser@5.51.2)(yaml@2.9.0)
+
+  packages/extension-forms:
+    devDependencies:
+      '@trevixal/core':
+        specifier: workspace:*
+        version: link:../core
+      happy-dom:
+        specifier: ^15.11.0
+        version: 15.11.7
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@10.2.2)(typescript@5.9.3)(yaml@2.9.0)

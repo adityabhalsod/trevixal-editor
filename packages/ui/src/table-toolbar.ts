@@ -15,9 +15,10 @@ export interface TableToolbarCommands {
   readonly splitCell: Command
   /**
    * Word's Split Cells. When present, the Split entry asks how many columns
-   * and runs this; without it the entry runs `splitCell`, which un-merges.
+   * and rows and runs this; without it the entry runs `splitCell`, which
+   * un-merges.
    */
-  readonly splitCellInto?: (columns: number) => Command
+  readonly splitCellInto?: (columns: number, rows?: number) => Command
   readonly toggleHeaderRow: Command
   readonly deleteTable: Command
   // Optional, so a host wired to the original ten keeps working: an entry
@@ -88,12 +89,21 @@ const ENTRIES: readonly Entry[] = [
 /** Word's widest table. The split command declines beyond it too. */
 const MOST_SPLIT_COLUMNS = 63
 
+/** The most rows one split makes, as the split command allows. */
+const MOST_SPLIT_ROWS = 100
+
+/** What Word's Split Cells dialog asks: how many columns and rows each selected cell becomes. */
+export interface SplitCellsChoice {
+  readonly columns: number
+  readonly rows: number
+}
+
 /**
- * Word's Split Cells dialog, asking how many columns to split each selected
- * cell into. Resolves to that count, or null when dismissed. It does not ask
- * for rows: the table model spans columns only.
+ * Word's Split Cells dialog, asking how many columns and how many rows to
+ * split each selected cell into. Resolves to the counts, or null when
+ * dismissed.
  */
-export function openSplitCellsDialog(document: Document): Promise<number | null> {
+export function openSplitCellsDialog(document: Document): Promise<SplitCellsChoice | null> {
   return openDialog({
     document,
     title: 'Split cells',
@@ -105,14 +115,26 @@ export function openSplitCellsDialog(document: Document): Promise<number | null>
         type: 'number',
         value: '2',
         required: true,
-        min: 2,
+        min: 1,
         max: MOST_SPLIT_COLUMNS,
         hint: 'Each selected cell becomes this many, side by side.',
+      },
+      {
+        name: 'rows',
+        label: 'Number of rows',
+        type: 'number',
+        value: '1',
+        required: true,
+        min: 1,
+        max: MOST_SPLIT_ROWS,
+        hint: 'And each of those this many, one above the other.',
       },
     ],
     // `Number`, not `parseInt`: a 2.5 stays 2.5 and the command turns it down,
     // rather than quietly becoming 2.
-  }).then((values) => (values ? Number(values.columns) : null))
+  }).then((values) =>
+    values ? { columns: Number(values.columns), rows: Number(values.rows) } : null,
+  )
 }
 
 export interface TableToolbarOptions {
@@ -190,9 +212,9 @@ export function createTableToolbar(editor: Editor, options: TableToolbarOptions)
           self.close()
           const splitInto = options.commands.splitCellInto
           if (entry.name === 'splitCell' && splitInto) {
-            void openSplitCellsDialog(doc).then((columns) => {
+            void openSplitCellsDialog(doc).then((choice) => {
               editor.view?.focus()
-              if (columns !== null) editor.exec(splitInto(columns))
+              if (choice !== null) editor.exec(splitInto(choice.columns, choice.rows))
             })
             return
           }

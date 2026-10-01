@@ -12,13 +12,34 @@ export {
 export { blockBindings } from './bindings'
 export {
   citationAt,
+  citationStyleOf,
+  importSources,
   insertCitation,
   insertReferenceList,
   type ReferenceMatch,
+  referenceChoices,
   referenceFor,
   renumberCitations,
+  setCitationStyle,
   splitReferenceItem,
 } from './citations'
+export {
+  CITATION_STYLES,
+  type CitationAuthor,
+  type CitationSource,
+  type CitationStyle,
+  citationLabel,
+  DEFAULT_CITATION_STYLE,
+  formatReference,
+  type ImportedSource,
+  isCitationStyle,
+  parseBibTeX,
+  parseCSLJSON,
+  parseSource,
+  parseSources,
+  referenceSortKey,
+  SourceFileError,
+} from './citation-styles'
 export {
   activateTab,
   activateTabAt,
@@ -39,6 +60,7 @@ export {
   insertColumns,
   insertFootnote,
   insertPageBreak,
+  insertSectionBreak,
   insertTimeline,
   insertTimelineItem,
   insertToggleBlock,
@@ -47,7 +69,45 @@ export {
   setColumnCount,
   toggleToggleOpen,
 } from './commands'
+export {
+  documentIds,
+  fieldSteps,
+  freshId,
+  installFieldUpdater,
+  type ReferenceKind,
+  type ReferenceTarget,
+  referenceTargets,
+  referenceText,
+  refreshFields,
+  updateFieldsTransform,
+} from './fields'
 export { blockKeymap, enterFromTitle, escapeContainerOnEnter } from './keymap'
+export {
+  type CaptionOptions,
+  type CaptionPosition,
+  type IndexEntryOptions,
+  insertCaption,
+  insertCaptionList,
+  insertCrossReference,
+  insertDocumentIndex,
+  insertEndnote,
+  markIndexEntry,
+} from './reference-commands'
+export {
+  CAPTION_KINDS,
+  type CaptionKind,
+  type CaptionListEntry,
+  captionKind,
+  CROSS_REFERENCE_FORMATS,
+  type CrossReferenceFormat,
+  crossReferenceFormat,
+  endnoteLabel,
+  type IndexEntry,
+  type IndexLocation,
+  MISSING_REFERENCE,
+  referenceMarks,
+  referenceNodes,
+} from './references'
 export {
   BADGE_TONES,
   type BadgeTone,
@@ -66,3 +126,24 @@ export {
   safeAnchorId,
 } from './schema'
 export { type BlockUICommands, blockUICommands } from './ui'
+export {
+  type AdvancedBlocksOptions,
+  type MapNodeOptions,
+  NOTE_COLORS,
+  type NoteColor,
+  OSM_ATTRIBUTION,
+  OSM_TILES,
+  type PollOption,
+  advancedBlockNodes,
+  conditionMet,
+  enableAdvancedBlocks,
+  insertMap,
+  insertMarginNote,
+  insertPoll,
+  parseCoordinates,
+  pollOptions,
+  resolveConditionals,
+  setTemplateVariables,
+  tileOf,
+  wrapInConditional,
+} from './advanced'

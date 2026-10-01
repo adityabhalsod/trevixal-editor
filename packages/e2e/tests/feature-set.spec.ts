@@ -224,6 +224,13 @@ test.describe('the assembled feature set', () => {
     const server = await serveDist(distDir)
     try {
       await page.goto(server.origin)
+      // The tour is written in the active voice, so give the check a passive.
+      await page
+        .locator('#editor .trevixal-content > p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await page.keyboard.press('End')
+      await page.keyboard.type(' The report was written by Sam.')
       const flagged = page.locator('#editor .trevixal-writing--passive')
       await expect(flagged.first()).toBeVisible()
       // Decorations never enter the document, so the serialized output has none.
@@ -886,11 +893,10 @@ test.describe('downloading a document', () => {
       const frame = page.locator('.trevixal-print-preview__frame')
       await expect(frame).toBeVisible()
       // "Export as PDF" renders this same page, so a preview that matches the
-      // editor is the PDF matching it too.
-      await expect(page.frameLocator('.trevixal-print-preview__frame').locator('body')).toHaveCSS(
-        'background-color',
-        ground,
-      )
+      // editor is the PDF matching it too. The paper is each page, on a desk.
+      await expect(
+        page.frameLocator('.trevixal-print-preview__frame').locator('.trevixal-page').first(),
+      ).toHaveCSS('background-color', ground)
       const srcdoc = (await frame.getAttribute('srcdoc')) ?? ''
       // A browser prints no background unless the page asks for one, and the
       // "Background graphics" box is off by default.
@@ -1016,8 +1022,8 @@ test.describe('the suggestion triggers', () => {
     try {
       await page.goto(server.origin)
       const surface = page.locator('#editor .trevixal-content')
-      // One seeded table; the menu has to add the second.
-      await expect(surface.locator('table')).toHaveCount(1)
+      // Four seeded tables, one of them inside another; the menu has to add a fifth.
+      await expect(surface.locator('table')).toHaveCount(4)
 
       await emptyBlock(page)
       await page.keyboard.type('/tab')
@@ -1028,7 +1034,7 @@ test.describe('the suggestion triggers', () => {
       await expect(popup.locator('.trevixal-popup__label').first()).toHaveText('Table')
       await page.keyboard.press('Enter')
 
-      await expect(surface.locator('table')).toHaveCount(2)
+      await expect(surface.locator('table')).toHaveCount(5)
       await expect(popup).toHaveCount(0)
       // The trigger text is consumed, not left behind as a literal "/tab".
       await expect(surface).not.toContainText('/tab')
@@ -1168,6 +1174,26 @@ test.describe('links, security and the second surface', () => {
 
       await runMenuItem(page, 'view', 'workspacePanel')
       await expect(sidebar).toBeVisible()
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('View ▸ History shows the steps at once, and hides them again', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await page
+        .locator('#editor .trevixal-content > p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await page.keyboard.type('New words ')
+      await runMenuItem(page, 'view', 'historyPanel')
+      const history = page.locator('.trevixal-history')
+      await expect(history).toBeVisible()
+      await expect(history).toContainText('Typing')
+      await runMenuItem(page, 'view', 'historyPanel')
+      await expect(history).toHaveCount(0)
     } finally {
       await server.close()
     }

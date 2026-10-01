@@ -117,6 +117,23 @@ test.describe('accessibility', () => {
     }
   })
 
+  test('the command palette passes an axe audit, its highlighted row included', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await page.click('[data-trevixal-menu="tools"]')
+      await page.click('.trevixal-menu__item[data-trevixal-item="commandPalette"]')
+      // The first row is highlighted as it opens, and its key is on the tint.
+      await expect(page.locator('.trevixal-palette__item--selected')).toHaveCount(1)
+      const violations = await audit(page, '.trevixal-palette')
+      expect(describe_(violations), 'axe violations').toBe('')
+    } finally {
+      await server.close()
+    }
+  })
+
   test('the dark theme passes an axe audit, contrast included', async ({ page }) => {
     const server = await serveDist(distDir)
     try {

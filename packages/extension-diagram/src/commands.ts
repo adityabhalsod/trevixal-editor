@@ -15,6 +15,12 @@ import {
 export const DEFAULT_DIAGRAM_LANGUAGES: readonly string[] = ['mermaid']
 
 /**
+ * Every language this package has a renderer for: Mermaid, Graphviz's DOT
+ * (by either name) and PlantUML. For a host that draws all three.
+ */
+export const EVERY_DIAGRAM_LANGUAGE: readonly string[] = ['mermaid', 'dot', 'graphviz', 'plantuml']
+
+/**
  * The starter diagram `insertDiagram` puts in a fresh block: small enough to
  * read at a glance, complete enough to render, so a new block never opens on
  * an error message.
@@ -113,11 +119,25 @@ export function insertDiagram(
 export interface DiagramUICommands {
   /** Insert a diagram block; the template when no code is given. */
   readonly insertDiagram: (code?: string) => Command
+  /** Insert a Graphviz (DOT) diagram, and a PlantUML one. */
+  readonly insertGraphviz: () => Command
+  readonly insertPlantUML: () => Command
 }
 
-/** Build the UI command bundle for one diagram language (`mermaid` by default). */
+/** A first Graphviz diagram: two nodes and the edge between them, in DOT. */
+export const GRAPHVIZ_TEMPLATE = 'digraph {\n  Start -> Finish\n}'
+
+/** A first PlantUML diagram: one message between two participants. */
+export const PLANTUML_TEMPLATE = '@startuml\nAlice -> Bob: Hello\n@enduml'
+
+/**
+ * Build the UI command bundle for one diagram language (`mermaid` by
+ * default), with Graphviz and PlantUML blocks beside it.
+ */
 export function diagramUICommands(language = 'mermaid'): DiagramUICommands {
   return {
     insertDiagram: (code) => insertDiagram(code, language),
+    insertGraphviz: () => insertDiagram(GRAPHVIZ_TEMPLATE, 'dot'),
+    insertPlantUML: () => insertDiagram(PLANTUML_TEMPLATE, 'plantuml'),
   }
 }

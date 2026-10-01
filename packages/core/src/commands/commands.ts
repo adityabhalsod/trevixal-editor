@@ -17,13 +17,14 @@ import type { EditorNode, TextNode } from '../model/node'
 import { pos } from '../model/position'
 import { nodeAtPath, pathsEqual } from '../model/tree'
 import { MAX_INDENT, blockLayoutAttrs } from '../schema/basic'
+import { followingStyle } from '../schema/named-styles'
 import type { EditorState } from '../state/editor-state'
 import { AllSelection, NodeSelection, TextSelection, selectionNear } from '../state/selection'
 import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import { AddMarkStep, RemoveMarkStep } from '../state/steps/mark-steps'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
 import { ReplaceNodesStep, replaceNodeAt } from '../state/steps/replace-nodes'
-import { JoinNodesStep, SplitNodeStep } from '../state/steps/split-join'
+import { JoinNodesStep, SplitNodeStep, withoutId } from '../state/steps/split-join'
 import { LiftNodesStep, WrapNodesStep } from '../state/steps/wrap-lift'
 import type { Transaction } from '../state/transaction'
 import { deleteRange } from './helpers'
@@ -885,6 +886,23 @@ export const deleteBackwardInPreformatted: Command = (state) => {
   return null
 }
 
+/**
+ * What a block Enter starts beside `block` takes from it: its format, as in
+ * Word, bar its id and its drop cap, which are that block's alone; at the end
+ * of a Title or Subtitle, the paragraph style that follows it.
+ */
+function attrsOfNewBlock(block: EditorNode, atEnd: boolean): Attrs {
+  const attrs: Record<string, unknown> = { ...withoutId(block.attrs) }
+  if (attrs.dropCap != null) {
+    attrs.dropCap = null
+    attrs.dropCapLines = null
+  }
+  if (atEnd && typeof attrs.paragraphStyle === 'string') {
+    attrs.paragraphStyle = followingStyle(attrs.paragraphStyle)
+  }
+  return attrs
+}
+
 export const splitBlock: Command = (state) => {
   const selection = state.selection
   if (!(selection instanceof TextSelection)) return null
@@ -896,10 +914,18 @@ export const splitBlock: Command = (state) => {
   // Enter at the end of a non-paragraph block starts a fresh paragraph.
   const paragraph = state.schema.nodes.paragraph
   const atEnd = point.offset === inlineLength(block.content)
-  const afterType = atEnd && paragraph && block.type !== paragraph ? paragraph.name : undefined
-  tr.step(new SplitNodeStep(point.path, point.offset, afterType))
   const parentPath = point.path.slice(0, -1)
   const index = point.path[point.path.length - 1] as number
+  if (point.offset === 0 && !atEnd) {
+    // Enter at the start opens an empty block above rather than splitting:
+    // the block keeps its id, so every link to it stays with its words.
+    const above = block.type.create(attrsOfNewBlock(block, false))
+    tr.step(new ReplaceNodesStep(parentPath, index, index, Fragment.of(above)))
+  } else {
+    const afterType = atEnd && paragraph && block.type !== paragraph ? paragraph.name : undefined
+    const afterAttrs = afterType ? undefined : attrsOfNewBlock(block, atEnd)
+    tr.step(new SplitNodeStep(point.path, point.offset, afterType, afterAttrs))
+  }
   tr.setSelection(new TextSelection(pos([...parentPath, index + 1], 0)))
   return tr
 }
@@ -946,6 +972,13 @@ export function insertContent(nodes: readonly EditorNode[]): Command {
       return tr
     }
 
+    if (point.offset === 0) {
+      // At the very start the blocks go in before it, which keeps its id
+      // with its words rather than on an empty first half.
+      tr.step(new ReplaceNodesStep(parentPath, index, index, Fragment.from(nodes)))
+      tr.setSelection(selectionAfterBlocks(parentPath, index - 1, nodes))
+      return tr
+    }
     // Multi-block payload: split the current block and splice between halves.
     tr.step(new SplitNodeStep(point.path, point.offset))
     tr.step(new ReplaceNodesStep(parentPath, index + 1, index + 1, Fragment.from(nodes)))

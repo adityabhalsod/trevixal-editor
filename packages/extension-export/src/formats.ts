@@ -1,6 +1,12 @@
 import type { EditorNode, Schema } from '@trevixal/core'
+import { parseExportArchive } from './archive-import'
 import { type DOCXImportOptions, parseDOCX } from './docx-reader'
 import { type DOCXOptions, serializeToDOCX } from './docx-writer'
+import { serializeToEPUB } from './epub'
+import { serializeToLaTeX } from './latex'
+import { parseODT, serializeToODT } from './odt'
+import { type PdfJsLike, loadPdfJs, parsePDF } from './pdf'
+import { serializeToPPTX } from './pptx'
 import type { RenderedDocument } from './rendered'
 import { type RTFOptions, serializeToRTF } from './rtf'
 import type { ThemeTokens } from './theme'
@@ -101,12 +107,105 @@ export function docxImporter(options: DOCXImportOptions = {}): DocumentImporter 
   }
 }
 
+const ODT_MIME = 'application/vnd.oasis.opendocument.text'
+const ODT_LABEL = 'OpenDocument text (.odt)'
+
+/** The `.odt` export target, for LibreOffice and anything else that reads OpenDocument. */
+export function odtExporter(): DocumentExporter {
+  return {
+    name: 'odt',
+    label: ODT_LABEL,
+    extension: 'odt',
+    mime: ODT_MIME,
+    serialize: (doc, context) => serializeToODT(doc, { title: context.title }),
+  }
+}
+
+/** The `.epub` export target: a book of chapters, one per level-one heading. */
+export function epubExporter(): DocumentExporter {
+  return {
+    name: 'epub',
+    label: 'EPUB book (.epub)',
+    extension: 'epub',
+    mime: 'application/epub+zip',
+    serialize: (doc, context) =>
+      serializeToEPUB(doc, globalThis.document, { title: context.title }),
+  }
+}
+
+/** The `.tex` export target: LaTeX source for an `article`. */
+export function latexExporter(): DocumentExporter {
+  return {
+    name: 'latex',
+    label: 'LaTeX (.tex)',
+    extension: 'tex',
+    mime: 'application/x-tex',
+    serialize: (doc) => serializeToLaTeX(doc),
+  }
+}
+
+/** The `.pptx` export target: a slide for each top-level heading. */
+export function pptxExporter(): DocumentExporter {
+  return {
+    name: 'pptx',
+    label: 'PowerPoint (.pptx)',
+    extension: 'pptx',
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    serialize: (doc, context) => serializeToPPTX(doc, { title: context.title }),
+  }
+}
+
+/** The `.odt` import source. */
+export function odtImporter(): DocumentImporter {
+  return {
+    name: 'odt',
+    label: ODT_LABEL,
+    extensions: ['odt'],
+    parse: (file, context) => parseODT(context.schema, file),
+  }
+}
+
+/** What Notion and Google Docs export as a `.zip`: Markdown or HTML pages and their pictures. */
+export function archiveImporter(): DocumentImporter {
+  return {
+    name: 'archive',
+    label: 'Notion or Google Docs export (.zip)',
+    extensions: ['zip'],
+    parse: (file, context) =>
+      parseExportArchive(context.schema, file, context.document ?? globalThis.document),
+  }
+}
+
+/**
+ * A PDF's text layer, read through PDF.js, which is fetched the first time a
+ * PDF is opened; `load` supplies another copy of it.
+ */
+export function pdfImporter(load: () => Promise<PdfJsLike> = () => loadPdfJs()): DocumentImporter {
+  let pdfjs: Promise<PdfJsLike> | null = null
+  return {
+    name: 'pdf',
+    label: 'PDF text (.pdf)',
+    extensions: ['pdf'],
+    parse: async (file, context) => {
+      pdfjs ??= load()
+      return parsePDF(context.schema, file, await pdfjs)
+    },
+  }
+}
+
 /** Every export target this package provides, in menu order. */
 export function exportFormats(): DocumentExporter[] {
-  return [docxExporter(), rtfExporter()]
+  return [
+    docxExporter(),
+    rtfExporter(),
+    odtExporter(),
+    epubExporter(),
+    latexExporter(),
+    pptxExporter(),
+  ]
 }
 
 /** Every import source this package provides, in menu order. */
 export function importFormats(): DocumentImporter[] {
-  return [docxImporter()]
+  return [docxImporter(), odtImporter(), pdfImporter(), archiveImporter()]
 }

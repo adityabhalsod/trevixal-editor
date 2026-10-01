@@ -1,6 +1,7 @@
 'use client'
 
 import { mountFullEditor } from '@trevixal/editor-kit'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 import { useEffect, useRef } from 'react'
 
 /**
@@ -23,6 +24,7 @@ export default function FullEditor() {
     const editor = mountFullEditor({
       element,
       namespace: 'trevixal:next',
+      languages: uiLanguageLoaders,
       aboutRows: [{ term: 'Framework', description: 'Next.js App Router, client-only' }],
     })
     return () => editor.destroy()

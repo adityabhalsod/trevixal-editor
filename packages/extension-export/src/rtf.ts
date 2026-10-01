@@ -1,14 +1,30 @@
 import {
+  type BorderStyle,
   DEFAULT_LIST_NUMBERING,
   type EditorNode,
   type Fragment,
   type ListNumberingScheme,
   type Mark,
+  type NamedStyle,
+  type StyleProps,
+  type TableMapCell,
   type TextNode,
+  columnCount,
+  documentStyles,
+  dropCapOf,
   formatListCounter,
+  headingNumbers,
+  inlineLength,
   listMarker,
   listNumberingOf,
   listStylesFor,
+  paragraphBorderOf,
+  paragraphShadingOf,
+  safeStyleId,
+  sliceInline,
+  tabStopsOf,
+  taskMetaText,
+  textDirection,
 } from '@trevixal/core'
 import { type RGB, parseColor } from './color'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
@@ -19,6 +35,7 @@ import {
   blockLayout,
   cellSpan,
   decodeDataURL,
+  formulaInstruction,
   headingLevel,
   hiddenCellSides,
   imageDimensions,
@@ -28,10 +45,13 @@ import {
   primaryFont,
   tableColumns,
   taskGlyph,
+  withCheckbox,
+  wordRows,
 } from './shared'
 import { type TableColors, type TableLine, type TableLook, tableLook } from './table-look'
 import { type ThemeTokens, documentPalette } from './theme'
 import { lengthToHalfPoints, lengthToTwips } from './units'
+import { jsonEntries, sequenceName } from './word-fields'
 
 export interface RTFOptions {
   /** Body font; Calibri by default. */
@@ -62,6 +82,8 @@ const TABLE_WIDTH = 9360
 const CODE_FONT = 'Courier New'
 
 interface Context {
+  /** The document being written: its settings resolve what its lists name. */
+  readonly doc: EditorNode
   readonly fonts: string[]
   readonly colors: RGB[]
   readonly sizeHp: number
@@ -79,6 +101,16 @@ interface Context {
   /** The page and ink a table style's tints are mixed against. */
   readonly tableColors: TableColors
   readonly rendered: RenderedDocument
+  /** The document's direction; a paragraph without one of its own takes it. */
+  readonly direction: 'ltr' | 'rtl'
+  /** The document's named styles by id, whose look is written into each paragraph and run. */
+  readonly styles: ReadonlyMap<string, NamedStyle>
+  /**
+   * Each numbered heading's number, written as text before it: RTF readers
+   * number lists, but no simpler one links a list to heading styles.
+   */
+  /** Top-level headings' numbers, by their index in the document. */
+  readonly headingLabels: ReadonlyMap<number, string>
 }
 
 interface ParagraphState {
@@ -86,6 +118,8 @@ interface ParagraphState {
   readonly indent: number
   /** A list marker to place before the first paragraph of an item. */
   readonly marker: string | null
+  /** RTF to end the first paragraph of an item with: a task's assignee and date. */
+  readonly suffix?: string
   readonly listDepth: number
   /** The number of each enclosing list item, outermost first. */
   readonly listNumbers: readonly number[]
@@ -95,7 +129,10 @@ interface ParagraphState {
   readonly bold: boolean
   /** Colour-table index for ink other than the page's: a styled table's header. */
   readonly ink?: number
-  readonly inTable: boolean
+  /** How many tables deep the paragraph sits: 0 outside one, 2 in a table in a cell. */
+  readonly tableDepth: number
+  /** The width a table here may take, in twips: the page's, or its cell's. */
+  readonly tableWidth: number
   readonly align: string | null
 }
 
@@ -113,7 +150,8 @@ const ROOT_STATE: ParagraphState = {
   listTree: null,
   italic: false,
   bold: false,
-  inTable: false,
+  tableDepth: 0,
+  tableWidth: TABLE_WIDTH,
   align: null,
 }
 
@@ -136,6 +174,7 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
     return colors.length
   }
   const context: Context = {
+    doc,
     fonts: [primaryFont(options.fontFamily ?? 'Calibri'), CODE_FONT],
     colors,
     sizeHp: Math.round(basePt * 2),
@@ -150,10 +189,19 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
       ink: parseColor(palette.text ? `#${palette.text}` : null) ?? BLACK,
     },
     rendered: options.rendered ?? new Map(),
+    direction: textDirection(doc.attrs.direction) === 'rtl' ? 'rtl' : 'ltr',
+    styles: new Map(documentStyles(doc).map((style) => [style.id, style])),
+    headingLabels: new Map(headingNumbers(doc).map((entry) => [entry.index, entry.label] as const)),
   }
   // The body is written first so the font and colour tables list exactly
   // what it references.
-  const body = writeBlocks(doc.content.children, context, ROOT_STATE).join('\n')
+  // Top level by index, which is how a heading's number is found: the same
+  // heading node can stand at two places in a document and be two numbers.
+  const body = doc.content.children
+    .flatMap((node, index) =>
+      writeBlock(node, context, ROOT_STATE, context.headingLabels.get(index)),
+    )
+    .join('\n')
 
   const fontTable = context.fonts
     .map(
@@ -167,7 +215,16 @@ export function serializeToRTF(doc: EditorNode, options: RTFOptions = {}): strin
 
   const preamble = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033'
   const tables = `{\\fonttbl${fontTable}}{\\colortbl;${colorTable}}`
-  return `${preamble}${tables}${pageBackground(palette.background)}\\viewkind4\\uc1\n${body}\n}`
+  // Document and section settings: a right-to-left document, and Word's line
+  // numbers, counting every line and running on through the document.
+  const settings = [
+    context.direction === 'rtl' ? '\\rtldoc' : '',
+    // Widow control, on unless the document turned it off, and hyphenation.
+    doc.attrs.widowControl === false ? '' : '\\widowctrl',
+    doc.attrs.hyphenation === true ? '\\hyphauto1' : '',
+    sectionRTF(doc),
+  ].join('')
+  return `${preamble}${tables}${pageBackground(palette.background)}\\viewkind4\\uc1${settings}\n${body}\n}`
 }
 
 /**
@@ -223,13 +280,19 @@ function writeBlocks(
 }
 
 /** One block as zero or more paragraphs, each terminated by `\par` (or `\row`). */
-function writeBlock(node: EditorNode, context: Context, state: ParagraphState): string[] {
+function writeBlock(
+  node: EditorNode,
+  context: Context,
+  state: ParagraphState,
+  headingLabel?: string,
+): string[] {
   switch (node.type.name) {
     case NODE.paragraph:
       return [textblock(node, context, state, `\\f0\\fs${context.sizeHp}`)]
     case NODE.heading: {
       const size = HEADING_SIZES[headingLevel(node) - 1] ?? 24
-      return [textblock(node, context, state, `\\sb240\\sa120\\keepn\\b\\f0\\fs${size}`)]
+      const number = headingLabel ? `${escapeRTF(headingLabel)} ` : ''
+      return [textblock(node, context, state, `\\sb240\\sa120\\keepn\\b\\f0\\fs${size}`, number)]
     }
     case NODE.blockquote:
       return writeBlocks(node.content.children, context, {
@@ -278,6 +341,22 @@ function writeBlock(node: EditorNode, context: Context, state: ParagraphState): 
           `\\f0\\fs${Math.max(2, context.sizeHp - 2)}`,
         ),
       ]
+    // A table of figures and an index are their entries, as text; a reader
+    // with fields of its own rebuilds them from the captions and marks. They
+    // are passed as the paragraph's node for the document's direction.
+    case 'captionList':
+      return jsonEntries(node.attrs.entries).flatMap((entry) =>
+        typeof entry.text === 'string'
+          ? [
+              `${paragraphStart(context, state, node)}\\f0\\fs${context.sizeHp} ${escapeRTF(entry.text)}\\par`,
+            ]
+          : [],
+      )
+    case 'documentIndex':
+      return indexLines(node).map(
+        (line) =>
+          `${paragraphStart(context, { ...state, indent: state.indent + (line.sub ? INDENT / 2 : 0) }, node)}\\f0\\fs${context.sizeHp} ${escapeRTF(line.text)}\\par`,
+      )
     default:
       if (node.isTextblock) return [textblock(node, context, state, `\\f0\\fs${context.sizeHp}`)]
       if (node.isAtom || node.childCount === 0) {
@@ -305,8 +384,14 @@ function writeBlock(node: EditorNode, context: Context, state: ParagraphState): 
  */
 function paragraphStart(context: Context, state: ParagraphState, node: EditorNode | null): string {
   let out = '\\pard\\plain'
-  if (state.inTable) out += '\\intbl'
-  if (context.background !== null) out += `\\cbpat${context.background}`
+  if (state.tableDepth > 0) out += '\\intbl'
+  if (state.tableDepth > 1) out += `\\itap${state.tableDepth}`
+  // A paragraph's own direction, or the document's; code (no node) runs left to right.
+  const direction = node ? (textDirection(node.attrs.dir) ?? context.direction) : 'ltr'
+  if (direction === 'rtl') out += '\\rtlpar'
+  const shading = node ? parseColor(paragraphShadingOf(node.attrs)) : null
+  if (shading) out += `\\cbpat${colorIndex(context, shading)}`
+  else if (context.background !== null) out += `\\cbpat${context.background}`
   if (context.text !== null) out += `\\cf${context.text}`
   if (state.ink !== undefined) out += `\\cf${state.ink}`
   const layout = node ? blockLayout(node, context.basePt) : null
@@ -325,6 +410,8 @@ function paragraphStart(context: Context, state: ParagraphState, node: EditorNod
         ? `\\sl${Math.round(layout.lineHeight.multiplier * 240)}\\slmult1`
         : `\\sl${layout.lineHeight.twips}\\slmult0`
   }
+  if (node) out += paragraphBorderRTF(context, node)
+  if (node) out += tabStopsRTF(node)
   if (state.italic) out += '\\i'
   if (state.bold) out += '\\b'
   return out
@@ -348,12 +435,194 @@ function textblock(
   context: Context,
   state: ParagraphState,
   props: string,
+  prefix = '',
 ): string {
+  const dropped = dropCapFrame(node, context, state)
+  if (dropped) return `${dropped.frame}${textblock(dropped.rest, context, state, props, prefix)}`
   const marker = state.marker === null ? '' : `${state.marker}\\tab `
-  return `${paragraphStart(context, state, node)}${props} ${marker}${inline(
+  // The paragraph's named style after the writer's own defaults, so it wins over them.
+  const style = paragraphStyleRTF(context, node)
+  return `${paragraphStart(context, state, node)}${props}${style} ${marker}${prefix}${inline(
     node.content,
     context,
-  )}\\par`
+  )}${state.suffix ?? ''}\\par`
+}
+
+/** Grey, as the editor's chip is: the ink a task's assignee and date are written in. */
+const TASK_META_INK: RGB = { r: 0x76, g: 0x76, b: 0x76 }
+
+/** A task's assignee and due date, after its text, smaller and in grey. */
+function taskMetaRTF(item: EditorNode, context: Context): string {
+  const text = taskMetaText(item.attrs)
+  if (!text) return ''
+  const size = Math.max(2, Math.round(context.sizeHp * 0.85))
+  return `{\\cf${colorIndex(context, TASK_META_INK)}\\fs${size} ${escapeRTF(` ${text}`)}}`
+}
+
+/** The section's own settings: Word's line numbers, and newspaper columns. */
+function sectionRTF(doc: EditorNode): string {
+  const lines = doc.attrs.lineNumbers === true ? '\\linemod1\\linex360\\linecont' : ''
+  const count = columnCount(doc.attrs.columns)
+  const rule = count > 1 && doc.attrs.columnRule === true ? '\\linebetcol' : ''
+  const columns = count > 1 ? `\\cols${count}\\colsx720${rule}` : ''
+  return lines || columns ? `\\sectd${lines}${columns}` : ''
+}
+
+const RTF_TAB_ALIGN = { left: '', center: '\\tqc', right: '\\tqr', decimal: '\\tqdec' } as const
+const RTF_TAB_LEADER = {
+  none: '',
+  dot: '\\tldot',
+  hyphen: '\\tlhyph',
+  underscore: '\\tlul',
+} as const
+
+/** A paragraph's custom tab stops: each its alignment, its leader, then its position in twips. */
+function tabStopsRTF(node: EditorNode): string {
+  return tabStopsOf(node.attrs)
+    .map(
+      (stop) =>
+        `${RTF_TAB_ALIGN[stop.align]}${RTF_TAB_LEADER[stop.leader]}\\tx${Math.round(stop.position * 20)}`,
+    )
+    .join('')
+}
+
+/** A style's run look as control words: font, size, colour, weight, slant, underline. */
+function styleRTF(context: Context, props: StyleProps): string {
+  let out = ''
+  if (props.fontFamily) out += `\\f${fontIndex(context, props.fontFamily)}`
+  if (props.fontSize !== undefined) out += `\\fs${Math.round(props.fontSize * 2)}`
+  const color = parseColor(props.color)
+  if (color) out += `\\cf${colorIndex(context, color)}`
+  if (props.bold !== undefined) out += props.bold ? '\\b' : '\\b0'
+  if (props.italic !== undefined) out += props.italic ? '\\i' : '\\i0'
+  if (props.underline !== undefined) out += props.underline ? '\\ul' : '\\ulnone'
+  return out
+}
+
+/**
+ * The built-in styles' own look, which RTF has no style sheet to carry: Title,
+ * Subtitle and the character styles as Word draws them before a document
+ * changes anything in them (see word-styles.ts). A heading brings its own.
+ */
+const BUILT_IN_LOOK: Readonly<Record<string, StyleProps>> = {
+  title: { fontSize: 28, spaceAfter: 12 },
+  subtitle: { fontSize: 15, color: '#5a5a5a', spaceAfter: 8 },
+  emphasis: { italic: true },
+  strong: { bold: true },
+  subtleEmphasis: { italic: true, color: '#404040' },
+}
+
+/** A style's props laid over the built-in look it starts from. */
+function lookOf(id: string, props: StyleProps): StyleProps {
+  return { ...BUILT_IN_LOOK[id], ...props }
+}
+
+const RTF_ALIGN = { left: '\\ql', center: '\\qc', right: '\\qr', justify: '\\qj' } as const
+
+/**
+ * A paragraph's or heading's named style, as RTF has no styles of its own to
+ * point at: Normal's font and colour, which every style is based on, then its
+ * own style's look, and its spacing and alignment where the paragraph sets
+ * none directly. Other blocks keep the writer's own look.
+ */
+function paragraphStyleRTF(context: Context, node: EditorNode): string {
+  if (node.type.name !== NODE.paragraph && node.type.name !== NODE.heading) return ''
+  const own =
+    node.type.name === NODE.heading
+      ? `heading${headingLevel(node)}`
+      : (safeStyleId(node.attrs.paragraphStyle) ?? 'normal')
+  const normal = context.styles.get('normal')?.props ?? {}
+  const props = own === 'normal' ? normal : lookOf(own, context.styles.get(own)?.props ?? {})
+  const based = own === 'normal' ? {} : { fontFamily: normal.fontFamily, color: normal.color }
+  const look = Object.fromEntries(
+    Object.entries({ ...based, ...props }).filter(([, value]) => value !== undefined),
+  ) as StyleProps
+  let out = styleRTF(context, look)
+  if (props.align && !node.attrs.align) out += RTF_ALIGN[props.align]
+  if (props.spaceBefore !== undefined && node.attrs.spaceBefore == null) {
+    out += `\\sb${Math.round(props.spaceBefore * 20)}`
+  }
+  if (props.spaceAfter !== undefined && node.attrs.spaceAfter == null) {
+    out += `\\sa${Math.round(props.spaceAfter * 20)}`
+  }
+  if (props.lineHeight !== undefined && node.attrs.lineHeight == null) {
+    out += `\\sl${Math.round(props.lineHeight * 240)}\\slmult1`
+  }
+  return out
+}
+
+/** RTF's border style words. */
+const RTF_BORDER: Readonly<Record<BorderStyle, string>> = {
+  solid: '\\brdrs',
+  dashed: '\\brdrdash',
+  dotted: '\\brdrdot',
+  double: '\\brdrdb',
+}
+
+const RTF_SIDE = { top: '\\brdrt', right: '\\brdrr', bottom: '\\brdrb', left: '\\brdrl' } as const
+
+/** A paragraph's border: per side its style, width (a px is 15 twips), gap and colour. */
+function paragraphBorderRTF(context: Context, node: EditorNode): string {
+  const border = paragraphBorderOf(node.attrs)
+  if (!border) return ''
+  const rgb = parseColor(border.color)
+  const color = rgb ? `\\brdrcf${colorIndex(context, rgb)}` : ''
+  return border.sides
+    .map((side) => {
+      const space = side === 'top' || side === 'bottom' ? 20 : 80
+      return `${RTF_SIDE[side]}${RTF_BORDER[border.style]}\\brdrw${border.width * 15}\\brsp${space}${color}`
+    })
+    .join('')
+}
+
+/**
+ * A drop cap: the first letter in a frame paragraph of its own, dropped over
+ * (or hung in the margin beside) the next lines, then the rest of the text.
+ */
+function dropCapFrame(
+  node: EditorNode,
+  context: Context,
+  state: ParagraphState,
+): { frame: string; rest: EditorNode } | null {
+  const dropCap = dropCapOf(node.attrs)
+  const first = node.content.maybeChild(0)
+  if (!dropCap || !first?.isText) return null
+  const text = first.textContent
+  const code = text.charCodeAt(0)
+  const length = code >= 0xd800 && code <= 0xdbff && text.length > 1 ? 2 : 1
+  const letter = text.slice(0, length)
+  if (letter.trim() === '') return null
+  const size = Math.round(dropCap.lines * context.sizeHp * 1.2 * 0.85)
+  const kind = dropCap.kind === 'drop' ? 1 : 2
+  const frame = `${paragraphStart(context, state, node)}\\dropcapli${dropCap.lines}\\dropcapt${kind}\\pvpara\\wraparound\\f0\\fs${size} ${escapeRTF(letter)}\\par`
+  const rest = node
+    .withAttrs({ ...node.attrs, dropCap: null, dropCapLines: null })
+    .withContent(sliceInline(node.content, length, inlineLength(node.content)))
+  return { frame, rest }
+}
+
+/** An index's entries as lines of text: "apple, 1, 3", its subentries indented under it. */
+function indexLines(node: EditorNode): { text: string; sub: boolean }[] {
+  const labels = (locations: unknown): string =>
+    Array.isArray(locations)
+      ? locations
+          .map((location) => (location as Record<string, unknown>).label)
+          .filter((label): label is string => typeof label === 'string')
+          .join(', ')
+      : ''
+  const lines: { text: string; sub: boolean }[] = []
+  for (const entry of jsonEntries(node.attrs.entries)) {
+    if (typeof entry.term !== 'string') continue
+    const own = labels(entry.locations)
+    lines.push({ text: own ? `${entry.term}, ${own}` : entry.term, sub: false })
+    for (const sub of Array.isArray(entry.subentries) ? entry.subentries : []) {
+      const record = sub as Record<string, unknown>
+      if (typeof record.term === 'string') {
+        lines.push({ text: `${record.term}, ${labels(record.locations)}`, sub: true })
+      }
+    }
+  }
+  return lines
 }
 
 /**
@@ -457,16 +726,20 @@ function hex(bytes: Uint8Array): string {
 function writeList(list: EditorNode, context: Context, state: ParagraphState): string[] {
   const kind = listKind(list) ?? 'bullet'
   const out: string[] = []
-  let number = listStart(list)
   const depth = state.listDepth
   // A list storing a scheme opens a tree; a list of its type below continues
   // it, level by level, as the stylesheet's `[data-numbering] ol` rules do.
-  const scheme = listNumberingOf(list)
+  const scheme = listNumberingOf(list, context.doc)
   const tree: ListTree | null =
     scheme !== null && scheme !== DEFAULT_LIST_NUMBERING
       ? { scheme, from: state.listNumbers.length }
       : state.listTree
   const inTree = tree !== null && tree.scheme.listType === list.type.name
+  // A defined level starts where it says, unless the list sets its own start.
+  const levelStart = inTree
+    ? tree.scheme.custom?.[state.listNumbers.length - tree.from]?.start
+    : undefined
+  let number = listStart(list) === 1 && levelStart !== undefined ? levelStart : listStart(list)
   const style = list.attrs.listStyle
   const ownStyle =
     typeof style === 'string' && listStylesFor(list.type.name).has(style) ? style : null
@@ -491,9 +764,13 @@ function writeList(list: EditorNode, context: Context, state: ParagraphState): s
       listTree: tree,
       marker: null,
     }
+    const isTask = kind === 'task' || item.type.name === NODE.taskItem
+    const suffix = isTask ? taskMetaRTF(item, context) : ''
     item.content.children.forEach((block, blockIndex) => {
       const withMarker = blockIndex === 0 && block.isTextblock
-      out.push(...writeBlock(block, context, withMarker ? { ...itemState, marker } : itemState))
+      out.push(
+        ...writeBlock(block, context, withMarker ? { ...itemState, marker, suffix } : itemState),
+      )
     })
   })
   return out
@@ -520,21 +797,21 @@ function rtfLine(line: TableLine, context: Context): string {
 
 /**
  * Which sides of a cell the table's own lines run along: RTF draws each
- * cell's border itself, so the table's border style is worked out per cell.
+ * cell's border itself, so the table's border style is worked out per cell,
+ * from where it stands on the grid.
  */
 function drawnSides(
   look: TableLook,
-  rowIndex: number,
-  cellIndex: number,
+  placed: TableMapCell,
   rowCount: number,
-  cellCount: number,
+  columnCount: number,
 ): Readonly<Record<'top' | 'left' | 'bottom' | 'right', boolean>> {
   const { edges } = look
   return {
-    top: rowIndex === 0 ? edges.top : edges.insideH,
-    bottom: rowIndex === rowCount - 1 ? edges.bottom : edges.insideH,
-    left: cellIndex === 0 ? edges.left : edges.insideV,
-    right: cellIndex === cellCount - 1 ? edges.right : edges.insideV,
+    top: placed.top === 0 ? edges.top : edges.insideH,
+    bottom: placed.top + placed.height === rowCount ? edges.bottom : edges.insideH,
+    left: placed.left === 0 ? edges.left : edges.insideV,
+    right: placed.left + placed.width === columnCount ? edges.right : edges.insideV,
   }
 }
 
@@ -546,25 +823,53 @@ const RTF_SIDES: readonly (readonly [string, CellSide])[] = [
   ['r', 'right'],
 ]
 
+/** A table's own cell padding as RTF's row padding, every side in twips; empty for the default. */
+function cellPaddingRTF(table: EditorNode, context: Context): string {
+  const padding = attrString(table.attrs, 'cellPadding')
+  const twips = padding ? lengthToTwips(padding, context.basePt) : null
+  if (twips === null || twips < 0) return ''
+  return ['l', 't', 'r', 'b'].map((side) => `\\trpadd${side}${twips}\\trpaddf${side}3`).join('')
+}
+
+/**
+ * A table's rows. One in a cell is RTF's nested table: its paragraphs carry
+ * their depth (`\itap2`), its cells end in `\nestcell`, and each row's
+ * properties follow its cells in a `\nesttableprops` group, with a plain
+ * paragraph break for a reader that knows nothing of nesting. It shares out
+ * its cell's width rather than the page's.
+ */
 function writeTable(table: EditorNode, context: Context, state: ParagraphState): string[] {
+  const depth = state.tableDepth + 1
+  const nested = depth > 1
   const columns = tableColumns(table)
-  const unit = Math.floor(TABLE_WIDTH / columns)
+  const unit = Math.floor(state.tableWidth / columns)
   const look = tableLook(table, context.tableColors)
   const rowCount = table.childCount
+  const layout = wordRows(table)
   const rows: string[] = []
   for (const [rowIndex, row] of table.content.children.entries()) {
     if (row.type.name !== NODE.tableRow) continue
-    let definition = '\\trowd\\trgaph108\\trleft-108'
-    let right = 0
+    // A right-to-left document lays its tables out from the right. A header
+    // row heads every page, as Word's does; a table's own padding pads every
+    // side of every cell, in twips.
+    const header = row.content.children.every((cell) => cell.attrs.header === true)
+    let definition = `\\trowd${context.direction === 'rtl' ? '\\rtlrow' : ''}${
+      header && row.childCount > 0 ? '\\trhdr' : ''
+    }\\trgaph108\\trleft-108${cellPaddingRTF(table, context)}`
     const cells: string[] = []
-    for (const [cellIndex, cell] of row.content.children.entries()) {
+    for (const { placed, merge } of layout[rowIndex] ?? []) {
+      const cell = withCheckbox(placed.node)
       if (cell.type.name !== NODE.tableCell) continue
-      right += unit * cellSpan(cell)
-      const cellLook = look.cell(rowIndex, cellIndex)
+      const right = unit * (placed.left + placed.width)
+      const cellLook = look.cell(placed.row, placed.index)
+      // A cell spanning rows is RTF's vertical merge: begun in its first row,
+      // continued, empty, in each of the others.
+      if (merge === 'restart') definition += '\\clvmgf'
+      if (merge === 'continue') definition += '\\clvmrg'
       // A line the Eraser took out is simply not written; a style's rule
       // under the header or over the total row takes the table's line's place.
-      const hidden = hiddenCellSides(table, rowIndex, cellIndex)
-      const drawn = drawnSides(look, rowIndex, cellIndex, rowCount, row.childCount)
+      const hidden = hiddenCellSides(table, placed.row, placed.index)
+      const drawn = drawnSides(look, placed, rowCount, columns)
       for (const [code, side] of RTF_SIDES) {
         if (hidden.has(side)) continue
         const line =
@@ -576,6 +881,9 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
       // The cell's own shading wins over its style's, as a direct format does in Word.
       const fill = parseColor(cell.attrs.background) ?? cellLook.fill
       if (fill) definition += `\\clcbpat${colorIndex(context, fill)}`
+      const vertical = attrString(cell.attrs, 'verticalAlign')
+      if (vertical === 'middle') definition += '\\clvertalc'
+      if (vertical === 'bottom') definition += '\\clvertalb'
       definition += `\\cellx${right}`
 
       const align = attrString(cell.attrs, 'align')
@@ -586,20 +894,33 @@ function writeTable(table: EditorNode, context: Context, state: ParagraphState):
         listDepth: 0,
         listNumbers: [],
         listTree: null,
-        inTable: true,
+        tableDepth: depth,
+        tableWidth: unit * cellSpan(cell),
         bold: state.bold || cellLook.bold,
         ...(cellLook.ink ? { ink: colorIndex(context, cellLook.ink) } : {}),
         align: align === 'center' || align === 'right' ? align : null,
       }
-      const paragraphs = writeBlocks(cell.content.children, context, cellState)
-      // `\cell` ends the cell's last paragraph in place of `\par`.
+      const paragraphs =
+        merge === 'continue' ? [] : writeBlocks(cell.content.children, context, cellState)
+      // `\cell` ends the cell's last paragraph in place of `\par`; a cell
+      // ending in a table of its own takes an empty paragraph to end on.
+      const end = nested ? '\\nestcell' : '\\cell'
       const last = paragraphs.pop() ?? `${paragraphStart(context, cellState, null)} \\par`
       paragraphs.push(
-        last.endsWith('\\par') ? `${last.slice(0, -4)}\\cell` : `${last}\n\\pard\\intbl\\cell`,
+        last.endsWith('\\par')
+          ? `${last.slice(0, -4)}${end}`
+          : `${last}\n${paragraphStart(context, cellState, null)}${end}`,
       )
       cells.push(paragraphs.join('\n'))
     }
-    rows.push(`${definition}\n${cells.join('\n')}\n\\row`)
+    if (nested) {
+      const properties = paragraphStart(context, { ...state, tableDepth: depth }, null)
+      rows.push(
+        `${cells.join('\n')}\n${properties}{\\*\\nesttableprops${definition}\\nestrow}{\\nonesttables\\par}`,
+      )
+    } else {
+      rows.push(`${definition}\n${cells.join('\n')}\n\\row`)
+    }
   }
   return rows
 }
@@ -643,6 +964,15 @@ function inline(content: Fragment, context: Context): string {
 function inlineNode(node: EditorNode, context: Context): string {
   if (node.isText) return run(node as TextNode, context)
   if (node.type.name === NODE.hardBreak) return '\\line '
+  // A caption's number as the SEQ field Word writes, with its present value.
+  if (node.type.name === 'captionNumber') {
+    const number = escapeRTF(String(node.attrs.number ?? ''))
+    return `{\\field{\\*\\fldinst SEQ ${sequenceName(node.attrs.kind)} \\\\* ARABIC}{\\fldrslt ${number}}}`
+  }
+  if (node.type.name === 'tableFormula') {
+    const result = escapeRTF(attrString(node.attrs, 'result') ?? '')
+    return `{\\field{\\*\\fldinst ${escapeRTF(formulaInstruction(node))}}{\\fldrslt ${result}}}`
+  }
   if (node.type.name === NODE.image) {
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return escapeRTF(`[${alt}]`)
@@ -711,6 +1041,11 @@ function markControls(marks: readonly Mark[], context: Context): string {
       case 'fontSize': {
         const size = lengthToHalfPoints(mark.attrs.size, context.basePt)
         if (size !== null) out += `\\fs${size}`
+        break
+      }
+      case 'charStyle': {
+        const style = context.styles.get(safeStyleId(mark.attrs.id) ?? '')
+        if (style?.kind === 'character') out += styleRTF(context, lookOf(style.id, style.props))
         break
       }
       case 'letterSpacing': {

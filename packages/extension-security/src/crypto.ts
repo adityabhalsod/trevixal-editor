@@ -8,7 +8,7 @@
  * URL, and its title and expiry can be shown on a lock screen before anyone
  * types a password.
  */
-import { UnsupportedEnvironmentError } from '@trevixal/core'
+import { randomBytes, subtle } from './web-crypto'
 
 /** Serialized form of an encrypted document. Binary fields are base64 so the envelope survives JSON. */
 export interface EncryptedEnvelope {
@@ -99,24 +99,6 @@ export interface EncryptWithKeyParams {
   readonly iterations: number
   readonly expiresAt?: number | null
   readonly title?: string
-}
-
-function subtle(): SubtleCrypto {
-  const api = (globalThis as { crypto?: Crypto }).crypto?.subtle
-  if (!api)
-    throw new UnsupportedEnvironmentError(
-      'WebCrypto (crypto.subtle) is not available in this environment',
-    )
-  return api
-}
-
-function randomBytes(length: number): Uint8Array<ArrayBuffer> {
-  const api = (globalThis as { crypto?: Crypto }).crypto
-  if (!api)
-    throw new UnsupportedEnvironmentError(
-      'WebCrypto (crypto.getRandomValues) is not available in this environment',
-    )
-  return api.getRandomValues(new Uint8Array(length))
 }
 
 function utf8(text: string): Uint8Array<ArrayBuffer> {

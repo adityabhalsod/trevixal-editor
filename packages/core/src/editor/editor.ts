@@ -28,6 +28,16 @@ import {
   wrapIn,
 } from '../commands/commands'
 import {
+  setColumnRule,
+  setColumns,
+  setDocumentDirection,
+  setHeadingNumbering,
+  setHyphenation,
+  setLineNumbers,
+  setTextDirection,
+  setWidowControl,
+} from '../commands/document'
+import {
   continueNumbering,
   continueNumberingFromPrevious,
   liftListItem,
@@ -41,6 +51,19 @@ import {
   toggleTaskList,
   unwrapList,
 } from '../commands/lists'
+import {
+  type StyleDefinition,
+  deleteStyle,
+  setParagraphStyle,
+  setStyle,
+  toggleCharacterStyle,
+} from '../commands/named-styles'
+import {
+  setDropCap,
+  setParagraphBorder,
+  setParagraphShading,
+  setTabStops,
+} from '../commands/paragraph-format'
 import { ADD_TO_HISTORY, History, type HistoryEntry, type HistoryOptions } from '../history/history'
 import type { InputRule } from '../input-rules/input-rules'
 import { type Attrs, attrsEq } from '../model/attrs'
@@ -53,9 +76,12 @@ import { normalizeDoc } from '../model/normalize'
 import { pos } from '../model/position'
 import type { Schema } from '../model/schema'
 import { type Path, nodeAtPath } from '../model/tree'
+import type { TextDirection } from '../schema/document-settings'
+import type { DropCapKind, ParagraphBorder, TabStop } from '../schema/paragraph-format'
 import { serializeToHTML, serializeToText } from '../serialize/html'
 import { EditorState } from '../state/editor-state'
 import { type Selection, TextSelection, selectionNear } from '../state/selection'
+import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import { ReplaceNodesStep } from '../state/steps/replace-nodes'
 import type { Transaction } from '../state/transaction'
 import { EditorView, type NodeViewFactory } from '../view/editor-view'
@@ -137,6 +163,8 @@ export interface EditorSnapshot {
   readonly blockAttrs: Attrs | null
   /** Type name of the list wrapping the selection, when inside one. */
   readonly listType: string | null
+  /** Whether a blockquote wraps the selection; `blockType` is the paragraph inside it. */
+  readonly inBlockquote: boolean
   /** Text alignment of the block holding the selection head. */
   readonly align: string | null
   /** Indent level of the block holding the selection head. */
@@ -144,6 +172,11 @@ export interface EditorSnapshot {
   readonly canUndo: boolean
   readonly canRedo: boolean
   readonly selectionEmpty: boolean
+  /**
+   * The document's own settings (heading numbering, direction, line
+   * numbers), for the menu entries that tick what is on.
+   */
+  readonly documentAttrs: Attrs
 }
 
 /**
@@ -307,6 +340,9 @@ export class Editor {
     )
     const tr = this.state.tr
     tr.step(new ReplaceNodesStep([], 0, this.state.doc.childCount, doc.content))
+    // The document's own settings are part of it too: a file saved with its
+    // headings numbered opens with them numbered.
+    if (!attrsEq(tr.doc.attrs, doc.attrs)) tr.step(new SetNodeAttrsStep([], doc.attrs))
     tr.setSelection(selectionNear(tr.doc, pos([0], 0)))
     if (options.addToHistory !== true) tr.setMeta(ADD_TO_HISTORY, false)
     this.dispatch(tr)
@@ -396,11 +432,13 @@ export class Editor {
       blockType: textblock?.type.name ?? null,
       blockAttrs: textblock?.attrs ?? null,
       listType: enclosingListType(this.state.doc, selection.from.path),
+      inBlockquote: insideType(this.state.doc, selection.from.path, 'blockquote'),
       align: typeof textblock?.attrs.align === 'string' ? textblock.attrs.align : null,
       indent: typeof indent === 'number' ? indent : 0,
       canUndo: this.canUndo,
       canRedo: this.canRedo,
       selectionEmpty: selection.empty,
+      documentAttrs: this.state.doc.attrs,
     }
     // Hand back the previous object when nothing a toolbar draws has changed.
     // The comparison costs a handful of scalar checks; the alternative costs
@@ -451,6 +489,14 @@ function enclosingListType(doc: EditorNode, path: Path): string | null {
   return nodeAtPath(doc, path.slice(0, -2))?.type.name ?? null
 }
 
+/** Whether a node named `name` holds the node at `path`, at any depth. */
+function insideType(doc: EditorNode, path: Path, name: string): boolean {
+  for (let depth = path.length - 1; depth > 0; depth--) {
+    if (nodeAtPath(doc, path.slice(0, depth))?.type.name === name) return true
+  }
+  return false
+}
+
 /** Attributes of the first mark of `name` covering the selection, if any. */
 function activeMarkAttrs(state: EditorState, name: string): Attrs | null {
   const type = state.schema.marks[name]
@@ -477,6 +523,7 @@ function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
   return (
     a.blockType === b.blockType &&
     a.listType === b.listType &&
+    a.inBlockquote === b.inBlockquote &&
     a.align === b.align &&
     a.indent === b.indent &&
     a.canUndo === b.canUndo &&
@@ -484,6 +531,7 @@ function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
     a.selectionEmpty === b.selectionEmpty &&
     sameStrings(a.activeMarks, b.activeMarks) &&
     sameAttrs(a.blockAttrs, b.blockAttrs) &&
+    sameAttrs(a.documentAttrs, b.documentAttrs) &&
     sameAttrMap(a.markAttrs, b.markAttrs)
   )
 }
@@ -672,6 +720,86 @@ export class EditorCommands {
   /** Take the list at the selection apart into plain paragraphs. */
   unwrapList(): boolean {
     return this.editor.exec(unwrapList)
+  }
+
+  /** Number the document's headings with a scheme, by id; null stops. */
+  setHeadingNumbering(schemeId: string | null): boolean {
+    return this.editor.exec(setHeadingNumbering(schemeId))
+  }
+
+  /** The whole document's direction. */
+  setDocumentDirection(direction: TextDirection): boolean {
+    return this.editor.exec(setDocumentDirection(direction))
+  }
+
+  /** Show or hide line numbers in the margin. */
+  setLineNumbers(on: boolean): boolean {
+    return this.editor.exec(setLineNumbers(on))
+  }
+
+  /** The selected blocks' direction; null follows the document's. */
+  setTextDirection(dir: TextDirection | null): boolean {
+    return this.editor.exec(setTextDirection(dir))
+  }
+
+  /** Break words across lines at their syllables, or stop. */
+  setHyphenation(on: boolean): boolean {
+    return this.editor.exec(setHyphenation(on))
+  }
+
+  /** Keep paragraphs' first and last lines off a page of their own, in print and Word. */
+  setWidowControl(on: boolean): boolean {
+    return this.editor.exec(setWidowControl(on))
+  }
+
+  /** Set the document in newspaper columns, 1 to 3. */
+  setColumns(count: number): boolean {
+    return this.editor.exec(setColumns(count))
+  }
+
+  /** A line between the columns, or none. */
+  setColumnRule(on: boolean): boolean {
+    return this.editor.exec(setColumnRule(on))
+  }
+
+  /** Rule the selected paragraphs with a border; null takes it off. */
+  setParagraphBorder(border: ParagraphBorder | null): boolean {
+    return this.editor.exec(setParagraphBorder(border))
+  }
+
+  /** Fill the selected paragraphs with a colour; null takes it off. */
+  setParagraphShading(color: string | null): boolean {
+    return this.editor.exec(setParagraphShading(color))
+  }
+
+  /** Give the selected paragraphs a drop cap; null takes it off. */
+  setDropCap(kind: DropCapKind | null, lines?: number): boolean {
+    return this.editor.exec(setDropCap(kind, lines))
+  }
+
+  /** Set the selected paragraphs' custom tab stops; null clears them. */
+  setTabStops(stops: readonly TabStop[] | null): boolean {
+    return this.editor.exec(setTabStops(stops))
+  }
+
+  /** Give the selected paragraphs a named paragraph style, by id. */
+  setParagraphStyle(id: string): boolean {
+    return this.editor.exec(setParagraphStyle(id))
+  }
+
+  /** Put the selected text in a named character style, or take it out. */
+  toggleCharacterStyle(id: string): boolean {
+    return this.editor.exec(toggleCharacterStyle(id))
+  }
+
+  /** Define a named style, or change one; everything in it follows. */
+  setStyle(definition: StyleDefinition): boolean {
+    return this.editor.exec(setStyle(definition))
+  }
+
+  /** Delete one of the document's own styles; what was in it goes back to plain. */
+  deleteStyle(id: string): boolean {
+    return this.editor.exec(deleteStyle(id))
   }
 
   restartNumbering(): boolean {

@@ -6,6 +6,7 @@ import {
   type Path,
   Schema,
   TextSelection,
+  createEditor,
   defaultMarks,
   defaultNodes,
   pos,
@@ -27,6 +28,7 @@ import {
   splitCell,
   toggleHeaderRow,
 } from '../src/commands'
+import { tableKeymap } from '../src/keymap'
 import { tableNodes } from '../src/schema'
 
 const schema = new Schema({
@@ -212,13 +214,30 @@ describe('merge and split', () => {
     expect(splitRow.content.children.map((c) => c.attrs.width)).toEqual(['100px', '100px'])
   })
 
-  it('refuses to merge across rows', () => {
+  it('merges down a column into a cell spanning the rows', () => {
     const state = EditorState.create({
       schema,
       doc: twoByTwo(),
       selection: new TextSelection(pos([0, 0, 0, 0], 0), pos([0, 1, 0, 0], 1)),
     })
-    expect(mergeCells(state)).toBeNull()
+    const next = run(state, mergeCells)
+    const merged = next.doc.child(0).child(0).child(0)
+    expect(merged.attrs.rowspan).toBe(2)
+    expect(merged.textContent).toBe('ac')
+    expect(next.doc.child(0).child(1).childCount).toBe(1)
+    expect(serializeToHTML(next.doc)).toContain('rowspan="2"')
+  })
+
+  it('merges two whole rows into one row, as Word does', () => {
+    const state = EditorState.create({
+      schema,
+      doc: twoByTwo(),
+      selection: new TextSelection(pos([0, 0, 0, 0], 0), pos([0, 1, 1, 0], 1)),
+    })
+    const table = run(state, mergeCells).doc.child(0)
+    expect(table.childCount).toBe(1)
+    expect(table.child(0).child(0).attrs).toMatchObject({ colspan: 2, rowspan: 1 })
+    expect(table.child(0).child(0).textContent).toBe('abcd')
   })
 })
 
@@ -266,6 +285,22 @@ describe('navigation', () => {
     state = run(state, goToNextCell(-1))
     expect(state.selection.from.path).toEqual([0, 0, 0, 0])
     expect(goToNextCell(-1)(state)).toBeNull()
+  })
+
+  it('Tab still types a tab in a paragraph with tab stops, and still walks cells in a table', () => {
+    // The table keymap replaces the base Tab wholesale, so it has to carry the
+    // tab-stop link itself.
+    const stopped = schema.node('paragraph', { tabStops: '432 right dot' }, [
+      schema.text('Results'),
+    ])
+    const editor = createEditor({ schema, doc: docOf(stopped, twoByTwo().child(0)) })
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 7))))
+    expect(tableKeymap().Tab?.(editor)).toBe(true)
+    expect(editor.state.doc.child(0).textContent).toBe('Results\t')
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([1, 0, 0, 0], 0))))
+    expect(tableKeymap().Tab?.(editor)).toBe(true)
+    expect(editor.state.selection.from.path).toEqual([1, 0, 1, 0])
+    editor.destroy()
   })
 
   it('returns null outside tables', () => {

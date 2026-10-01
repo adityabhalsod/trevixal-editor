@@ -8,14 +8,34 @@ export {
   detectableLanguages,
   type LanguageGuess,
 } from './detect'
+export { insertCodeDiff, lineDiff } from './diff'
 export { createHighlighter, type CreateHighlighterOptions, tokenize } from './highlighter'
+export { insertCodeBlock } from './insert'
 export {
   BUNDLED_LANGUAGES,
   findLanguage,
   languageDisplayName,
   type LanguageDefinition,
   type LanguageRule,
+  TERMINAL_PROMPT,
 } from './languages'
+export {
+  CODE_EXPAND_CLASS,
+  CODE_LINE_CLASS,
+  COLLAPSED_LINES,
+  type CodeBlockLinesOptions,
+  codeBlockLines,
+} from './lines'
+export {
+  CODE_OUTPUT_CLASS,
+  type CodeRunner,
+  enableCodeRunner,
+  insertRunnableCode,
+  type RunnableLanguage,
+  runnableLanguage,
+  runnerDocument,
+} from './run'
+export { copyableCode, insertTerminal, isTerminalLanguage } from './terminal'
 export type { Highlighter, HighlightToken } from './types'
 
 export interface CodeHighlightOptions {

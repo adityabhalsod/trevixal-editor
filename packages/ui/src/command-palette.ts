@@ -71,24 +71,38 @@ export interface CommandPalette {
  * "Table" even though both contain the letters.
  */
 export function fuzzyScore(query: string, candidate: string): number | null {
-  if (query.length === 0) return 0
-  const needle = query.toLowerCase()
+  const needle = query.toLowerCase().replaceAll(' ', '')
+  if (needle.length === 0) return 0
   const haystack = candidate.toLowerCase()
-  let score = 0
-  let cursor = 0
-  let previousIndex = -1
-  for (const character of needle) {
-    if (character === ' ') continue
-    const index = haystack.indexOf(character, cursor)
-    if (index === -1) return null
-    score += 1
-    if (index === previousIndex + 1) score += 4 // consecutive
-    if (index === 0 || /[\s\-_/]/.test(haystack[index - 1] ?? '')) score += 3 // word start
-    previousIndex = index
-    cursor = index + 1
+  /** The greedy match from the first letter at `start`: its score, or null. */
+  const from = (start: number): number | null => {
+    let score = 0
+    let cursor = start
+    let previousIndex = -1
+    for (const character of needle) {
+      const index = haystack.indexOf(character, cursor)
+      if (index === -1) return null
+      score += 1
+      if (index === previousIndex + 1) score += 4 // consecutive
+      if (index === 0 || /[\s\-_/]/.test(haystack[index - 1] ?? '')) score += 3 // word start
+      previousIndex = index
+      cursor = index + 1
+    }
+    return score
+  }
+  // Each place the first letter appears is tried: the letters together later
+  // on ("docx" in "Word document (.docx)") beat them strewn from the start.
+  let best: number | null = null
+  for (
+    let start = haystack.indexOf(needle[0] as string);
+    start !== -1;
+    start = haystack.indexOf(needle[0] as string, start + 1)
+  ) {
+    const score = from(start)
+    if (score !== null && (best === null || score > best)) best = score
   }
   // Prefer shorter candidates when scores tie, so exact-ish hits float up.
-  return score - candidate.length * 0.01
+  return best === null ? null : best - candidate.length * 0.01
 }
 
 /**

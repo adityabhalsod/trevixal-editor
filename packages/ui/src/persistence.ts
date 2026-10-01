@@ -1,4 +1,5 @@
-import type { DocJSON, Editor } from '@trevixal/core'
+import { type DocJSON, type Editor, nodeFromJSON } from '@trevixal/core'
+import { compareDocuments, openComparison } from './compare'
 import { documentTitle } from './documents'
 
 /**
@@ -67,6 +68,8 @@ export interface SavedDocument {
   readonly doc: DocJSON
   readonly savedAt: number
   readonly title: string
+  /** A named version's name: a checkpoint kept however many backups follow it. */
+  readonly name?: string
 }
 
 export interface BackupOptions {
@@ -100,7 +103,15 @@ export interface Backup {
   readonly id: string
   readonly savedAt: number
   readonly title: string
+  /** Set for a named version, which the rolling backups never prune. */
+  readonly name?: string
 }
+
+/** The end of a named version's id, which keeps it out of the pruning. */
+const VERSION_SUFFIX = 'v'
+
+/** The longest name a version keeps. */
+const VERSION_NAME_MAX = 80
 
 export interface Autosave {
   readonly state: AutosaveState
@@ -114,6 +125,11 @@ export interface Autosave {
   restoreBackup(id: string): Promise<boolean>
   /** Take a backup of the current document now. */
   backupNow(): Promise<Backup | null>
+  /**
+   * Keep the document as it is now under a name, a checkpoint to come back
+   * to or compare against. Named versions are never pruned.
+   */
+  saveVersion(name: string): Promise<Backup | null>
   destroy(): void
 }
 
@@ -196,6 +212,7 @@ export function createAutosave(editor: Editor, options: AutosaveOptions): Autosa
     dirtySinceBackup = false
     const existing = (await options.storage.keys(backupPrefix))
       .map((entry) => entry.slice(backupPrefix.length))
+      .filter((entry) => !entry.endsWith(VERSION_SUFFIX))
       .sort((a, b) => Number(b) - Number(a))
     for (const stale of existing.slice(keep)) {
       await options.storage.remove(backupPrefix + stale)
@@ -230,10 +247,12 @@ export function createAutosave(editor: Editor, options: AutosaveOptions): Autosa
       // storage, not a document. Treat it as if nothing were saved.
       const doc: unknown = parsed.doc
       if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
       return {
         doc: doc as DocJSON,
         savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0,
         title: typeof parsed.title === 'string' ? parsed.title : 'Document',
+        ...(name ? { name } : {}),
       }
     } catch {
       return null
@@ -260,6 +279,7 @@ export function createAutosave(editor: Editor, options: AutosaveOptions): Autosa
             id: entry.slice(backupPrefix.length),
             savedAt: saved.savedAt,
             title: saved.title,
+            ...(saved.name ? { name: saved.name } : {}),
           })
         }
       }
@@ -275,6 +295,14 @@ export function createAutosave(editor: Editor, options: AutosaveOptions): Autosa
     backupNow: async () => {
       dirtySinceBackup = true
       return takeBackup(snapshot())
+    },
+    saveVersion: async (name) => {
+      const label = name.replace(/\s+/g, ' ').trim().slice(0, VERSION_NAME_MAX)
+      if (!label) return null
+      const saved: SavedDocument = { ...snapshot(), name: label }
+      const id = `${saved.savedAt}${VERSION_SUFFIX}`
+      await options.storage.set(backupPrefix + id, JSON.stringify(saved))
+      return { id, savedAt: saved.savedAt, title: saved.title, name: label }
     },
     destroy() {
       unsubscribe()
@@ -419,15 +447,30 @@ export async function offerDraftRecovery(
 export interface BackupsDialogOptions {
   readonly document: Document
   readonly now?: () => number
+  /**
+   * The editor the backups are of. With it, the dialog can compare a backup
+   * or a version with the document as it is now, and two of them with each
+   * other.
+   */
+  readonly editor?: Editor
 }
 
-/** List the backups and restore one. Resolves with the restored id, or null. */
+/** How a backup is named in the list: a version by its name, a backup by its title. */
+function backupLabel(backup: Backup, now: number): string {
+  const when = `${new Date(backup.savedAt).toLocaleString()} (${formatSavedAt(backup.savedAt, now)})`
+  return backup.name ? `${backup.name}: ${when}` : `${backup.title}, ${when}`
+}
+
+/**
+ * List the backups and the named versions: restore one, compare one with
+ * the document now or two with each other, or save a version by name.
+ * Resolves with the restored id, or null.
+ */
 export async function openBackupsDialog(
   autosave: Autosave,
   options: BackupsDialogOptions,
 ): Promise<string | null> {
-  const { document } = options
-  const backups = await autosave.listBackups()
+  const { document, editor } = options
   const overlay = document.createElement('div')
   overlay.className = 'trevixal-dialog-overlay'
   const dialog = document.createElement('div')
@@ -437,21 +480,36 @@ export async function openBackupsDialog(
   dialog.setAttribute('aria-label', 'Backups')
   const heading = document.createElement('h2')
   heading.className = 'trevixal-dialog__title'
-  heading.textContent = 'Local backups'
-  dialog.appendChild(heading)
+  heading.textContent = 'Versions and backups'
   const body = document.createElement('p')
   body.className = 'trevixal-dialog__body'
-  body.textContent =
-    backups.length === 0
-      ? 'No backups yet. One is taken every few minutes while you edit.'
-      : 'Restoring a backup is undoable with Ctrl+Z.'
-  dialog.appendChild(body)
   const list = document.createElement('ul')
   list.className = 'trevixal-backups'
   const now = (options.now ?? (() => Date.now()))()
   let chosen: string | null = null
+
+  // Save the document as it is now under a name.
+  const naming = document.createElement('form')
+  naming.className = 'trevixal-backups__name'
+  const name = document.createElement('input')
+  name.type = 'text'
+  name.name = 'versionName'
+  name.className = 'trevixal-dialog__input'
+  name.placeholder = 'Name this version: Sent to Sam'
+  name.setAttribute('aria-label', 'Version name')
+  const save = document.createElement('button')
+  save.type = 'submit'
+  save.className = 'trevixal-dialog__button'
+  save.textContent = 'Save version'
+  naming.append(name, save)
+
   const actions = document.createElement('div')
   actions.className = 'trevixal-dialog__actions'
+  const compareTwo = document.createElement('button')
+  compareTwo.type = 'button'
+  compareTwo.className = 'trevixal-dialog__button'
+  compareTwo.textContent = 'Compare the two'
+  compareTwo.disabled = true
   const backupNow = document.createElement('button')
   backupNow.type = 'button'
   backupNow.className = 'trevixal-dialog__button'
@@ -460,7 +518,26 @@ export async function openBackupsDialog(
   close.type = 'button'
   close.className = 'trevixal-dialog__button trevixal-dialog__button--primary'
   close.textContent = 'Close'
-  actions.append(backupNow, close)
+  actions.append(...(editor ? [compareTwo] : []), backupNow, close)
+
+  /** Two saved documents side by side, the older on the left. */
+  const compare = async (older: Backup | null, newer: Backup | null): Promise<void> => {
+    if (!editor) return
+    const load = async (backup: Backup | null) =>
+      backup ? ((await autosave.loadBackup(backup.id))?.doc ?? null) : editor.getJSON()
+    const [before, after] = await Promise.all([load(older), load(newer)])
+    if (!before || !after) return
+    const schema = editor.schema
+    await openComparison(
+      compareDocuments(nodeFromJSON(schema, before), nodeFromJSON(schema, after)),
+      {
+        document,
+        title: 'Compare versions',
+        beforeLabel: older ? backupLabel(older, now) : 'Now',
+        afterLabel: newer ? backupLabel(newer, now) : 'Now',
+      },
+    )
+  }
 
   return new Promise((resolve) => {
     let settled = false
@@ -472,44 +549,91 @@ export async function openBackupsDialog(
       resolve(chosen)
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
+      // The comparison on top takes its own Escape.
+      if (event.key === 'Escape' && !document.querySelector('.trevixal-compare')) {
         event.preventDefault()
         finish()
       }
     }
-    for (const backup of backups) {
-      const item = document.createElement('li')
-      item.className = 'trevixal-backups__item'
-      const label = document.createElement('span')
-      label.className = 'trevixal-backups__label'
-      label.textContent = `${backup.title}, ${new Date(backup.savedAt).toLocaleString()} (${formatSavedAt(
-        backup.savedAt,
-        now,
-      )})`
-      const restore = document.createElement('button')
-      restore.type = 'button'
-      restore.className = 'trevixal-dialog__button'
-      restore.textContent = 'Restore'
-      restore.addEventListener('click', () => {
-        void autosave.restoreBackup(backup.id).then((ok) => {
-          if (ok) chosen = backup.id
-          finish()
-        })
-      })
-      item.append(label, restore)
-      list.appendChild(item)
+    let backups: readonly Backup[] = []
+    const picked = new Set<string>()
+    const render = async (): Promise<void> => {
+      backups = await autosave.listBackups()
+      body.textContent =
+        backups.length === 0
+          ? 'No backups yet. One is taken every few minutes while you edit.'
+          : 'Restoring one is undoable with Ctrl+Z. Tick two to compare them.'
+      list.replaceChildren(
+        ...backups.map((backup) => {
+          const item = document.createElement('li')
+          item.className = backup.name
+            ? 'trevixal-backups__item trevixal-backups__item--version'
+            : 'trevixal-backups__item'
+          const label = document.createElement('label')
+          label.className = 'trevixal-backups__label'
+          if (editor) {
+            const pick = document.createElement('input')
+            pick.type = 'checkbox'
+            pick.className = 'trevixal-dialog__input--checkbox'
+            pick.checked = picked.has(backup.id)
+            pick.addEventListener('change', () => {
+              if (pick.checked) picked.add(backup.id)
+              else picked.delete(backup.id)
+              compareTwo.disabled = picked.size !== 2
+            })
+            label.appendChild(pick)
+          }
+          label.appendChild(document.createTextNode(backupLabel(backup, now)))
+          item.appendChild(label)
+          if (editor) {
+            const withNow = document.createElement('button')
+            withNow.type = 'button'
+            withNow.className = 'trevixal-dialog__button'
+            withNow.textContent = 'Compare with now'
+            withNow.addEventListener('click', () => void compare(backup, null))
+            item.appendChild(withNow)
+          }
+          const restore = document.createElement('button')
+          restore.type = 'button'
+          restore.className = 'trevixal-dialog__button'
+          restore.textContent = 'Restore'
+          restore.addEventListener('click', () => {
+            void autosave.restoreBackup(backup.id).then((ok) => {
+              if (ok) chosen = backup.id
+              finish()
+            })
+          })
+          item.appendChild(restore)
+          return item
+        }),
+      )
+      compareTwo.disabled = picked.size !== 2
     }
-    dialog.append(list, actions)
+    dialog.append(heading, body, naming, list, actions)
     overlay.appendChild(dialog)
     document.body.appendChild(overlay)
     document.addEventListener('keydown', onKeyDown, true)
+    naming.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void autosave.saveVersion(name.value).then((version) => {
+        if (!version) return
+        name.value = ''
+        void render()
+      })
+    })
+    compareTwo.addEventListener('click', () => {
+      const [first, second] = backups
+        .filter((backup) => picked.has(backup.id))
+        .sort((a, b) => a.savedAt - b.savedAt)
+      if (first && second) void compare(first, second)
+    })
     backupNow.addEventListener('click', () => {
-      void autosave.backupNow().then(() => finish())
+      void autosave.backupNow().then(() => void render())
     })
     close.addEventListener('click', finish)
     overlay.addEventListener('mousedown', (event) => {
       if (event.target === overlay) finish()
     })
-    close.focus()
+    void render().then(() => close.focus())
   })
 }

@@ -1,9 +1,26 @@
 export { ACTIVE_CELL_CLASS, highlightActiveCell, RANGE_CELL_CLASS } from './active-cell'
 export { enableCellSelection } from './cell-selection'
 export {
+  GRID_BAND_ATTRIBUTE,
+  GRID_COLUMN_ATTRIBUTE,
+  GRID_LAST_ATTRIBUTE,
+  markGridColumns,
+} from './grid-columns'
+export {
+  type BuiltTable,
+  type Placed,
+  caretAtGrid,
+  placementsOf,
+  tableFrom,
+} from './table-grid'
+export {
   type CellAlign,
   CELL_SIDES,
+  CELL_VERTICAL_ALIGNS,
   type CellSide,
+  type CellVerticalAlign,
+  cellPadding,
+  cellVerticalAlign,
   hiddenBordersValue,
   hiddenSides,
   safeTableLength,
@@ -37,6 +54,14 @@ export {
 } from './table-design'
 export { hideCellBorder } from './cell-borders'
 export {
+  setCellPadding,
+  setCellVerticalAlign,
+  type TableLayout,
+  tableLayoutAt,
+  toggleFreezeFirstColumn,
+  toggleFreezeHeaderRow,
+} from './table-layout'
+export {
   addColumn,
   addRow,
   type CellContext,
@@ -48,16 +73,24 @@ export {
   deleteTable,
   escapeTableOnEnter,
   goToNextCell,
+  gridCellOf,
   type InsertTableOptions,
   insertTable,
   mergeCells,
+  mergeRect,
+  rowspanOf,
   setCellAlign,
   splitCell,
   toggleHeaderRow,
 } from './commands'
 export { tableKeymap } from './keymap'
 export { measureCellShare } from './cell-measure'
-export { MAX_SPLIT_COLUMNS, type SplitCellsOptions, splitCellInto } from './split-cells'
+export {
+  MAX_SPLIT_COLUMNS,
+  MAX_SPLIT_ROWS,
+  type SplitCellsOptions,
+  splitCellInto,
+} from './split-cells'
 export {
   cellSideHidden,
   type ColumnLine,
@@ -111,6 +144,7 @@ export {
   type InsertCSVOptions,
   insertTableFromCSV,
   parseCSV,
+  rowGroups,
   rowsToCSV,
   setCellBackground,
   setTableBorderColor,
@@ -124,3 +158,45 @@ export {
   type TextToTableOptions,
 } from './features'
 export { tableUICommands, type TableUICommands, type TableUICommandsOptions } from './ui'
+export {
+  cellShownText,
+  evaluateFormula,
+  FORMULA_ERROR,
+  FORMULA_FUNCTIONS,
+  FORMULA_ZERO_DIVIDE,
+  type FormulaScope,
+  formatFormulaResult,
+  formulaAt,
+  formulaNear,
+  formulaNodes,
+  formulaSteps,
+  insertFormula,
+  installFormulaUpdater,
+  parseCellNumber,
+  suggestedFormula,
+  updateFormulasTransform,
+} from './formula'
+export {
+  type ChartKind,
+  COLUMN_TYPES,
+  type ColumnType,
+  cellValueType,
+  columnTypeAt,
+  enableCellCheckboxes,
+  FILTER_CONDITIONS,
+  type FilterCondition,
+  filterRows,
+  formatForType,
+  hiddenAt,
+  hideColumn,
+  insertTableChart,
+  isoDate,
+  passesFilter,
+  type RowFilter,
+  setColumnType,
+  showAllColumns,
+  showAllRows,
+  tableChartSource,
+  tableColumnLabels,
+  toggleCellChecked,
+} from './data'

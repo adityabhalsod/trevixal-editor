@@ -7,12 +7,13 @@ import {
   ReplaceNodesStep,
   type Schema,
   SetNodeAttrsStep,
+  TableMap,
   TextSelection,
   blocksInRange,
   pos,
   safeColor,
 } from '@trevixal/core'
-import { cellContextAt, colspanOf, columnStart } from './commands'
+import { cellContextAt, gridCellOf } from './commands'
 import { type TableBorders, tableBorders } from './schema'
 
 // ---------------------------------------------------------------- cell styling
@@ -23,10 +24,10 @@ export interface CellRef {
 }
 
 /**
- * The cells a selection covers, as a rectangle of the grid: every row between
- * the anchor's and the head's, and in each of them the cells overlapping the
- * columns between the two. A caret yields just its own cell; a selection that
- * leaves the table yields nothing.
+ * The cells a selection covers, as a rectangle of the grid: every row and
+ * column between the anchor's cell and the head's, and every cell
+ * overlapping them, a cell spanning several rows once. A caret yields just
+ * its own cell; a selection that leaves the table yields nothing.
  */
 export function cellsInSelection(state: EditorState): readonly CellRef[] {
   const from = cellContextAt(state.doc, state.selection.from)
@@ -35,31 +36,12 @@ export function cellsInSelection(state: EditorState): readonly CellRef[] {
   if (!to || to.tablePath.join('/') !== from.tablePath.join('/')) {
     return [{ path: cellPath(from.tablePath, from.rowIndex, from.cellIndex), cell: from.cell }]
   }
-  const firstColumn = Math.min(
-    columnStart(from.row, from.cellIndex),
-    columnStart(to.row, to.cellIndex),
-  )
-  const lastColumn = Math.max(
-    columnStart(from.row, from.cellIndex) + colspanOf(from.cell) - 1,
-    columnStart(to.row, to.cellIndex) + colspanOf(to.cell) - 1,
-  )
-  const cells: CellRef[] = []
-  const firstRow = Math.min(from.rowIndex, to.rowIndex)
-  const lastRow = Math.max(from.rowIndex, to.rowIndex)
-  for (let rowIndex = firstRow; rowIndex <= lastRow; rowIndex++) {
-    const row = from.table.content.maybeChild(rowIndex)
-    if (!row) continue
-    let column = 0
-    for (let cellIndex = 0; cellIndex < row.childCount; cellIndex++) {
-      const cell = row.child(cellIndex)
-      const end = column + colspanOf(cell) - 1
-      if (end >= firstColumn && column <= lastColumn) {
-        cells.push({ path: cellPath(from.tablePath, rowIndex, cellIndex), cell })
-      }
-      column = end + 1
-    }
-  }
-  return cells
+  const map = TableMap.of(from.table)
+  const rect = map.rectAround(gridCellOf(from), gridCellOf(to))
+  return map.cellsIn(rect).map((cell) => ({
+    path: cellPath(from.tablePath, cell.row, cell.index),
+    cell: cell.node,
+  }))
 }
 
 function cellPath(tablePath: Path, rowIndex: number, cellIndex: number): Path {
@@ -144,17 +126,6 @@ export interface SortTableOptions {
 
 const NUMERIC = /^[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?$/
 
-/** The text of the cell covering a grid column, or '' when the row is short. */
-function cellTextAtColumn(row: EditorNode, column: number): string {
-  let start = 0
-  for (const cell of row.content.children) {
-    const end = start + colspanOf(cell)
-    if (column >= start && column < end) return cell.textContent.trim()
-    start = end
-  }
-  return ''
-}
-
 /**
  * Compare two cell texts the way a spreadsheet would: numbers (with thousands
  * separators or a trailing %) numerically, everything else with a
@@ -171,25 +142,56 @@ export function compareCellText(a: string, b: string, collator: Intl.Collator): 
 }
 
 /**
+ * The table's rows in blocks no cell spans out of: each row on its own, or
+ * the rows a cell spanning down ties together. Rows can only move as these
+ * blocks, or a merged cell would be torn apart.
+ */
+export function rowGroups(table: EditorNode): { first: number; last: number }[] {
+  const map = TableMap.of(table)
+  const groups: { first: number; last: number }[] = []
+  let first = 0
+  let last = 0
+  for (let row = 0; row < map.height; row++) {
+    for (const cell of map.cells) {
+      if (cell.top === row) last = Math.max(last, cell.top + cell.height - 1)
+    }
+    if (row === last) {
+      groups.push({ first, last })
+      first = row + 1
+      last = first
+    }
+  }
+  return groups
+}
+
+/**
  * Sort the table's body rows by one column. The sort is stable, so rows that
- * tie keep their order, and the caret follows the row it was in.
+ * tie keep their order, and the caret follows the row it was in. Rows a
+ * merged cell spans move together, sorted by the first of them.
  */
 export function sortTable(options: SortTableOptions = {}): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
-    const rows = context.table.content.children
+    const { table } = context
+    const rows = table.content.children
     const header =
       options.header === undefined || options.header === 'auto'
         ? (rows[0]?.content.children.every((cell) => cell.attrs.header === true) ?? false)
         : options.header
-    const start = header ? 1 : 0
-    const body = rows.slice(start)
+    const groups = rowGroups(table)
+    const body = groups.slice(header ? 1 : 0)
     if (body.length < 2) return null
-    const column = options.column ?? columnStart(context.row, context.cellIndex)
+    const start = body[0]?.first ?? 0
+    const map = TableMap.of(table)
+    const column = options.column ?? gridCellOf(context).left
     const direction = options.direction ?? 'asc'
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
-    const keyed = body.map((row, index) => ({ row, index, key: cellTextAtColumn(row, column) }))
+    const keyed = body.map((group, index) => {
+      const cell = map.at(group.first, column)
+      const key = cell && cell.top === group.first ? cell.node.textContent.trim() : ''
+      return { group, index, key }
+    })
     keyed.sort((a, b) => {
       // Blank cells sink to the bottom whichever way the rest is sorted.
       if ((a.key === '') !== (b.key === '')) return a.key === '' ? 1 : -1
@@ -198,16 +200,19 @@ export function sortTable(options: SortTableOptions = {}): Command {
       return a.index - b.index
     })
     if (keyed.every((entry, index) => entry.index === index)) return null
+    const order = keyed.flatMap(({ group }) =>
+      Array.from({ length: group.last - group.first + 1 }, (_, offset) => group.first + offset),
+    )
     const tr = state.tr
     tr.step(
       new ReplaceNodesStep(
         context.tablePath,
         start,
         rows.length,
-        Fragment.from(keyed.map((entry) => entry.row)),
+        Fragment.from(order.map((index) => rows[index] as EditorNode)),
       ),
     )
-    const moved = keyed.findIndex((entry) => entry.row === context.row)
+    const moved = order.indexOf(context.rowIndex)
     const rowIndex = moved === -1 ? context.rowIndex : start + moved
     tr.setSelection(
       new TextSelection(pos([...context.tablePath, rowIndex, context.cellIndex, 0], 0)),
@@ -342,20 +347,34 @@ export interface TableToTextOptions {
   readonly separator?: string
 }
 
-/** Flatten the table at the selection into one paragraph per row. */
+/**
+ * Flatten the table at the selection into one paragraph per row. A cell
+ * spanning down from a row above leaves an empty place in the rows below,
+ * so each line still lines up with its columns.
+ */
 export function convertTableToText(options: TableToTextOptions = {}): Command {
   return (state) => {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
     const separator = options.separator ?? '\t'
     const paragraph = state.schema.firstTextblockType()
-    const blocks = context.table.content.children.map((row) => {
-      const text = row.content.children
+    const map = TableMap.of(context.table)
+    const blocks = context.table.content.children.map((_, rowIndex) => {
+      const across: string[] = []
+      let previous: EditorNode | null = null
+      for (let column = 0; column < map.width; column++) {
+        const cell = map.at(rowIndex, column)
+        if (!cell || cell.node === previous) continue
+        previous = cell.node
         // A cell's blocks are separate lines; run together they would weld the
         // last word of one to the first of the next.
-        .map((cell) => cell.content.children.map((block) => block.textContent).join('\n'))
-        .map((cell) => cell.replace(/\s*\n\s*/g, ' ').trim())
-        .join(separator)
+        const text =
+          cell.top === rowIndex
+            ? cell.node.content.children.map((block) => block.textContent).join('\n')
+            : ''
+        across.push(text.replace(/\s*\n\s*/g, ' ').trim())
+      }
+      const text = across.join(separator)
       return paragraph.create(
         undefined,
         text ? Fragment.of(state.schema.text(text)) : Fragment.empty,
@@ -479,17 +498,26 @@ export function rowsToCSV(
 }
 
 /**
- * The table as a grid of texts. A merged cell contributes its text once and
- * empty strings for the columns it spans, so every row keeps its width.
+ * The table as a grid of texts. A merged cell contributes its text once, at
+ * its top-left, and empty strings for the rest of the grid it covers, so
+ * every row keeps its width.
  */
 export function tableToRows(table: EditorNode): string[][] {
-  return table.content.children.map((row) => {
+  const map = TableMap.of(table)
+  return table.content.children.map((_, row) => {
     const cells: string[] = []
-    for (const cell of row.content.children) {
-      cells.push(cellText(cell))
-      for (let extra = 1; extra < colspanOf(cell); extra++) cells.push('')
+    let end = 0
+    for (let column = 0; column < map.width; column++) {
+      const cell = map.at(row, column)
+      if (!cell) {
+        cells.push('')
+        continue
+      }
+      end = column + 1
+      cells.push(cell.top === row && cell.left === column ? cellText(cell.node) : '')
     }
-    return cells
+    // A short row stays short, as it was written.
+    return cells.slice(0, end)
   })
 }
 

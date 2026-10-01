@@ -1,15 +1,43 @@
 import {
+  type BorderStyle,
   DEFAULT_LIST_NUMBERING,
   type EditorNode,
-  type Fragment,
+  Fragment,
   type ListNumberingScheme,
   type Mark,
+  type NamedStyle,
+  PAPER_SIZES,
+  type PageSection,
   type TextNode,
+  columnCount,
+  documentStyles,
+  dropCapOf,
+  headingNumberingOf,
+  inlineLength,
   levelMarker,
   listNumberingOf,
   listStylesFor,
+  pageSectionOf,
+  pageSetupAttr,
+  pageSetupOf,
+  pageTemplateParts,
+  paragraphBorderOf,
+  paragraphShadingOf,
+  safeStyleId,
+  sliceInline,
+  tabStopsOf,
+  taskMetaText,
+  textDirection,
 } from '@trevixal/core'
 import { nearestHighlight, parseColor, toHex } from './color'
+import {
+  type DocxComments,
+  commentIdOf,
+  commentSegmentEnd,
+  commentSegmentStart,
+  commentsPart,
+  docxComments,
+} from './docx-comments'
 import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
 import {
   type CellSide,
@@ -19,6 +47,7 @@ import {
   cellSpan,
   decodeDataURL,
   extensionForMime,
+  formulaInstruction,
   headingLevel,
   hiddenCellSides,
   imageDimensions,
@@ -28,6 +57,8 @@ import {
   primaryFont,
   tableColumns,
   taskGlyph,
+  withCheckbox,
+  wordRows,
 } from './shared'
 import {
   type CellLook,
@@ -38,6 +69,20 @@ import {
 } from './table-look'
 import { type DocumentPalette, type ThemeTokens, documentPalette } from './theme'
 import { EMU_PER_PX, lengthToHalfPoints, lengthToPx, lengthToTwips } from './units'
+import {
+  FIELD_END,
+  type ReferenceIds,
+  bookmarkEnd,
+  bookmarkName,
+  bookmarkStart,
+  fieldBegin,
+  indexEntryText,
+  jsonEntries,
+  referenceIds,
+  sequenceName,
+  simpleField,
+} from './word-fields'
+import { namedStylesXML, wordStyleId } from './word-styles'
 import { escapeXML } from './xml'
 import { createZip } from './zip'
 
@@ -86,11 +131,29 @@ const TABLE_WIDTH = 9360
 const MAX_IMAGE_PX = 624
 const DEFAULT_IMAGE_PX = 400
 const CODE_FONT = 'Consolas'
+/** Twips in a millimetre. */
+const TWIPS_PER_MM = 1440 / 25.4
+/** Millimetres in an inch: the margins of a document never set up. */
+const INCH_MM = 25.4
+/** Word's own distance from the page's edge to its header and footer, in twips. */
+const BAND_DISTANCE = 708
+/** A header's and a footer's text: 9 pt, in half-points. */
+const BAND_RUN = '<w:sz w:val="18"/>'
+/**
+ * What the header and footer references are written as until their parts
+ * have relationship ids: those come after the body's, so the ids its
+ * pictures and links take never shift.
+ */
+const HEADER_REFERENCE = '\u0000header\u0000'
+const FOOTER_REFERENCE = '\u0000footer\u0000'
+/** A section the document has not changed: its pages are the document's. */
+const DOCUMENT_SECTION: PageSection = { orientation: null, columns: null, margin: null }
 
-/** Heading sizes in half-points, h1 first. */
-const HEADING_SIZES = [32, 28, 26, 24, 22, 22]
+const twips = (mm: number): number => Math.round(mm * TWIPS_PER_MM)
 
 interface Context {
+  /** The document being written: its settings resolve what its lists name. */
+  readonly doc: EditorNode
   readonly basePt: number
   readonly rendered: RenderedDocument
   readonly relationships: string[]
@@ -104,6 +167,25 @@ interface Context {
   /** The colour a table line left to the default takes, as `w:color` wants it. */
   readonly rule: string
   drawingId: number
+  /** The document's direction; a paragraph without one of its own takes it. */
+  readonly direction: 'ltr' | 'rtl'
+  /** Word's Automatic hyphenation, a document setting. */
+  readonly hyphenation: boolean
+  /** The document's named styles, the ones a paragraph or a run can point at. */
+  readonly styles: readonly NamedStyle[]
+  /** The caption and heading ids a cross-reference can name. */
+  readonly references: ReferenceIds
+  /** The scheme the document numbers its headings with, if it does. */
+  readonly headingScheme: ListNumberingScheme | null
+  /** The `w:num` every numbered heading shares, made when the first is written. */
+  headingNum: number | null
+  bookmarkId: number
+  /** A table of figures or an index needs Word to update its fields on open. */
+  updateFields: boolean
+  /** The document's comment threads and where their ranges stand, when it has any. */
+  readonly comments: DocxComments | null
+  /** The section being written: the document's, or the last section break's. */
+  section: PageSection
 }
 
 /**
@@ -123,6 +205,8 @@ interface RunContext {
   readonly italic?: boolean
   /** Ink for runs without a colour of their own, as `RRGGBB`: a styled table's header. */
   readonly color?: string
+  /** The run sits in a right-to-left paragraph. */
+  readonly rtl?: boolean
 }
 
 /**
@@ -137,6 +221,7 @@ export async function serializeToDOCX(
   const basePt = options.fontSize && options.fontSize > 0 ? options.fontSize : 11
   const palette = documentPalette(options.theme)
   const context: Context = {
+    doc,
     basePt,
     rendered: options.rendered ?? new Map(),
     // Settings is related unconditionally, theme or not, so that the ids the
@@ -157,27 +242,55 @@ export async function serializeToDOCX(
     // `auto` asks Word to pick, and on a dark page it picks against the theme.
     rule: palette.border ?? 'auto',
     drawingId: 0,
+    direction: textDirection(doc.attrs.direction) === 'rtl' ? 'rtl' : 'ltr',
+    hyphenation: doc.attrs.hyphenation === true,
+    styles: documentStyles(doc),
+    references: referenceIds(doc),
+    headingScheme: headingNumberingOf(doc),
+    headingNum: null,
+    bookmarkId: 0,
+    updateFields: false,
+    comments: docxComments(doc),
+    section: DOCUMENT_SECTION,
   }
-  const body = writeBlocks(doc.content.children, context, {}).join('')
+  const written = writeBlocks(doc.content.children, context, {}, true).join('')
+  const lastSection = sectionXML(doc, context)
+  // Related after the body, so the ids its pictures and links took stay put.
+  if (context.comments) addRelationship(context, 'comments', 'comments.xml', false)
+  const setup = pageSetupAttr(doc.attrs.pageSetup) ? pageSetupOf(doc.attrs.pageSetup) : null
+  const bands = { header: setup?.header ?? '', footer: setup?.footer ?? '' }
+  const headerId = bands.header ? addRelationship(context, 'header', 'header1.xml', false) : ''
+  const footerId = bands.footer ? addRelationship(context, 'footer', 'footer1.xml', false) : ''
+  const referenced = (xml: string): string =>
+    xml.replaceAll(HEADER_REFERENCE, headerId).replaceAll(FOOTER_REFERENCE, footerId)
+  const body = referenced(written)
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   const entries = [
-    { name: '[Content_Types].xml', data: contentTypes(context) },
+    { name: '[Content_Types].xml', data: contentTypes(context, bands) },
     { name: '_rels/.rels', data: packageRelationships() },
     { name: 'docProps/core.xml', data: coreProperties(options, now) },
     { name: 'docProps/app.xml', data: appProperties() },
-    { name: 'word/document.xml', data: documentPart(body, palette) },
+    { name: 'word/document.xml', data: documentPart(body, palette, referenced(lastSection)) },
     {
       name: 'word/styles.xml',
-      data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette),
+      data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette, {
+        widowControl: doc.attrs.widowControl !== false,
+        styles: context.styles,
+      }),
     },
     { name: 'word/numbering.xml', data: numberingPart(context) },
-    { name: 'word/settings.xml', data: settingsPart() },
+    { name: 'word/settings.xml', data: settingsPart(context) },
     {
       name: 'word/_rels/document.xml.rels',
       data: `${XML_HEADER}<Relationships xmlns="${PACKAGE_REL}">${context.relationships.join('')}</Relationships>`,
     },
     ...context.media.map((item) => ({ name: `word/media/${item.name}`, data: item.data })),
+    ...(context.comments
+      ? [{ name: 'word/comments.xml', data: commentsPart(context.comments, NS.w) }]
+      : []),
+    ...(bands.header ? [{ name: 'word/header1.xml', data: bandPart('hdr', bands.header) }] : []),
+    ...(bands.footer ? [{ name: 'word/footer1.xml', data: bandPart('ftr', bands.footer) }] : []),
   ]
   return createZip(entries)
 }
@@ -202,7 +315,7 @@ function addRelationship(
 /** The content-type prefix every WordprocessingML part shares. */
 const WML_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml'
 
-function contentTypes(context: Context): string {
+function contentTypes(context: Context, bands: { header: string; footer: string }): string {
   const defaults = [...context.mediaExtensions]
     .map((ext) => `<Default Extension="${ext}" ContentType="${mimeForExtension(ext)}"/>`)
     .join('')
@@ -218,6 +331,9 @@ function contentTypes(context: Context): string {
     override('/word/styles.xml', `${WML_TYPE}.styles+xml`),
     override('/word/numbering.xml', `${WML_TYPE}.numbering+xml`),
     override('/word/settings.xml', `${WML_TYPE}.settings+xml`),
+    context.comments ? override('/word/comments.xml', `${WML_TYPE}.comments+xml`) : '',
+    bands.header ? override('/word/header1.xml', `${WML_TYPE}.header+xml`) : '',
+    bands.footer ? override('/word/footer1.xml', `${WML_TYPE}.footer+xml`) : '',
     override('/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml'),
     override(
       '/docProps/app.xml',
@@ -298,11 +414,66 @@ function appProperties(): string {
   return `${XML_HEADER}<Properties ${APP_PROPS_XMLNS}>${body}</Properties>`
 }
 
-/** US Letter with 1in margins: the section the body always ends with. */
-const SECTION =
-  '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
+/**
+ * The section being written, as Word's section properties: the page setup's
+ * paper and margins (US Letter with 1in margins for a document never set
+ * up, as Word export has always written it), turned, in columns or with
+ * other margins where a section break says so, and the header and footer.
+ * Line numbers are Word's own, so they count the lines Word lays out; a
+ * right-to-left document is a right-to-left section.
+ */
+function sectionXML(doc: EditorNode, context: Context): string {
+  const section = context.section
+  const stored = pageSetupAttr(doc.attrs.pageSetup) !== null
+  const setup = pageSetupOf(doc.attrs.pageSetup)
+  const orientation = section.orientation ?? (stored ? setup.orientation : 'portrait')
+  const paper = PAPER_SIZES[stored ? setup.size : 'letter']
+  const [width, height] =
+    orientation === 'landscape' ? [paper.height, paper.width] : [paper.width, paper.height]
+  const inch = { top: INCH_MM, right: INCH_MM, bottom: INCH_MM, left: INCH_MM }
+  const margin = section.margin
+  const sides =
+    margin !== null
+      ? { top: margin, right: margin, bottom: margin, left: margin }
+      : stored
+        ? setup.margins
+        : inch
+  const [top, right, bottom, left] = [sides.top, sides.right, sides.bottom, sides.left].map(twips)
+  const orient = orientation === 'landscape' ? ' w:orient="landscape"' : ''
+  // The header and footer sit halfway into their margins, or at Word's own distance.
+  const header = Math.min(BAND_DISTANCE, Math.round((top ?? 0) / 2))
+  const footer = Math.min(BAND_DISTANCE, Math.round((bottom ?? 0) / 2))
+  const references = [
+    stored && setup.header
+      ? `<w:headerReference w:type="default" r:id="${HEADER_REFERENCE}"/>`
+      : '',
+    stored && setup.footer
+      ? `<w:footerReference w:type="default" r:id="${FOOTER_REFERENCE}"/>`
+      : '',
+  ].join('')
+  const lines =
+    doc.attrs.lineNumbers === true ? '<w:lnNumType w:countBy="1" w:restart="continuous"/>' : ''
+  // Newspaper columns, half an inch apart, with Word's line between them when asked.
+  const count = section.columns ?? columnCount(doc.attrs.columns)
+  const rule = doc.attrs.columnRule === true ? ' w:sep="1"' : ''
+  const cols = count > 1 ? `<w:cols w:num="${count}" w:space="720"${rule}/>` : ''
+  const bidi = context.direction === 'rtl' ? '<w:bidi/>' : ''
+  return `<w:sectPr>${references}<w:pgSz w:w="${twips(width)}" w:h="${twips(height)}"${orient}/><w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${header}" w:footer="${footer}" w:gutter="0"/>${lines}${cols}${bidi}</w:sectPr>`
+}
 
-function documentPart(body: string, palette: DocumentPalette): string {
+/** A header's or footer's part: its text centred, its page fields Word's own PAGE and NUMPAGES. */
+function bandPart(kind: 'hdr' | 'ftr', template: string): string {
+  const runs = pageTemplateParts(template)
+    .map((part) =>
+      'text' in part
+        ? textRun(part.text, BAND_RUN)
+        : simpleField(part.field === 'page' ? 'PAGE' : 'NUMPAGES', textRun('1', BAND_RUN)),
+    )
+    .join('')
+  return `${XML_HEADER}<w:${kind} xmlns:w="${NS.w}" xmlns:r="${NS.r}"><w:p><w:pPr><w:jc w:val="center"/></w:pPr>${runs}</w:p></w:${kind}>`
+}
+
+function documentPart(body: string, palette: DocumentPalette, section: string): string {
   const xmlns = `xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:mc="${NS.mc}"`
   // `w:background` is the page's own colour, and it belongs between the
   // document element and the body. On its own it does nothing: Word only
@@ -314,18 +485,22 @@ function documentPart(body: string, palette: DocumentPalette): string {
     `<w:document ${xmlns}>`,
     background,
     `<w:body>${body}`,
-    SECTION,
+    section,
     '</w:body></w:document>',
   ].join('')
 }
 
 /**
- * The document-wide settings. Only one matters here, without it Word stores
- * the page colour and declines to draw it, but the part has to exist, be
- * declared and be related for Word to read any of it.
+ * The document-wide settings. Without `w:displayBackgroundShape` Word stores
+ * the page colour and declines to draw it, and the part has to exist, be
+ * declared and be related for Word to read any of it. A document holding a
+ * table of figures or an index also asks Word to update its fields on open,
+ * which is when their page numbers are filled in.
  */
-function settingsPart(): string {
-  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/></w:settings>`
+function settingsPart(context: Context): string {
+  const update = context.updateFields ? '<w:updateFields w:val="true"/>' : ''
+  const hyphenate = context.hyphenation ? '<w:autoHyphenation/>' : ''
+  return `${XML_HEADER}<w:settings xmlns:w="${NS.w}"><w:displayBackgroundShape/>${hyphenate}${update}</w:settings>`
 }
 
 /**
@@ -333,10 +508,6 @@ function settingsPart(): string {
  * `w:pStyle` refers to from the body, so Word needs every one defined even
  * when a given document happens not to use it.
  */
-const STYLE_NORMAL =
-  '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-const STYLE_TITLE =
-  '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="240"/><w:contextualSpacing/></w:pPr><w:rPr><w:spacing w:val="-10"/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>'
 function styleQuote(palette: DocumentPalette): string {
   const rule = palette.border ?? 'BFBFBF'
   const ink = palette.muted ?? '404040'
@@ -380,17 +551,14 @@ function styleTableGrid(palette: DocumentPalette): string {
   return `<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:basedOn w:val="TableNormal"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${edges}</w:tblBorders></w:tblPr></w:style>`
 }
 
-function stylesPart(font: string, basePt: number, palette: DocumentPalette): string {
+function stylesPart(
+  font: string,
+  basePt: number,
+  palette: DocumentPalette,
+  options: { readonly widowControl: boolean; readonly styles: readonly NamedStyle[] },
+): string {
   const size = Math.round(basePt * 2)
   const family = escapeXML(font)
-  const heading = (level: number): string => {
-    const hp = HEADING_SIZES[level - 1] ?? 22
-    return (
-      `<w:style w:type="paragraph" w:styleId="Heading${level}"><w:name w:val="heading ${level}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>` +
-      `<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${level === 1 ? 240 : 160}" w:after="80"/><w:outlineLvl w:val="${level - 1}"/></w:pPr>` +
-      `<w:rPr><w:b/><w:bCs/>${level >= 5 ? '<w:i/><w:iCs/>' : ''}<w:sz w:val="${hp}"/><w:szCs w:val="${hp}"/></w:rPr></w:style>`
-    )
-  }
   // Body ink, set once rather than per run: `w:color` on the default run
   // properties is what every style without a colour of its own inherits.
   const ink = palette.text ? `<w:color w:val="${palette.text}"/>` : ''
@@ -399,16 +567,18 @@ function stylesPart(font: string, basePt: number, palette: DocumentPalette): str
     `<w:rFonts w:ascii="${family}" w:hAnsi="${family}" w:eastAsia="${family}" w:cs="${family}"/>`,
     `${ink}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:lang w:val="en-US"/>`,
     '</w:rPr></w:rPrDefault>',
-    '<w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>',
+    // Widow control is Word's default, but only as the Normal template sets it:
+    // left out here, a paragraph's last line could sit alone on a page.
+    `<w:pPrDefault><w:pPr>${options.widowControl ? '<w:widowControl/>' : ''}<w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>`,
     '</w:docDefaults>',
   ].join('')
   return [
     XML_HEADER,
     `<w:styles xmlns:w="${NS.w}">`,
     docDefaults,
-    STYLE_NORMAL,
-    STYLE_TITLE,
-    [1, 2, 3, 4, 5, 6].map(heading).join(''),
+    // Normal, Title, Subtitle, the headings and the character styles, with
+    // whatever the document changed in them, then the writer's own styles.
+    namedStylesXML(options.styles),
     styleQuote(palette),
     styleCode(palette),
     STYLE_LIST_PARAGRAPH,
@@ -438,6 +608,14 @@ const WORD_FORMATS: Readonly<Record<string, string>> = {
   'upper-roman': 'upperRoman',
 }
 
+/** A defined level's style as Word's `w:numFmt`: the counter styles, and Word's own two. */
+const CUSTOM_WORD_FORMATS: Readonly<Record<string, string>> = {
+  ...WORD_FORMATS,
+  'decimal-leading-zero': 'decimalZero',
+  bullet: 'bullet',
+  none: 'none',
+}
+
 /** Word's nine list levels, `w:ilvl` 0 to 8. */
 const LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -452,15 +630,38 @@ interface LevelOptions {
   /** `w:isLgl`, Word's legal numbering: every part of an outline in decimal. */
   readonly legal?: boolean
   readonly hanging?: number
+  /** The level's first number; 1 unless a defined scheme says otherwise. */
+  readonly start?: number
+  /** Where the level's text starts, in twips; a step of `INDENT` a level unless given. */
+  readonly left?: number
 }
 
 /** One `w:lvl`. */
 function levelXML(ilvl: number, format: string, text: string, options: LevelOptions = {}): string {
-  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="${options.start ?? 1}"/><w:numFmt w:val="${format}"/>${
     options.legal ? '<w:isLgl/>' : ''
   }<w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${
-    INDENT * (ilvl + 1)
+    options.left ?? INDENT * (ilvl + 1)
   }" w:hanging="${options.hanging ?? HANGING}"/></w:pPr></w:lvl>`
+}
+
+/**
+ * A defined scheme's level as Word writes it: its marker is already Word's
+ * `%1.%2.`, and each level's indent adds to the ones above, as in the editor.
+ */
+function customLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  const levels = scheme.custom ?? []
+  const level = levels[ilvl]
+  if (!level) return levelXML(ilvl, 'decimal', `%${ilvl + 1}.`)
+  const twipsPerEm = basePt * 20
+  const left = levels
+    .slice(0, ilvl + 1)
+    .reduce((total, each) => total + Math.round(each.indent * twipsPerEm), 0)
+  return levelXML(ilvl, CUSTOM_WORD_FORMATS[level.style] ?? 'decimal', level.text, {
+    start: level.start,
+    left,
+    hanging: Math.min(HANGING, left),
+  })
 }
 
 /**
@@ -471,6 +672,7 @@ function levelXML(ilvl: number, format: string, text: string, options: LevelOpti
  * gap. So each level widens it by about one part, `1.`, at the body size.
  */
 function schemeLevelXML(scheme: ListNumberingScheme, ilvl: number, basePt: number): string {
+  if (scheme.custom) return customLevelXML(scheme, ilvl, basePt)
   const marker = levelMarker(scheme, ilvl)
   if (scheme.listType === 'bulletList') return levelXML(ilvl, 'bullet', marker)
   if (scheme.outline) {
@@ -492,6 +694,35 @@ function styleLevelXML(style: string, ilvl: number): string | null {
   return format ? levelXML(ilvl, format, `%${ilvl + 1}.`) : null
 }
 
+/** The abstract numbering the headings share; well clear of the list schemes' ids. */
+const HEADING_ABSTRACT = 90
+
+/**
+ * A heading level's number: the scheme's marker with a space after it and no
+ * indent, since a heading sits at the margin rather than hanging like a list.
+ */
+function headingLevelXML(scheme: ListNumberingScheme, ilvl: number): string {
+  const marker = levelMarker(scheme, ilvl)
+  const text = scheme.outline
+    ? `${LEVELS.slice(0, ilvl + 1)
+        .map((level) => `%${level + 1}`)
+        .join('.')}.`
+    : `%${ilvl + 1}${scheme.suffix}`
+  const format = scheme.outline ? 'decimal' : (WORD_FORMATS[marker] ?? 'decimal')
+  return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="${format}"/>${
+    scheme.outline ? '<w:isLgl/>' : ''
+  }<w:suff w:val="space"/><w:lvlText w:val="${escapeXML(text)}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="0" w:firstLine="0"/></w:pPr></w:lvl>`
+}
+
+/** The heading numbering's `w:num`, made the first time a numbered heading is written. */
+function headingNumbering(context: Context, level: number): { id: number; level: number } | null {
+  if (!context.headingScheme) return null
+  if (context.headingNum === null) {
+    context.headingNum = addNumbering(context, HEADING_ABSTRACT, 0, null).id
+  }
+  return { id: context.headingNum, level: Math.min(5, Math.max(0, level - 1)) }
+}
+
 function numberingPart(context: Context): string {
   const abstract = (id: number, type: string, body: string): string =>
     `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="${type}"/>${body}</w:abstractNum>`
@@ -510,12 +741,24 @@ function numberingPart(context: Context): string {
       LEVELS.map((ilvl) => schemeLevelXML(scheme, ilvl, context.basePt)).join(''),
     ),
   )
+  const headingScheme = context.headingScheme
+  const headings =
+    headingScheme && context.headingNum !== null
+      ? [
+          abstract(
+            HEADING_ABSTRACT,
+            'multilevel',
+            [0, 1, 2, 3, 4, 5].map((ilvl) => headingLevelXML(headingScheme, ilvl)).join(''),
+          ),
+        ]
+      : []
   return [
     XML_HEADER,
     `<w:numbering xmlns:w="${NS.w}">`,
     abstract(ABSTRACT_BULLETS, 'hybridMultilevel', bullets),
     abstract(ABSTRACT_NUMBERED, 'hybridMultilevel', numbered),
     ...schemes,
+    ...headings,
     context.numbers.map(numXML).join(''),
     '</w:numbering>',
   ].join('')
@@ -587,8 +830,10 @@ function listNumbering(
   tree: NumberingTree | null,
   context: Context,
 ): { instance: NumberingInstance; tree: NumberingTree | null } {
-  const scheme = listNumberingOf(list)
-  const start = ordered ? listStart(list) : null
+  const scheme = listNumberingOf(list, context.doc)
+  // A defined level starts where it says, unless the list sets its own start.
+  const own = ordered ? listStart(list) : null
+  const start = own === 1 && scheme?.custom ? (scheme.custom[level]?.start ?? 1) : own
   let instance: NumberingInstance
   let next = tree
   if (scheme !== null && scheme !== DEFAULT_LIST_NUMBERING) {
@@ -615,11 +860,34 @@ interface ParagraphProps {
   border?: boolean
   indentLeft?: number
   jc?: string
+  /** Right to left: `w:bidi`. */
+  bidi?: boolean
 }
 
-function writeBlocks(nodes: readonly EditorNode[], context: Context, run: RunContext): string[] {
+/**
+ * Write a run of blocks. At the top level of the document a heading takes
+ * the heading numbering, as the editor numbers only top-level headings.
+ */
+function writeBlocks(
+  nodes: readonly EditorNode[],
+  context: Context,
+  run: RunContext,
+  topLevel = false,
+): string[] {
   const out: string[] = []
-  for (const node of nodes) out.push(...writeBlock(node, context, run, {}))
+  for (const node of nodes) {
+    if (topLevel && node.type.name === 'sectionBreak') {
+      // A section ends in a paragraph holding its properties; what follows takes the break's.
+      out.push(`<w:p><w:pPr>${sectionXML(context.doc, context)}</w:pPr></w:p>`)
+      context.section = pageSectionOf(node.attrs)
+      continue
+    }
+    const numbering =
+      topLevel && node.type.name === NODE.heading
+        ? headingNumbering(context, headingLevel(node))
+        : null
+    out.push(...writeBlock(node, context, run, numbering ? { numbering } : {}))
+  }
   return out
 }
 
@@ -630,8 +898,12 @@ function writeBlock(
   props: ParagraphProps,
 ): string[] {
   switch (node.type.name) {
-    case NODE.paragraph:
-      return [paragraph(node, context, run, props)]
+    case NODE.paragraph: {
+      // A caption paragraph (one holding a caption number) takes Word's Caption style.
+      const caption = node.content.children.some((child) => child.type.name === 'captionNumber')
+      const style = caption ? 'Caption' : (props.style ?? namedParagraphStyle(node, context))
+      return [paragraph(node, context, run, style ? { ...props, style } : props)]
+    }
     case NODE.heading:
       return [paragraph(node, context, run, { ...props, style: `Heading${headingLevel(node)}` })]
     case NODE.blockquote:
@@ -676,6 +948,12 @@ function writeBlock(
           { ...props, style: 'Caption', jc: 'center' },
         ),
       ]
+    case 'pageBreak':
+      return ['<w:p><w:r><w:br w:type="page"/></w:r></w:p>']
+    case 'captionList':
+      return captionListParagraphs(node, context)
+    case 'documentIndex':
+      return indexParagraphs(node, context)
     default:
       if (node.isTextblock) return [paragraph(node, context, run, props)]
       if (node.isAtom || node.childCount === 0) {
@@ -686,15 +964,221 @@ function writeBlock(
   }
 }
 
+/** The Word style a paragraph's named style is, when the document has that style. */
+function namedParagraphStyle(node: EditorNode, context: Context): string | undefined {
+  const id = safeStyleId(node.attrs.paragraphStyle)
+  if (!id || id === 'normal') return undefined
+  return context.styles.some((style) => style.id === id) ? wordStyleId(id) : undefined
+}
+
 function paragraph(
   node: EditorNode,
   context: Context,
   run: RunContext,
   props: ParagraphProps,
   prefix = '',
+  suffix = '',
 ): string {
-  return `<w:p>${pPr(props, node, context)}${prefix}${runs(node.content, context, run)}</w:p>`
+  const dropped = dropCapFrame(node, context)
+  if (dropped) {
+    return `${dropped.frame}${paragraph(dropped.rest, context, run, props, prefix, suffix)}`
+  }
+  const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
+  const properties = pPr(rtl ? { ...props, bidi: true } : props, node, context)
+  const body = paragraphBody(node, context, rtl ? { ...run, rtl: true } : run)
+  return `<w:p>${properties}${prefix}${body}${suffix}</w:p>`
 }
+
+/** The grey, smaller run a task's assignee and due date follow its text in. */
+function taskMetaRun(item: EditorNode, context: Context): string {
+  const text = taskMetaText(item.attrs)
+  if (!text) return ''
+  const size = Math.max(2, Math.round(context.basePt * 0.85 * 2))
+  return textRun(` ${text}`, `<w:color w:val="767676"/><w:sz w:val="${size}"/>`)
+}
+
+/** How tall one line of body text is, as Word lays it out, in points per point of type. */
+const LINE_SPACING = 1.2
+
+/**
+ * A drop cap as Word writes one: the first letter alone in a paragraph of
+ * its own, framed to drop beside the next `lines` lines of the paragraph, or
+ * to hang in the margin, and sized to span them. The rest of the paragraph
+ * follows it. Null when the paragraph has none or does not start with text.
+ */
+function dropCapFrame(
+  node: EditorNode,
+  context: Context,
+): { frame: string; rest: EditorNode } | null {
+  const dropCap = dropCapOf(node.attrs)
+  const first = node.content.maybeChild(0)
+  if (!dropCap || !first?.isText) return null
+  const text = first.textContent
+  const code = text.charCodeAt(0)
+  const length = code >= 0xd800 && code <= 0xdbff && text.length > 1 ? 2 : 1
+  const letter = text.slice(0, length)
+  if (letter.trim() === '') return null
+  const line = Math.round(context.basePt * LINE_SPACING * 20)
+  // The letter's height, in half-points, is the lines' less the gap under the last.
+  const size = Math.round(dropCap.lines * context.basePt * LINE_SPACING * 0.85 * 2)
+  const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
+  const frame = [
+    '<w:p><w:pPr><w:keepNext/>',
+    `<w:framePr w:dropCap="${dropCap.kind}" w:lines="${dropCap.lines}" w:wrap="around" w:vAnchor="text" w:hAnchor="text"/>`,
+    rtl ? '<w:bidi/>' : '',
+    `<w:spacing w:after="0" w:line="${line * dropCap.lines}" w:lineRule="exact"/></w:pPr>`,
+    textRun(letter, `<w:position w:val="0"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/>`),
+    '</w:p>',
+  ].join('')
+  const rest = node
+    .withAttrs({ ...node.attrs, dropCap: null, dropCapLines: null })
+    .withContent(sliceInline(node.content, length, inlineLength(node.content)))
+  return { frame, rest }
+}
+
+/**
+ * A paragraph's runs, with the bookmarks a cross-reference reads from. A
+ * caption's number is a SEQ field, and three bookmarks let each reference
+ * format come back as written: the number, "Figure 2", the whole caption. A
+ * heading with an id is bookmarked over its text.
+ */
+function paragraphBody(node: EditorNode, context: Context, run: RunContext): string {
+  const children = node.content.children
+  const at = children.findIndex((child) => child.type.name === 'captionNumber')
+  if (at < 0) {
+    const body = runs(node.content, context, run)
+    const id = node.type.name === NODE.heading ? attrString(node.attrs, 'id') : null
+    if (!id) return body
+    const mark = context.bookmarkId++
+    return `${bookmarkStart(mark, bookmarkName(context.references, 'heading', id))}${body}${bookmarkEnd(mark)}`
+  }
+  const atom = children[at] as EditorNode
+  const before = runs(Fragment.from(children.slice(0, at)), context, run)
+  const after = runs(Fragment.from(children.slice(at + 1)), context, run)
+  const number = String(atom.attrs.number ?? '')
+  const seq = simpleField(
+    `SEQ ${sequenceName(atom.attrs.kind)} \\* ARABIC`,
+    textRun(number, runProperties(atom.marks, context, run, false)),
+  )
+  const id = attrString(atom.attrs, 'id')
+  if (!id) return `${before}${seq}${after}`
+  const [full, label, only] = [context.bookmarkId++, context.bookmarkId++, context.bookmarkId++]
+  return [
+    bookmarkStart(full, bookmarkName(context.references, 'full', id)),
+    bookmarkStart(label, bookmarkName(context.references, 'label', id)),
+    before,
+    bookmarkStart(only, bookmarkName(context.references, 'number', id)),
+    seq,
+    bookmarkEnd(only),
+    bookmarkEnd(label),
+    after,
+    bookmarkEnd(full),
+  ].join('')
+}
+
+/**
+ * A generated list's paragraph properties: right to left in a right-to-left
+ * document, as the editor draws it, and indented for an index subentry.
+ */
+function listPPr(context: Context, indentLeft: number): string {
+  return pPr({ bidi: context.direction === 'rtl', indentLeft }, null, context)
+}
+
+/** A table of figures: Word's TOC over one caption kind, its result the editor's entries. */
+function captionListParagraphs(node: EditorNode, context: Context): string[] {
+  context.updateFields = true
+  const begin = fieldBegin(`TOC \\h \\z \\c "${sequenceName(node.attrs.kind)}"`)
+  const entries = jsonEntries(node.attrs.entries).filter(
+    (entry) => typeof entry.id === 'string' && typeof entry.text === 'string',
+  )
+  if (entries.length === 0) return [`<w:p>${listPPr(context, 0)}${begin}${FIELD_END}</w:p>`]
+  return entries.map((entry, index) => {
+    const anchor = escapeXML(bookmarkName(context.references, 'full', entry.id as string))
+    const link = `<w:hyperlink w:anchor="${anchor}" w:history="1">${textRun(entry.text as string, '')}</w:hyperlink>`
+    const start = index === 0 ? begin : ''
+    const end = index === entries.length - 1 ? FIELD_END : ''
+    return `<w:p>${listPPr(context, 0)}${start}${link}${end}</w:p>`
+  })
+}
+
+/** Word's INDEX: its result is the editor's entries, which Word redoes with page numbers. */
+function indexParagraphs(node: EditorNode, context: Context): string[] {
+  context.updateFields = true
+  const begin = fieldBegin('INDEX \\e ", "')
+  const labels = (locations: unknown): string =>
+    Array.isArray(locations)
+      ? locations
+          .map((location) => (location as Record<string, unknown>).label)
+          .filter((label): label is string => typeof label === 'string')
+          .join(', ')
+      : ''
+  const lines: { text: string; sub: boolean }[] = []
+  for (const entry of jsonEntries(node.attrs.entries)) {
+    if (typeof entry.term !== 'string') continue
+    const own = labels(entry.locations)
+    lines.push({ text: own ? `${entry.term}, ${own}` : entry.term, sub: false })
+    for (const sub of Array.isArray(entry.subentries) ? entry.subentries : []) {
+      const record = sub as Record<string, unknown>
+      if (typeof record.term === 'string') {
+        lines.push({ text: `${record.term}, ${labels(record.locations)}`, sub: true })
+      }
+    }
+  }
+  if (lines.length === 0) return [`<w:p>${listPPr(context, 0)}${begin}${FIELD_END}</w:p>`]
+  return lines.map((line, index) => {
+    const properties = listPPr(context, line.sub ? INDENT / 2 : 0)
+    const start = index === 0 ? begin : ''
+    const end = index === lines.length - 1 ? FIELD_END : ''
+    return `<w:p>${properties}${start}${textRun(line.text, '')}${end}</w:p>`
+  })
+}
+
+/** Word's names for the border styles the editor draws. */
+const WORD_BORDER: Readonly<Record<BorderStyle, string>> = {
+  solid: 'single',
+  dashed: 'dashed',
+  dotted: 'dotted',
+  double: 'double',
+}
+
+/**
+ * A paragraph's border as `w:pBdr`: its sides in the schema's order, each as
+ * wide as drawn (eighths of a point: a px is six) and as far from the text as
+ * Word's defaults set it.
+ */
+function paragraphBorderXML(node: EditorNode): string {
+  const border = paragraphBorderOf(node.attrs)
+  if (!border) return ''
+  const rgb = parseColor(border.color)
+  const color = rgb ? toHex(rgb) : 'auto'
+  const size = Math.min(96, Math.max(2, Math.round(border.width * 6)))
+  const edges = (['top', 'left', 'bottom', 'right'] as const)
+    .filter((side) => border.sides.includes(side))
+    .map((side) => {
+      const space = side === 'top' || side === 'bottom' ? 1 : 4
+      return `<w:${side} w:val="${WORD_BORDER[border.style]}" w:sz="${size}" w:space="${space}" w:color="${color}"/>`
+    })
+  return `<w:pBdr>${edges.join('')}</w:pBdr>`
+}
+
+/** A paragraph's custom tab stops as `w:tabs`, each at its position in twips from the margin. */
+function tabsXML(node: EditorNode): string {
+  const stops = tabStopsOf(node.attrs)
+  if (stops.length === 0) return ''
+  const tabs = stops.map((stop) => {
+    const leader = stop.leader === 'none' ? '' : ` w:leader="${stop.leader}"`
+    return `<w:tab w:val="${stop.align}"${leader} w:pos="${Math.round(stop.position * 20)}"/>`
+  })
+  return `<w:tabs>${tabs.join('')}</w:tabs>`
+}
+
+/** A paragraph's fill as `w:shd`. */
+function shadingXML(node: EditorNode): string {
+  const rgb = parseColor(paragraphShadingOf(node.attrs))
+  return rgb ? `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(rgb)}"/>` : ''
+}
+
+const MIRRORED_ALIGN: Readonly<Record<string, string>> = { left: 'right', right: 'left' }
 
 /** Paragraph properties in the order the schema requires. */
 function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): string {
@@ -706,7 +1190,12 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   }
   if (props.border) {
     out += '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr>'
+  } else if (node) {
+    out += paragraphBorderXML(node)
   }
+  if (node) out += shadingXML(node)
+  if (node) out += tabsXML(node)
+  if (props.bidi) out += '<w:bidi/>'
   if (layout && (layout.spaceBefore !== null || layout.spaceAfter !== null || layout.lineHeight)) {
     let spacing = '<w:spacing'
     if (layout.spaceBefore !== null) spacing += ` w:before="${layout.spaceBefore}"`
@@ -721,7 +1210,10 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   }
   const indent = (props.indentLeft ?? 0) + (layout?.indent ?? 0) * INDENT
   if (indent > 0 && !props.numbering) out += `<w:ind w:left="${indent}"/>`
-  const jc = layout?.align ?? props.jc
+  const align = layout?.align ?? props.jc
+  // Word reads left and right in a right-to-left paragraph as its start and
+  // end; the editor's alignment is the side of the page, so the two swap.
+  const jc = props.bidi ? (MIRRORED_ALIGN[align ?? ''] ?? align) : align
   if (jc) out += `<w:jc w:val="${jc === 'justify' ? 'both' : jc}"/>`
   return out ? `<w:pPr>${out}</w:pPr>` : ''
 }
@@ -754,7 +1246,8 @@ function writeList(
           out.push(paragraph(block, context, run, { ...props, numbering }))
         } else {
           const prefix = textRun(`${isTask ? taskGlyph(item) : '•'} `, '')
-          out.push(paragraph(block, context, run, props, prefix))
+          const suffix = isTask ? taskMetaRun(item, context) : ''
+          out.push(paragraph(block, context, run, props, prefix, suffix))
         }
         return
       }
@@ -771,7 +1264,9 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
   // Word has the style's look spelt out, since its own table style is the
   // plain grid: the lines here, the fills and bold on each cell below.
   const look = tableLook(table, context.tableColors)
-  let tblPr = '<w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
+  // A right-to-left document lays its tables out from the right, as the editor does.
+  const bidiVisual = context.direction === 'rtl' ? '<w:bidiVisual/>' : ''
+  let tblPr = `<w:tblStyle w:val="TableGrid"/>${bidiVisual}<w:tblW w:w="5000" w:type="pct"/>`
   if (look.styled) {
     const edges = look.edges
     const sides = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as const
@@ -779,18 +1274,22 @@ function writeTable(table: EditorNode, context: Context, run: RunContext): strin
       .map((side) => (edges[side] ? border(side, look.line, context) : `<w:${side} w:val="nil"/>`))
       .join('')}</w:tblBorders>`
   }
+  tblPr += cellMarginsXML(table, context)
   tblPr += tableLookElement(table, look)
   const grid = Array.from({ length: columns }, () => `<w:gridCol w:w="${unit}"/>`).join('')
 
+  const layout = wordRows(table)
   const body = rows
     .map((row, rowIndex) => {
       const cells = row.content.children.filter((cell) => cell.type.name === NODE.tableCell)
       const allHeader = cells.length > 0 && cells.every((cell) => cell.attrs.header === true)
       const trPr = allHeader ? '<w:trPr><w:tblHeader/></w:trPr>' : ''
-      const rendered = cells
-        .map((cell, cellIndex) => {
-          const hidden = hiddenCellSides(table, rowIndex, cellIndex)
-          return writeCell(cell, context, run, unit, hidden, look.cell(rowIndex, cellIndex))
+      const rendered = (layout[rowIndex] ?? [])
+        .filter(({ placed }) => placed.node.type.name === NODE.tableCell)
+        .map(({ placed, merge }) => {
+          const hidden = hiddenCellSides(table, placed.row, placed.index)
+          const cellLook = look.cell(placed.row, placed.index)
+          return writeCell(withCheckbox(placed.node), context, run, unit, hidden, cellLook, merge)
         })
         .join('')
       return `<w:tr>${trPr}${rendered}</w:tr>`
@@ -806,10 +1305,15 @@ function writeCell(
   unit: number,
   hidden: ReadonlySet<CellSide>,
   look: CellLook,
+  merge: 'restart' | 'continue' | null = null,
 ): string {
   const span = cellSpan(cell)
   let tcPr = `<w:tcW w:w="${unit * span}" w:type="dxa"/>`
   if (span > 1) tcPr += `<w:gridSpan w:val="${span}"/>`
+  // A cell spanning rows is Word's vertical merge: started in its first row,
+  // continued, empty, in each of the others.
+  if (merge === 'restart') tcPr += '<w:vMerge w:val="restart"/>'
+  if (merge === 'continue') tcPr += '<w:vMerge/>'
   // An erased line is `nil`, which wins over the table's own rule; a style's
   // rule under the header or over the total row is drawn here in its place.
   // The schema wants the sides in this order.
@@ -826,6 +1330,10 @@ function writeCell(
   // The cell's own shading wins over its style's, as a direct format does in Word.
   const fill = parseColor(cell.attrs.background) ?? look.fill
   if (fill) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(fill)}"/>`
+  const vAlign = attrString(cell.attrs, 'verticalAlign')
+  if (vAlign === 'middle' || vAlign === 'bottom') {
+    tcPr += `<w:vAlign w:val="${vAlign === 'middle' ? 'center' : 'bottom'}"/>`
+  }
   const align = attrString(cell.attrs, 'align')
   const jc = align === 'center' || align === 'right' || align === 'left' ? align : undefined
   const cellRun: RunContext = {
@@ -833,13 +1341,31 @@ function writeCell(
     ...(look.bold ? { bold: true } : {}),
     ...(look.ink ? { color: toHex(look.ink) } : {}),
   }
-  const blocks = cell.content.children.flatMap((block) =>
-    writeBlock(block, context, cellRun, jc ? { jc } : {}),
-  )
+  const blocks =
+    merge === 'continue'
+      ? []
+      : cell.content.children.flatMap((block) =>
+          writeBlock(block, context, cellRun, jc ? { jc } : {}),
+        )
   // A cell must end with a paragraph; a trailing nested table needs one added.
   const last = blocks[blocks.length - 1]
   if (!last || !last.endsWith('</w:p>')) blocks.push('<w:p/>')
   return `<w:tc><w:tcPr>${tcPr}</w:tcPr>${blocks.join('')}</w:tc>`
+}
+
+/**
+ * Word's cell margins, for a table that sets its own padding: the same on
+ * every side, as the editor draws it. Word's default, 0.08" at the sides and
+ * none above and below, is its own `TableNormal` style's.
+ */
+function cellMarginsXML(table: EditorNode, context: Context): string {
+  const padding = attrString(table.attrs, 'cellPadding')
+  const twips = padding ? lengthToTwips(padding, context.basePt) : null
+  if (twips === null || twips < 0) return ''
+  const sides = ['top', 'left', 'bottom', 'right'].map(
+    (side) => `<w:${side} w:w="${twips}" w:type="dxa"/>`,
+  )
+  return `<w:tblCellMar>${sides.join('')}</w:tblCellMar>`
 }
 
 /** One edge of a table or cell, drawn with a line. Word weighs lines in eighths of a point. */
@@ -1014,6 +1540,42 @@ function encodeTarget(url: string): string {
 function runs(content: Fragment, context: Context, run: RunContext): string {
   let out = ''
   const children = content.children
+  // Words marked for the index are followed by their XE field, once the run
+  // of text under one mark ends, however many nodes other marks split it into.
+  let term: { id: string; mark: Mark; words: string } | null = null
+  const closeTerm = (): string => {
+    if (!term) return ''
+    const entry = indexWords(term.mark.attrs.entry) ?? indexWords(term.words)
+    const field = entry
+      ? simpleField(`XE "${indexEntryText(entry, indexWords(term.mark.attrs.sub))}"`, '')
+      : ''
+    term = null
+    return field
+  }
+  const track = (node: EditorNode): string => {
+    const mark = node.isText ? markNamed(node.marks, 'indexTerm') : undefined
+    const id = mark ? attrString(mark.attrs, 'id') : null
+    if (!mark || !id) return closeTerm()
+    if (term?.id === id) {
+      term.words += node.textContent
+      return ''
+    }
+    const closed = closeTerm()
+    term = { id, mark, words: node.textContent }
+    return closed
+  }
+  // A comment's range opens where its text starts and closes after the last
+  // stretch of it, which may be paragraphs later.
+  let comment: string | null = null
+  const notes = context.comments
+  const commented = (node: EditorNode): string => {
+    if (!notes) return ''
+    const id = commentIdOf(node)
+    if (id === comment) return ''
+    const closed = comment ? commentSegmentEnd(notes, comment) : ''
+    comment = id
+    return closed + (id ? commentSegmentStart(notes, id) : '')
+  }
   let index = 0
   while (index < children.length) {
     const child = children[index] as EditorNode
@@ -1021,17 +1583,27 @@ function runs(content: Fragment, context: Context, run: RunContext): string {
     if (href) {
       let inner = ''
       while (index < children.length && linkHref(children[index] as EditorNode) === href) {
-        inner += inlineNode(children[index] as EditorNode, context, run, true)
+        const each = children[index] as EditorNode
+        inner += commented(each) + track(each) + inlineNode(each, context, run, true)
         index++
       }
+      inner += closeTerm()
       const id = addRelationship(context, 'hyperlink', encodeTarget(href), true)
       out += `<w:hyperlink r:id="${id}">${inner}</w:hyperlink>`
       continue
     }
-    out += inlineNode(child, context, run, false)
+    out += commented(child) + track(child) + inlineNode(child, context, run, false)
     index++
   }
-  return out
+  const closing = notes && comment ? commentSegmentEnd(notes, comment) : ''
+  return out + closeTerm() + closing
+}
+
+/** Index words as the editor files them: trimmed, and null when there are none. */
+function indexWords(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const words = value.replace(/\s+/g, ' ').trim()
+  return words.length > 0 ? words : null
 }
 
 function linkHref(node: EditorNode): string | null {
@@ -1045,12 +1617,65 @@ function inlineNode(node: EditorNode, context: Context, run: RunContext, inLink:
     return textRun((node as TextNode).text, runProperties(node.marks, context, run, inLink))
   }
   if (node.type.name === NODE.hardBreak) return '<w:r><w:br/></w:r>'
+  if (node.type.name === 'crossReference') return crossReference(node, context, run, inLink)
+  // A table formula as Word's own `=` field, showing its result until Word
+  // works it out again.
+  if (node.type.name === 'tableFormula') {
+    const rPr = runProperties(node.marks, context, run, inLink)
+    return simpleField(
+      formulaInstruction(node),
+      textRun(attrString(node.attrs, 'result') ?? '', rPr),
+    )
+  }
   if (node.type.name === NODE.image) {
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return textRun(`[${alt}]`, runProperties([], context, run, inLink))
   }
   const text = node.textContent || String(node.type.spec.toHTML?.(node)?.text ?? '')
   return text ? textRun(text, runProperties(node.marks, context, run, inLink)) : ''
+}
+
+/**
+ * A cross-reference as a REF field to the bookmark its format reads, showing
+ * the text the editor computed until Word updates it. A caption's text alone
+ * has no bookmark to read, and a note is not a Word note here, so those two
+ * go in as the text itself.
+ */
+function crossReference(
+  node: EditorNode,
+  context: Context,
+  run: RunContext,
+  inLink: boolean,
+): string {
+  const text = attrString(node.attrs, 'text') ?? ''
+  const rPr = runProperties(node.marks, context, run, inLink)
+  const result = textRun(text, rPr)
+  const target = attrString(node.attrs, 'target')
+  const format = node.attrs.format
+  if (!target) return result
+  if (context.references.captions.has(target)) {
+    if (format === 'text') return result
+    const part = format === 'number' ? 'number' : format === 'full' ? 'full' : 'label'
+    return simpleField(`REF ${bookmarkName(context.references, part, target)} \\h`, result)
+  }
+  if (!context.references.headings.has(target)) return result
+  const name = bookmarkName(context.references, 'heading', target)
+  // A heading Word does not number (none are, or this one is nested) has only
+  // its text to read, whatever the format.
+  if (format === 'text' || !context.references.numberedHeadings.has(target)) {
+    return simpleField(`REF ${name} \\h`, result)
+  }
+  if (format === 'full') {
+    const space = text.indexOf(' ')
+    const number = space < 0 ? text : text.slice(0, space)
+    const words = space < 0 ? '' : text.slice(space + 1)
+    return [
+      simpleField(`REF ${name} \\r \\h`, textRun(number, rPr)),
+      textRun(' ', rPr),
+      simpleField(`REF ${name} \\h`, textRun(words, rPr)),
+    ].join('')
+  }
+  return simpleField(`REF ${name} \\r \\h`, result)
 }
 
 /** A run whose text may hold tabs and newlines, which become `w:tab` and `w:br`. */
@@ -1153,7 +1778,17 @@ function runProperties(
   }
 
   let out = ''
+  // One run style: a link's own, or else the named character style it is in.
+  const named = inLink
+    ? null
+    : safeStyleId(marks.find((mark) => mark.type.name === 'charStyle')?.attrs.id)
   if (inLink) out += '<w:rStyle w:val="Hyperlink"/>'
+  else if (
+    named &&
+    context.styles.some((style) => style.id === named && style.kind === 'character')
+  ) {
+    out += `<w:rStyle w:val="${escapeXML(wordStyleId(named))}"/>`
+  }
   if (font) {
     const family = escapeXML(font)
     out += `<w:rFonts w:ascii="${family}" w:hAnsi="${family}" w:cs="${family}"/>`
@@ -1169,5 +1804,6 @@ function runProperties(
   if (underline) out += '<w:u w:val="single"/>'
   if (shading) out += `<w:shd w:val="clear" w:color="auto" w:fill="${shading}"/>`
   if (vertical) out += `<w:vertAlign w:val="${vertical}"/>`
+  if (run.rtl) out += '<w:rtl/>'
   return out
 }

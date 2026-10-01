@@ -1,11 +1,15 @@
 import {
   type Editor,
+  type EditorNode,
   type EditorSnapshot,
   LIST_NUMBERING_SCHEMES,
+  type ListNumberingScheme,
+  documentListSchemes,
   listMarker,
   listNumberingAt,
 } from '@trevixal/core'
 import { bindListNavigation, createDropdown } from './dropdown'
+import { ARIA_SUFFIX, type Translator } from './i18n'
 import { createIcon } from './icons'
 
 /** A choice in a toolbar select (block format, font family, font size). */
@@ -26,36 +30,50 @@ export interface SelectControlOptions {
   readonly ariaLabel: string
   /** Fixed trigger width, e.g. `"7.5rem"`, so the toolbar does not reflow. */
   readonly width?: string
+  /**
+   * The catalogue key a choice is translated under, where the same choice
+   * has one already: the Format menu's `menu.styleHeading1` for Heading 1.
+   */
+  readonly optionKey?: (value: string) => string
 }
 
 export interface Control {
   readonly element: HTMLElement
   refresh(snapshot: EditorSnapshot): void
+  /** Relabel in a catalogue's words: `key` for the name, `key.aria` for the spoken one. */
+  relabel?(translate: Translator, key: string): void
   destroy(): void
 }
 
 /** A labelled dropdown that reflects and sets one value. */
 export function createSelectControl(options: SelectControlOptions): Control {
   const { document } = options
+  let placeholder = options.placeholder
+  let ariaLabel = options.ariaLabel
+  /** Each choice's label, in the language the chrome is in. */
+  const optionLabels = new Map(options.options.map((option) => [option.value, option.label]))
+  let value: string | null = null
   const label = document.createElement('span')
   label.className = 'trevixal-select__label'
-  label.textContent = options.placeholder
+  label.textContent = placeholder
 
   const buttons = new Map<string, HTMLButtonElement>()
+  let listbox: HTMLElement | null = null
   let releaseNavigation: (() => void) | null = null
   const dropdown = createDropdown({
     document,
     className: 'trevixal-select',
     render: (panel, self) => {
+      listbox = panel
       panel.setAttribute('role', 'listbox')
-      panel.setAttribute('aria-label', options.ariaLabel)
+      panel.setAttribute('aria-label', ariaLabel)
       for (const option of options.options) {
         const button = document.createElement('button')
         button.type = 'button'
         button.className = 'trevixal-select__option'
         button.setAttribute('role', 'option')
         button.dataset.value = option.value
-        button.textContent = option.label
+        button.textContent = optionLabels.get(option.value) ?? option.label
         if (option.previewStyle) button.setAttribute('style', option.previewStyle)
         button.addEventListener('click', () => {
           self.close()
@@ -69,21 +87,42 @@ export function createSelectControl(options: SelectControlOptions): Control {
   })
 
   dropdown.trigger.append(label, chevron(document))
-  dropdown.trigger.setAttribute('aria-label', options.ariaLabel)
+  dropdown.trigger.setAttribute('aria-label', ariaLabel)
   if (options.width) dropdown.trigger.style.width = options.width
+
+  const showValue = (): void => {
+    // A value the offered list does not carry, a 13pt size pasted in from
+    // elsewhere, is still what the document says. Falling back to the
+    // placeholder would claim nothing is set at all.
+    label.textContent = (value ? optionLabels.get(value) : undefined) ?? value ?? placeholder
+  }
 
   return {
     element: dropdown.element,
     refresh(snapshot) {
-      const value = options.valueOf(snapshot)
-      const match = value ? options.options.find((entry) => entry.value === value) : undefined
-      // A value the offered list does not carry, a 13pt size pasted in from
-      // elsewhere, is still what the document says. Falling back to the
-      // placeholder would claim nothing is set at all.
-      label.textContent = match?.label ?? value ?? options.placeholder
+      value = options.valueOf(snapshot)
+      showValue()
       for (const [candidate, button] of buttons) {
         button.setAttribute('aria-selected', String(candidate === value))
       }
+    },
+    relabel(translate, key) {
+      placeholder = translate(key, options.placeholder)
+      // A spoken name the same as the label has no key of its own: it follows
+      // the label, as a toolbar button's does.
+      const spoken = options.ariaLabel === options.placeholder ? placeholder : options.ariaLabel
+      ariaLabel = translate(`${key}${ARIA_SUFFIX}`, spoken)
+      dropdown.trigger.setAttribute('aria-label', ariaLabel)
+      listbox?.setAttribute('aria-label', ariaLabel)
+      for (const option of options.options) {
+        const text = options.optionKey
+          ? translate(options.optionKey(option.value), option.label)
+          : option.label
+        optionLabels.set(option.value, text)
+        const button = buttons.get(option.value)
+        if (button) button.textContent = text
+      }
+      showValue()
     },
     destroy() {
       releaseNavigation?.()
@@ -300,6 +339,21 @@ const SCHEME_LABELS: Readonly<Record<string, string>> = {
   symbols: 'Symbol bullets',
 }
 
+/** A scheme as the gallery shows it: its name, and the first marker of its first three levels. */
+function galleryOption(scheme: ListNumberingScheme, label: string): ListNumberingOption {
+  const starts = scheme.custom?.map((level) => level.start)
+  return {
+    value: scheme.id,
+    label,
+    markers: Array.from({ length: PREVIEW_LEVELS }, (_, level) =>
+      listMarker(
+        scheme,
+        Array.from({ length: level + 1 }, (_, each) => starts?.[each] ?? 1),
+      ),
+    ),
+  }
+}
+
 /**
  * The gallery Word offers under Multilevel List: None, then every scheme,
  * each previewed by the first marker of its first three levels.
@@ -307,17 +361,15 @@ const SCHEME_LABELS: Readonly<Record<string, string>> = {
 export function defaultListNumberings(): readonly ListNumberingOption[] {
   return [
     { value: NO_LIST_NUMBERING, label: 'None', markers: [] },
-    ...LIST_NUMBERING_SCHEMES.map((scheme) => ({
-      value: scheme.id,
-      label: SCHEME_LABELS[scheme.id] ?? scheme.id,
-      markers: Array.from({ length: PREVIEW_LEVELS }, (_, level) =>
-        listMarker(
-          scheme,
-          Array.from({ length: level + 1 }, () => 1),
-        ),
-      ),
-    })),
+    ...LIST_NUMBERING_SCHEMES.map((scheme) =>
+      galleryOption(scheme, SCHEME_LABELS[scheme.id] ?? scheme.id),
+    ),
   ]
+}
+
+/** The schemes a document defined, as the gallery offers them after its own. */
+export function definedListNumberings(doc: EditorNode): readonly ListNumberingOption[] {
+  return documentListSchemes(doc).map((scheme) => galleryOption(scheme, scheme.name ?? scheme.id))
 }
 
 /**
@@ -334,6 +386,13 @@ export function currentListNumbering(editor: Editor, snapshot: EditorSnapshot): 
 export interface ListNumberingControlOptions {
   readonly document: Document
   readonly options: readonly ListNumberingOption[]
+  /**
+   * Schemes of the document's own, read each time the gallery opens, since
+   * defining one adds to them: they follow the built-in ones.
+   */
+  readonly definedOptions?: () => readonly ListNumberingOption[]
+  /** Word's Define New Multilevel List…, at the foot of the gallery. */
+  readonly onDefine?: () => void
   /** The entry describing the selection, for marking it; null marks none. */
   readonly valueOf: (snapshot: EditorSnapshot) => string | null
   readonly onSelect: (value: string) => void
@@ -345,6 +404,47 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
   const tiles = new Map<string, HTMLButtonElement>()
   let releaseNavigation: (() => void) | null = null
 
+  let defined: HTMLElement | null = null
+  let definedValues: readonly string[] = []
+  /** The entry `refresh` last found current, for tiles drawn after it. */
+  let current: string | null = null
+
+  const tileFor = (option: ListNumberingOption, close: () => void): HTMLButtonElement => {
+    const tile = document.createElement('button')
+    tile.type = 'button'
+    tile.className = 'trevixal-listgallery__tile'
+    tile.dataset.value = option.value
+    const name =
+      option.markers.length > 0 ? `${option.label}: ${option.markers.join(' ')}` : option.label
+    tile.setAttribute('aria-label', name)
+    tile.title = name
+    tile.setAttribute('aria-pressed', 'false')
+    if (option.markers.length === 0) {
+      const none = document.createElement('span')
+      none.className = 'trevixal-listgallery__none'
+      none.textContent = option.label
+      tile.appendChild(none)
+    }
+    option.markers.forEach((marker, level) => {
+      const row = document.createElement('span')
+      row.className = 'trevixal-listgallery__row'
+      row.style.setProperty('--tvx-level', String(level))
+      const glyph = document.createElement('span')
+      glyph.className = 'trevixal-listgallery__marker'
+      glyph.textContent = marker
+      const line = document.createElement('span')
+      line.className = 'trevixal-listgallery__line'
+      row.append(glyph, line)
+      tile.appendChild(row)
+    })
+    tile.addEventListener('click', () => {
+      close()
+      options.onSelect(option.value)
+    })
+    tiles.set(option.value, tile)
+    return tile
+  }
+
   const dropdown = createDropdown({
     document,
     className: 'trevixal-listgallery',
@@ -352,43 +452,41 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
       panel.setAttribute('aria-label', 'Multilevel list')
       const grid = document.createElement('div')
       grid.className = 'trevixal-listgallery__grid'
-      for (const option of options.options) {
-        const tile = document.createElement('button')
-        tile.type = 'button'
-        tile.className = 'trevixal-listgallery__tile'
-        tile.dataset.value = option.value
-        const name =
-          option.markers.length > 0 ? `${option.label}: ${option.markers.join(' ')}` : option.label
-        tile.setAttribute('aria-label', name)
-        tile.title = name
-        tile.setAttribute('aria-pressed', 'false')
-        if (option.markers.length === 0) {
-          const none = document.createElement('span')
-          none.className = 'trevixal-listgallery__none'
-          none.textContent = option.label
-          tile.appendChild(none)
-        }
-        option.markers.forEach((marker, level) => {
-          const row = document.createElement('span')
-          row.className = 'trevixal-listgallery__row'
-          row.style.setProperty('--tvx-level', String(level))
-          const glyph = document.createElement('span')
-          glyph.className = 'trevixal-listgallery__marker'
-          glyph.textContent = marker
-          const line = document.createElement('span')
-          line.className = 'trevixal-listgallery__line'
-          row.append(glyph, line)
-          tile.appendChild(row)
-        })
-        tile.addEventListener('click', () => {
-          self.close()
-          options.onSelect(option.value)
-        })
-        grid.appendChild(tile)
-        tiles.set(option.value, tile)
-      }
+      for (const option of options.options) grid.appendChild(tileFor(option, () => self.close()))
       panel.appendChild(grid)
+      if (options.definedOptions) {
+        defined = document.createElement('div')
+        defined.className = 'trevixal-listgallery__grid trevixal-listgallery__grid--defined'
+        defined.setAttribute('aria-label', 'Defined in this document')
+        panel.appendChild(defined)
+      }
+      const onDefine = options.onDefine
+      if (onDefine) {
+        const define = document.createElement('button')
+        define.type = 'button'
+        define.className = 'trevixal-listgallery__define'
+        define.textContent = 'Define new multilevel list…'
+        define.addEventListener('click', () => {
+          self.close()
+          onDefine()
+        })
+        panel.appendChild(define)
+      }
       releaseNavigation = bindListNavigation(panel)
+    },
+    // The document's own schemes change as they are defined, so their tiles
+    // are drawn afresh each time the gallery opens.
+    onOpen: () => {
+      if (!defined || !options.definedOptions) return
+      for (const value of definedValues) tiles.delete(value)
+      defined.textContent = ''
+      const own = options.definedOptions()
+      for (const option of own) defined.appendChild(tileFor(option, () => dropdown.close()))
+      definedValues = own.map((option) => option.value)
+      defined.hidden = own.length === 0
+      for (const [candidate, tile] of tiles) {
+        tile.setAttribute('aria-pressed', String(candidate === current))
+      }
     },
   })
 
@@ -400,9 +498,9 @@ export function createListNumberingControl(options: ListNumberingControlOptions)
   return {
     element: dropdown.element,
     refresh(snapshot) {
-      const value = options.valueOf(snapshot)
+      current = options.valueOf(snapshot)
       for (const [candidate, tile] of tiles) {
-        tile.setAttribute('aria-pressed', String(candidate === value))
+        tile.setAttribute('aria-pressed', String(candidate === current))
       }
     },
     destroy() {
@@ -466,6 +564,8 @@ export function defaultFontSizes(): readonly SelectOption[] {
 /** Resolve the block-format select value from a snapshot. */
 export function blockFormatValue(snapshot: EditorSnapshot): string | null {
   if (!snapshot.blockType) return null
+  // The paragraph inside a quote reads as the quote, the block it is in.
+  if (snapshot.inBlockquote && snapshot.blockType === 'paragraph') return 'blockquote'
   if (snapshot.blockType === 'heading') {
     const level = snapshot.blockAttrs?.level
     return typeof level === 'number' ? `heading:${level}` : 'heading:1'

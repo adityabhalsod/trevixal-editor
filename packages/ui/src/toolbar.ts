@@ -1,7 +1,8 @@
-import type { Command, Editor, EditorSnapshot } from '@trevixal/core'
+import type { Command, Editor, EditorNode, EditorSnapshot, PageSection, Path } from '@trevixal/core'
 import {
   type Control,
   NO_LIST_NUMBERING,
+  type SelectControlOptions,
   type SelectOption,
   applyBlockFormat,
   blockFormatValue,
@@ -14,9 +15,11 @@ import {
   defaultFontFamilies,
   defaultFontSizes,
   defaultListNumberings,
+  definedListNumberings,
 } from './controls'
 import {
   ARIA_SUFFIX,
+  MENU_KEY,
   type Messages,
   TOOLBAR_GROUP_KEY,
   TOOLBAR_KEY,
@@ -24,6 +27,7 @@ import {
   createTranslator,
 } from './i18n'
 import { type IconName, createIcon } from './icons'
+import { openDefineListNumbering } from './list-dialogs'
 import {
   type QuickInsertItem,
   type ToolUsageTracker,
@@ -64,6 +68,10 @@ export interface ToolbarItem {
 /** A non-button control (select, color picker, table grid) built on demand. */
 export interface ToolbarControl {
   readonly name: string
+  /** The words it shows when nothing is chosen, translated under `toolbar.<name>`. */
+  readonly label?: string
+  /** Its accessible name, where that differs, under `toolbar.<name>.aria`. */
+  readonly ariaLabel?: string
   readonly create: (editor: Editor, document: Document) => Control
 }
 
@@ -208,6 +216,8 @@ export interface BlockCommands {
   readonly insertCard?: Command
   readonly insertTimeline?: Command
   readonly insertPageBreak?: Command
+  /** A section break: what follows is set on pages of its own. */
+  readonly insertSectionBreak?: (section: PageSection) => Command
   readonly insertBadge?: (label: string, tone: string) => Command
   readonly insertButton?: (label: string, href: string) => Command
   readonly insertFootnote?: Command
@@ -218,13 +228,54 @@ export interface BlockCommands {
   readonly removeTab?: Command
   readonly insertAccordion?: (count: number) => Command
   readonly addAccordionItem?: Command
-  readonly insertCitation?: (text: string) => Command
+  readonly insertCitation?: (text: string, id?: string) => Command
   readonly insertReferenceList?: Command
   readonly renumberCitations?: Command
+  /** The entries a new citation can point at; with it, Insert ▸ Citation offers them. */
+  readonly referenceChoices?: (doc: EditorNode) => readonly { id: string; label: string }[]
+  /** Set the reference list in `apa`, `mla`, `chicago` or `ieee`: Insert ▸ Citation style. */
+  readonly setCitationStyle?: (style: string) => Command | null
+  /** The style the reference list is in, for the tick. */
+  readonly citationStyle?: (doc: EditorNode) => string
+  /** Sources from a BibTeX or CSL-JSON file's text: Insert ▸ Import sources. */
+  readonly importSources?: (text: string) => Command
   readonly setCalloutVariant?: (variant: string) => Command
   readonly setColumnCount?: (count: number) => Command
   readonly insertTimelineItem?: Command
   readonly toggleToggleOpen?: Command
+  // The reference apparatus: captions, cross-references, the lists built
+  // from them, the index and endnotes. Kinds and formats are plain strings.
+  readonly insertCaption?: (kind: string, label: string, text: string) => Command
+  readonly referenceTargets?: (doc: EditorNode) => readonly ReferenceTargetInfo[]
+  readonly insertCrossReference?: (
+    target: Pick<ReferenceTargetInfo, 'id' | 'path'>,
+    format: string,
+  ) => Command
+  readonly insertCaptionList?: (kind: string) => Command
+  readonly insertDocumentIndex?: Command
+  readonly markIndexEntry?: (entry: string, sub: string) => Command
+  readonly insertEndnote?: Command
+  // A margin note, a poll, a map, and content shown when a variable says so.
+  readonly insertMarginNote?: (color: string) => Command
+  readonly insertPoll?: (question: string, options: readonly string[]) => Command
+  /** A map of the place written as `lat, lng`; the command fails for anything else. */
+  readonly insertMap?: (coordinates: string, label: string, zoom: number) => Command
+  readonly wrapInConditional?: (variable: string, equals: string | null) => Command
+  readonly setTemplateVariables?: (variables: Readonly<Record<string, string>>) => Command
+}
+
+/** Something a cross-reference can point at, as `@trevixal/extension-blocks` lists them. */
+export interface ReferenceTargetInfo {
+  /** `heading`, `figure`, `table`, `equation`, `footnote` or `endnote`. */
+  readonly kind: string
+  /** Null for a heading nothing points at yet; the reference gives it one. */
+  readonly id: string | null
+  readonly path: Path
+  readonly label: string
+  readonly number: string
+  readonly text: string
+  /** The whole of it, as a list shows it: "Figure 2: A cat", "2.1 Results". */
+  readonly full: string
 }
 
 /** What the toolbar needs to know about a format painter it does not own. */
@@ -246,6 +297,42 @@ export interface CodeFormatCommands {
 export interface ToolbarGroupInfo {
   readonly name: string
   readonly label: string
+}
+
+/** The four toolbars View ▸ Toolbar offers, from a few buttons to all of them. */
+export type ToolbarPreset = 'minimal' | 'writing' | 'developer' | 'full'
+
+/**
+ * The groups each preset shows; `full` shows every group there is. A group a
+ * bar was not built with is skipped, so a host with fewer groups still gets
+ * the rest of a preset.
+ */
+export const TOOLBAR_PRESETS: Readonly<Record<Exclude<ToolbarPreset, 'full'>, readonly string[]>> =
+  {
+    minimal: ['marks', 'lists', 'history'],
+    writing: [
+      'quick',
+      'block',
+      'typography',
+      'marks',
+      'lists',
+      'align',
+      'color',
+      'insert',
+      'paint',
+      'history',
+    ],
+    developer: ['quick', 'block', 'marks', 'lists', 'insert', 'blocks', 'code', 'tools', 'history'],
+  }
+
+/** The groups of `available`, in its order, that a preset shows. */
+export function toolbarPresetGroups(
+  preset: ToolbarPreset,
+  available: readonly string[],
+): readonly string[] {
+  if (preset === 'full') return available
+  const shown = TOOLBAR_PRESETS[preset]
+  return available.filter((name) => shown.includes(name))
 }
 
 export interface Toolbar {
@@ -270,6 +357,8 @@ export interface Toolbar {
   setVisibleGroups(names: readonly string[]): void
   /** Re-print the tooltips' keys, e.g. after the user rebinds one. */
   setShortcutLabels(labels: ShortcutLabels | undefined): void
+  /** Relabel every button and group from another catalogue, in place: a new UI language. */
+  setMessages(messages: Messages | undefined): void
   destroy(): void
 }
 
@@ -323,6 +412,40 @@ const alignItem = (
   run: (editor) => editor.commands.setTextAlign(align),
   isActive: (snapshot) => snapshot.align === align,
 })
+
+/**
+ * A toolbar select, its visible and spoken names given once, so the toolbar
+ * and the catalogue of labels to translate read the same words.
+ */
+function selectItem(
+  name: string,
+  label: string,
+  ariaLabel: string,
+  select: (editor: Editor) => Omit<SelectControlOptions, 'document' | 'placeholder' | 'ariaLabel'>,
+): ToolbarControl {
+  return {
+    name,
+    label,
+    ariaLabel,
+    create: (editor, document) =>
+      createSelectControl({ document, placeholder: label, ariaLabel, ...select(editor) }),
+  }
+}
+
+/** `upper` as `Upper`, for a catalogue key built from a value. */
+const capitalized = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1)
+
+/** The Format menu's key for the same block format, whose translation it shares. */
+function blockFormatKey(value: string): string {
+  if (value.startsWith('heading:'))
+    return `${MENU_KEY}styleHeading${value.slice('heading:'.length)}`
+  const styles: Readonly<Record<string, string>> = {
+    paragraph: 'styleParagraph',
+    blockquote: 'styleQuote',
+    codeBlock: 'styleCodeBlock',
+  }
+  return `${MENU_KEY}${styles[value] ?? `blockFormat-${value}`}`
+}
 
 /** Case conversions offered by the case select. */
 const CASE_OPTIONS: readonly SelectOption[] = [
@@ -484,81 +607,49 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
       name: 'block',
       label: 'Block',
       items: [
-        {
-          name: 'blockFormat',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.blockFormats ?? defaultBlockFormats(),
-              placeholder: 'Paragraph',
-              ariaLabel: 'Block format',
-              width: '8.5rem',
-              valueOf: blockFormatValue,
-              onSelect: (value) => applyBlockFormat(editor, value),
+        selectItem('blockFormat', 'Paragraph', 'Block format', (editor) => ({
+          options: options.blockFormats ?? defaultBlockFormats(),
+          optionKey: blockFormatKey,
+          width: '8.5rem',
+          valueOf: blockFormatValue,
+          onSelect: (value) => applyBlockFormat(editor, value),
+        })),
+        selectItem('lineHeight', 'Line height', 'Line height', (editor) => ({
+          options: options.lineHeights ?? defaultLineHeights(),
+          optionKey: (value) => `${MENU_KEY}lineHeight-${value || 'default'}`,
+          width: '7rem',
+          valueOf: (snapshot) => blockStringAttr(snapshot, 'lineHeight'),
+          onSelect: (value) => editor.commands.setLineHeight(value || null),
+        })),
+        selectItem('paragraphSpacing', 'Spacing', 'Paragraph spacing', (editor) => ({
+          options: options.paragraphSpacings ?? defaultParagraphSpacings(),
+          optionKey: (value) => `${MENU_KEY}paragraphSpacing-${value || 'none'}`,
+          width: '7rem',
+          valueOf: (snapshot) => blockStringAttr(snapshot, 'spaceAfter'),
+          onSelect: (value) =>
+            editor.commands.setParagraphSpacing({
+              before: value || null,
+              after: value || null,
             }),
-        },
-        {
-          name: 'lineHeight',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.lineHeights ?? defaultLineHeights(),
-              placeholder: 'Line height',
-              ariaLabel: 'Line height',
-              width: '7rem',
-              valueOf: (snapshot) => blockStringAttr(snapshot, 'lineHeight'),
-              onSelect: (value) => editor.commands.setLineHeight(value || null),
-            }),
-        },
-        {
-          name: 'paragraphSpacing',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.paragraphSpacings ?? defaultParagraphSpacings(),
-              placeholder: 'Spacing',
-              ariaLabel: 'Paragraph spacing',
-              width: '7rem',
-              valueOf: (snapshot) => blockStringAttr(snapshot, 'spaceAfter'),
-              onSelect: (value) =>
-                editor.commands.setParagraphSpacing({
-                  before: value || null,
-                  after: value || null,
-                }),
-            }),
-        },
+        })),
       ],
     },
     {
       name: 'typography',
       label: 'Font',
       items: [
-        {
-          name: 'fontFamily',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.fontFamilies ?? defaultFontFamilies(),
-              placeholder: 'Font',
-              ariaLabel: 'Font family',
-              width: '8rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'fontFamily', 'family'),
-              onSelect: (value) => editor.commands.setFontFamily(value),
-            }),
-        },
-        {
-          name: 'fontSize',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.fontSizes ?? defaultFontSizes(),
-              placeholder: 'Size',
-              ariaLabel: 'Font size',
-              width: '5rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'fontSize', 'size'),
-              onSelect: (value) => editor.commands.setFontSize(value),
-            }),
-        },
+        selectItem('fontFamily', 'Font', 'Font family', (editor) => ({
+          options: options.fontFamilies ?? defaultFontFamilies(),
+          width: '8rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'fontFamily', 'family'),
+          onSelect: (value) => editor.commands.setFontFamily(value),
+        })),
+        selectItem('fontSize', 'Size', 'Font size', (editor) => ({
+          options: options.fontSizes ?? defaultFontSizes(),
+          width: '5rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'fontSize', 'size'),
+          onSelect: (value) => editor.commands.setFontSize(value),
+        })),
       ],
     },
     {
@@ -580,38 +671,26 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           run: (editor) => editor.commands.toggleSmallCaps(),
           isActive: (snapshot) => snapshot.activeMarks.includes('smallCaps'),
         },
-        {
-          name: 'letterSpacing',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.letterSpacings ?? defaultLetterSpacings(),
-              placeholder: 'Spacing',
-              ariaLabel: 'Letter spacing',
-              width: '6.5rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'letterSpacing', 'spacing'),
-              onSelect: (value) => editor.commands.setLetterSpacing(value || null),
-            }),
-        },
-        {
-          name: 'convertCase',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: CASE_OPTIONS,
-              placeholder: 'Case',
-              ariaLabel: 'Change case',
-              width: '6.5rem',
-              // Case is an action, not a state the document carries, so the
-              // select never shows a current value.
-              valueOf: () => null,
-              onSelect: (value) => {
-                if (value === 'upper' || value === 'lower' || value === 'title') {
-                  editor.commands.convertCase(value)
-                }
-              },
-            }),
-        },
+        selectItem('letterSpacing', 'Letter spacing', 'Letter spacing', (editor) => ({
+          options: options.letterSpacings ?? defaultLetterSpacings(),
+          optionKey: (value) => `${MENU_KEY}letterSpacing-${value || 'normal'}`,
+          width: '8.5rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'letterSpacing', 'spacing'),
+          onSelect: (value) => editor.commands.setLetterSpacing(value || null),
+        })),
+        selectItem('convertCase', 'Case', 'Change case', (editor) => ({
+          options: CASE_OPTIONS,
+          optionKey: (value) => `${MENU_KEY}case${capitalized(value)}`,
+          width: '6.5rem',
+          // Case is an action, not a state the document carries, so the
+          // select never shows a current value.
+          valueOf: () => null,
+          onSelect: (value) => {
+            if (value === 'upper' || value === 'lower' || value === 'title') {
+              editor.commands.convertCase(value)
+            }
+          },
+        })),
       ],
     },
     {
@@ -639,27 +718,23 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           run: (editor) => editor.commands.toggleTaskList(),
           isActive: (snapshot) => snapshot.listType === 'taskList',
         },
-        {
-          name: 'listStyle',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: LIST_STYLE_OPTIONS,
-              placeholder: 'List style',
-              ariaLabel: 'List style',
-              width: '8rem',
-              valueOf: () => null,
-              // Declines outside a list, and for a style the list type does
-              // not allow, so a bullet list cannot be given roman numerals.
-              onSelect: (value) => editor.commands.setListStyle(value || null),
-            }),
-        },
+        selectItem('listStyle', 'List style', 'List style', (editor) => ({
+          options: LIST_STYLE_OPTIONS,
+          optionKey: (value) => `${MENU_KEY}listStyle-${value || 'default'}`,
+          width: '8rem',
+          valueOf: () => null,
+          // Declines outside a list, and for a style the list type does
+          // not allow, so a bullet list cannot be given roman numerals.
+          onSelect: (value) => editor.commands.setListStyle(value || null),
+        })),
         {
           name: 'listNumbering',
           create: (editor, document) =>
             createListNumberingControl({
               document,
               options: defaultListNumberings(),
+              definedOptions: () => definedListNumberings(editor.state.doc),
+              onDefine: () => openDefineListNumbering(editor, document),
               valueOf: (snapshot) => currentListNumbering(editor, snapshot),
               onSelect: (value) => {
                 if (value === NO_LIST_NUMBERING) editor.commands.unwrapList()
@@ -768,7 +843,7 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           label: 'Quote',
           icon: 'quote',
           run: (editor) => editor.commands.wrapIn('blockquote'),
-          isActive: (snapshot) => snapshot.blockType === 'blockquote',
+          isActive: (snapshot) => snapshot.inBlockquote,
         },
         {
           name: 'horizontalRule',
@@ -824,22 +899,16 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
       label: 'Blocks',
       items: present([
         options.blockCommands?.insertCallout
-          ? {
-              name: 'callout',
-              create: (editor, document) =>
-                createSelectControl({
-                  document,
-                  options: CALLOUT_OPTIONS,
-                  placeholder: 'Callout',
-                  ariaLabel: 'Insert callout',
-                  width: '7.5rem',
-                  valueOf: () => null,
-                  onSelect: (value) => {
-                    const command = options.blockCommands?.insertCallout?.(value)
-                    if (command) editor.exec(command)
-                  },
-                }),
-            }
+          ? selectItem('callout', 'Callout', 'Insert callout', (editor) => ({
+              options: CALLOUT_OPTIONS,
+              optionKey: (value) => `${MENU_KEY}callout${capitalized(value)}`,
+              width: '7.5rem',
+              valueOf: () => null,
+              onSelect: (value) => {
+                const command = options.blockCommands?.insertCallout?.(value)
+                if (command) editor.exec(command)
+              },
+            }))
           : null,
         commandItem(
           'toggleBlock',
@@ -848,23 +917,17 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           options.blockCommands?.insertToggleBlock,
         ),
         options.blockCommands?.insertColumns
-          ? {
-              name: 'columns',
-              create: (editor, document) =>
-                createSelectControl({
-                  document,
-                  options: COLUMN_OPTIONS,
-                  placeholder: 'Columns',
-                  ariaLabel: 'Insert columns',
-                  width: '7rem',
-                  valueOf: () => null,
-                  onSelect: (value) => {
-                    const count = Number.parseInt(value, 10)
-                    const command = options.blockCommands?.insertColumns?.(count)
-                    if (command) editor.exec(command)
-                  },
-                }),
-            }
+          ? selectItem('columns', 'Columns', 'Insert columns', (editor) => ({
+              options: COLUMN_OPTIONS,
+              optionKey: (value) => `${MENU_KEY}columns${value}`,
+              width: '7rem',
+              valueOf: () => null,
+              onSelect: (value) => {
+                const count = Number.parseInt(value, 10)
+                const command = options.blockCommands?.insertColumns?.(count)
+                if (command) editor.exec(command)
+              },
+            }))
           : null,
         commandItem('card', 'card', 'Card', options.blockCommands?.insertCard),
         commandItem('timeline', 'timeline', 'Timeline', options.blockCommands?.insertTimeline),
@@ -980,7 +1043,7 @@ export function createToolbar(
   options: ToolbarOptions = {},
 ): Toolbar {
   const document = container.ownerDocument
-  const translate = createTranslator(options.messages)
+  let translate = createTranslator(options.messages)
   /** Every button in the bar, by name: what the Quick access tray offers back. */
   const itemsByName = new Map<string, ToolbarItem>()
   const quick = quickAccessGroup(options.quickAccess, itemsByName)
@@ -1009,10 +1072,9 @@ export function createToolbar(
       )
     : base
   const groups = options.groupOrder ? orderGroups(merged, options.groupOrder) : merged
-  const groupInfo = merged.map((group) => ({
-    name: group.name,
-    label: translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name),
-  }))
+  const groupLabel = (group: ToolbarGroup): string =>
+    translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name)
+  let groupInfo = merged.map((group) => ({ name: group.name, label: groupLabel(group) }))
   // Filled before anything is built, so the tray can offer any button.
   for (const group of groups) {
     for (const entry of group.items) if (!isControl(entry)) itemsByName.set(entry.name, entry)
@@ -1025,23 +1087,23 @@ export function createToolbar(
 
   const buttons: { item: ToolbarItem; element: HTMLButtonElement }[] = []
   const controls: Control[] = []
+  /** Where each group's name is written, so a new language can rewrite it. */
+  const labelled: { group: ToolbarGroup; element: HTMLElement; grip: HTMLButtonElement | null }[] =
+    []
 
   for (const group of groups) {
     const groupElement = document.createElement('div')
     groupElement.className = 'trevixal-toolbar__group'
     groupElement.dataset.trevixalGroup = group.name
-    if (group.label) {
-      groupElement.dataset.trevixalGroupLabel = translate(
-        `${TOOLBAR_GROUP_KEY}${group.name}`,
-        group.label,
-      )
-    }
-    if (options.reorderable) groupElement.appendChild(createGrip(document, group, translate))
+    const grip = options.reorderable ? createGrip(document, group.name) : null
+    if (grip) groupElement.appendChild(grip)
+    labelled.push({ group, element: groupElement, grip })
 
     for (const entry of group.items) {
       if (isControl(entry)) {
         const control = entry.create(editor, document)
         control.element.dataset.trevixalItem = entry.name
+        control.relabel?.(translate, `${TOOLBAR_KEY}${entry.name}`)
         groupElement.appendChild(control.element)
         controls.push(control)
         continue
@@ -1058,6 +1120,14 @@ export function createToolbar(
     }
     root.appendChild(groupElement)
   }
+
+  const labelGroups = (): void => {
+    for (const { group, element, grip } of labelled) {
+      if (group.label) element.dataset.trevixalGroupLabel = groupLabel(group)
+      if (grip) labelGrip(grip, groupLabel(group))
+    }
+  }
+  labelGroups()
 
   const roving = bindRovingFocus(root)
   const reorder = options.reorderable
@@ -1130,10 +1200,22 @@ export function createToolbar(
     refresh,
     getGroupOrder: () => groupOrder(root),
     setGroupOrder: (order) => applyGroupOrder(root, order),
-    groups: groupInfo,
+    get groups() {
+      return groupInfo
+    },
     setVisibleGroups,
     setShortcutLabels(labels) {
       shortcutLabels = labels
+      retitle()
+    },
+    setMessages(messages) {
+      translate = createTranslator(messages)
+      groupInfo = merged.map((group) => ({ name: group.name, label: groupLabel(group) }))
+      labelGroups()
+      for (const { item, element } of buttons) labelButton(element, item, translate)
+      for (const control of controls) {
+        control.relabel?.(translate, `${TOOLBAR_KEY}${control.element.dataset.trevixalItem}`)
+      }
       retitle()
     },
     destroy() {
@@ -1157,18 +1239,8 @@ function createToolbarButton(
   button.className = 'trevixal-toolbar__button'
   button.dataset.trevixalItem = item.name
   const icon = item.icon ? createIcon(document, item.icon) : null
-  const label = translate(`${TOOLBAR_KEY}${item.name}`, item.label)
   if (icon) button.appendChild(icon)
-  else button.textContent = label
-  // Most items repeat the label as their accessible name, and a host that
-  // translates the label plainly means both. Only a name that genuinely
-  // differs gets a key of its own, which is also the rule `defaultMessages`
-  // follows when it lists them.
-  const ariaFallback = item.ariaLabel && item.ariaLabel !== item.label ? item.ariaLabel : label
-  const name = translate(`${TOOLBAR_KEY}${item.name}${ARIA_SUFFIX}`, ariaFallback)
-  button.setAttribute('aria-label', name)
-  // The tooltip, keys and all, is the toolbar's to write: see `retitle`.
-  button.title = name
+  labelButton(button, item, translate)
   button.tabIndex = -1
   // Keep the editor selection: the toolbar must never take focus on click.
   button.addEventListener('mousedown', (event) => event.preventDefault())
@@ -1218,12 +1290,14 @@ function bindRovingFocus(root: HTMLElement): { retune: () => void } {
     const items = focusables()
     const current = items.indexOf(root.ownerDocument.activeElement as HTMLElement)
     if (current === -1) return
+    // A right-to-left toolbar is drawn mirrored: the next control is to the left.
+    const step = root.ownerDocument.defaultView?.getComputedStyle(root).direction === 'rtl' ? -1 : 1
     switch (event.key) {
       case 'ArrowRight':
-        focusAt(current + 1)
+        focusAt(current + step)
         break
       case 'ArrowLeft':
-        focusAt(current - 1)
+        focusAt(current - step)
         break
       case 'Home':
         focusAt(0)
@@ -1252,20 +1326,35 @@ function orderGroups(
   return [...listed, ...groups.filter((group) => !listed.includes(group))]
 }
 
+/**
+ * A button's visible and accessible names, from the catalogue. The tooltip,
+ * keys and all, is the toolbar's to write: see `retitle`.
+ */
+function labelButton(button: HTMLButtonElement, item: ToolbarItem, translate: Translator): void {
+  const label = translate(`${TOOLBAR_KEY}${item.name}`, item.label)
+  if (!button.querySelector('svg')) button.textContent = label
+  // Most items repeat the label as their accessible name, and a host that
+  // translates the label plainly means both. Only a name that genuinely
+  // differs gets a key of its own, which is also the rule `defaultMessages`
+  // follows when it lists them.
+  const ariaFallback = item.ariaLabel && item.ariaLabel !== item.label ? item.ariaLabel : label
+  const name = translate(`${TOOLBAR_KEY}${item.name}${ARIA_SUFFIX}`, ariaFallback)
+  button.setAttribute('aria-label', name)
+  button.title = name
+}
+
+function labelGrip(grip: HTMLButtonElement, label: string): void {
+  grip.setAttribute('aria-label', `Move ${label} group`)
+  grip.title = `Drag to move the ${label} group. From the keyboard: Space, then the arrow keys.`
+}
+
 /** The handle a group is dragged by. A button, so the keyboard can pick it up too. */
-function createGrip(
-  document: Document,
-  group: ToolbarGroup,
-  translate: Translator,
-): HTMLButtonElement {
+function createGrip(document: Document, group: string): HTMLButtonElement {
   const grip = document.createElement('button')
   grip.type = 'button'
   grip.className = 'trevixal-toolbar__grip'
-  grip.dataset.trevixalGrip = group.name
-  const label = translate(`${TOOLBAR_GROUP_KEY}${group.name}`, group.label ?? group.name)
-  grip.setAttribute('aria-label', `Move ${label} group`)
+  grip.dataset.trevixalGrip = group
   grip.setAttribute('aria-pressed', 'false')
-  grip.title = `Drag to move the ${label} group. From the keyboard: Space, then the arrow keys.`
   grip.tabIndex = -1
   const icon = createIcon(document, 'grip')
   if (icon) grip.appendChild(icon)

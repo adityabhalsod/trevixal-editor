@@ -205,16 +205,14 @@ describe('createTableTools', () => {
     editor.destroy()
   })
 
-  it('draws a line across to split a row', () => {
+  it('draws a line across to split the cells it crosses', () => {
     const { editor, cells } = mount()
     const tools = createTableTools(editor)
     tools.toggle('draw')
     stroke(cells[0] as EventTarget, 20, 10, 80, 11)
-    expect(grid(editor)).toEqual([
-      ['a:1', 'b:1'],
-      [':1', ':1'],
-      ['c:1', 'd:1'],
-    ])
+    // Word's picture: the first cell in two, the one beside it spanning both.
+    expect(grid(editor)).toEqual([['a:1', 'b:1'], [':1'], ['c:1', 'd:1']])
+    expect(editor.state.doc.child(0).child(0).child(1).attrs.rowspan).toBe(2)
     tools.destroy()
     editor.destroy()
   })

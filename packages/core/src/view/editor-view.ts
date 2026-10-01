@@ -20,7 +20,9 @@ import {
 import { linkifyText } from '../commands/links'
 import { setTaskChecked, splitListItem } from '../commands/lists'
 import type { Editor } from '../editor/editor'
+import { NEW_HISTORY_GROUP } from '../history/history'
 import { type InputRule, applyInputRules, defaultInputRules } from '../input-rules/input-rules'
+import { applyTypedTextRules } from '../input-rules/typography'
 import { blocksInRange } from '../model/blocks'
 import { Fragment } from '../model/fragment'
 import {
@@ -41,7 +43,13 @@ import { cleanPastedHTML } from '../serialize/paste-source'
 import type { EditorState } from '../state/editor-state'
 import { TextSelection } from '../state/selection'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
-import { domPointFromPosition, pathOfElement, positionFromDOMPoint } from './dom-point'
+import {
+  domPointFromPosition,
+  isInsideInlineAtom,
+  isInsideNonContent,
+  pathOfElement,
+  positionFromDOMPoint,
+} from './dom-point'
 import { type Keymap, baseKeymap, keydownHandler } from './keymap'
 import {
   DOMRenderer,
@@ -50,7 +58,8 @@ import {
   type NodeViewInstance,
 } from './renderer'
 
-const TREVIXAL_MIME = 'application/x-trevixal+json'
+/** The clipboard type that carries copied blocks as Trevixal JSON, for a lossless paste. */
+export const TREVIXAL_MIME = 'application/x-trevixal+json'
 
 /** A pasted string that is one URL and nothing else. */
 const BARE_URL = /^(?:https?:\/\/|www\.)[^\s<>"'`]{2,2000}$/i
@@ -105,6 +114,36 @@ function detectMac(): boolean {
 /** `Node.TEXT_NODE`, without reaching for the DOM constant at runtime. */
 const TEXT_NODE = 3
 
+/** Where the browser's selection sat, to tell a reader's move from the browser repeating itself. */
+interface DOMSelectionSnapshot {
+  readonly anchorNode: globalThis.Node | null
+  readonly anchorOffset: number
+  readonly focusNode: globalThis.Node | null
+  readonly focusOffset: number
+}
+
+function snapshotOf(selection: Selection): DOMSelectionSnapshot {
+  return {
+    anchorNode: selection.anchorNode,
+    anchorOffset: selection.anchorOffset,
+    focusNode: selection.focusNode,
+    focusOffset: selection.focusOffset,
+  }
+}
+
+function isSameDOMSelection(
+  before: DOMSelectionSnapshot | null,
+  after: DOMSelectionSnapshot,
+): boolean {
+  return (
+    before !== null &&
+    before.anchorNode === after.anchorNode &&
+    before.anchorOffset === after.anchorOffset &&
+    before.focusNode === after.focusNode &&
+    before.focusOffset === after.focusOffset
+  )
+}
+
 export class EditorView {
   readonly dom: HTMLElement
   /** Advanced API: the renderer's DOM↔model mapping, used by adapters. */
@@ -121,6 +160,8 @@ export class EditorView {
   private editable = true
   private pastePlainOnce = false
   private highlights: readonly SearchMatch[] = []
+  /** The browser selection as this view last read or wrote it. */
+  private lastDOMSelection: DOMSelectionSnapshot | null = null
   private readonly decorationLayers = new Map<string, DecorationSource>()
   private readonly keydownInterceptors = new Set<(event: KeyboardEvent) => boolean>()
   private readonly announcer: Announcer | null
@@ -348,6 +389,13 @@ export class EditorView {
     this.syncSelectionToDOM()
     this.withDOMUpdate(() => this.dom.focus({ preventScroll: true }))
     this.syncSelectionToDOM()
+    // A selected node has no browser form, so the caret the browser puts
+    // somewhere on focus is its own, not the reader's: it is not read back
+    // as a move, which would swap the selected node for that caret.
+    if (!(this.editor.state.selection instanceof TextSelection)) {
+      const domSelection = this.document.getSelection?.()
+      if (domSelection) this.lastDOMSelection = snapshotOf(domSelection)
+    }
   }
 
   /**
@@ -435,6 +483,7 @@ export class EditorView {
       domSelection.focusNode === head.node &&
       domSelection.focusOffset === head.offset
     ) {
+      this.lastDOMSelection = snapshotOf(domSelection)
       return
     }
     // Only steer the browser caret while we own focus.
@@ -448,6 +497,7 @@ export class EditorView {
       this.withDOMUpdate(() => {
         domSelection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset)
       })
+      this.lastDOMSelection = snapshotOf(domSelection)
     } catch {
       // Selection APIs vary across environments; the model stays correct.
     }
@@ -469,6 +519,14 @@ export class EditorView {
     const domSelection = this.document.getSelection?.()
     const anchorNode = domSelection?.anchorNode
     if (!domSelection || !anchorNode || !this.dom.contains(anchorNode)) return
+    // A selected node (an image, an equation) has no browser form, so the
+    // browser goes on showing the caret it had, and reports it again on the
+    // click that selected the node. That report is not the reader moving;
+    // reading it back would swap the selected image for a caret in some text.
+    const current = snapshotOf(domSelection)
+    const unmoved = isSameDOMSelection(this.lastDOMSelection, current)
+    this.lastDOMSelection = current
+    if (unmoved && !(this.editor.state.selection instanceof TextSelection)) return
     const anchor = positionFromDOMPoint(
       this.dom,
       this.renderer,
@@ -485,7 +543,19 @@ export class EditorView {
       : anchor
     if (!anchor || !head) return
     const next = new TextSelection(anchor, head)
-    if (this.editor.state.selection.eq(next)) return
+    if (this.editor.state.selection.eq(next)) {
+      // A caret inside an atom (Chromium and Firefox put it there when the
+      // atom ends a line) is moved out, beside it: Firefox will not break a
+      // line or delete from inside an element that is not editable.
+      const focusNode = domSelection.focusNode ?? anchorNode
+      if (
+        isInsideInlineAtom(this.dom, this.renderer, anchorNode) ||
+        isInsideInlineAtom(this.dom, this.renderer, focusNode)
+      ) {
+        this.syncSelectionToDOM()
+      }
+      return
+    }
     this.editor.dispatch(this.editor.state.tr.setSelection(next))
   }
 
@@ -511,12 +581,13 @@ export class EditorView {
     const model = this.renderer.modelOf.get(element)
     if (model?.type.name !== 'taskItem') return
     const box = element.getBoundingClientRect()
-    const gutter = Number.parseFloat(
-      (element.ownerDocument.defaultView?.getComputedStyle(element).paddingLeft ?? '0') || '0',
-    )
-    const inGutter = Number.isFinite(gutter)
-      ? event.clientX < box.left + gutter
-      : event.clientX < box.left
+    // The checkbox is drawn at the start of the line: the right, in text that
+    // runs right to left.
+    const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+    const rtl = style?.direction === 'rtl'
+    const gutter = Number.parseFloat((rtl ? style?.paddingRight : style?.paddingLeft) || '0')
+    const width = Number.isFinite(gutter) ? gutter : 0
+    const inGutter = rtl ? event.clientX > box.right - width : event.clientX < box.left + width
     if (!inGutter) return
     const path = pathOfElement(this.dom, this.renderer, element)
     if (!path) return
@@ -569,7 +640,15 @@ export class EditorView {
           break
         }
         // In a code block, brackets and quotes pair up the way a code editor's do.
+        const before = this.editor.state.doc
         consume(chainCommands(typeInPreformatted(text), insertText(text)))
+        // Then AutoFormat on what went in (a length limit may refuse it): quotes
+        // curled, a word corrected. A step of its own, so an undo straight
+        // after gives back exactly what was typed.
+        if (text.length === 1 && this.editor.state.doc !== before) {
+          const typedTr = applyTypedTextRules(this.editor.state, this.inputRules)
+          if (typedTr) this.editor.dispatch(typedTr.setMeta(NEW_HISTORY_GROUP, true))
+        }
         break
       }
       case 'insertParagraph':
@@ -783,9 +862,15 @@ export class EditorView {
 
   private onMutations = (records: MutationRecord[]): void => {
     if (this.destroyed || this.updatingDOM || this.composing || records.length === 0) return
+    // A widget redrawing itself (a diagram preview whose render has landed) is
+    // chrome, not an edit: nothing in it maps to the model. Treating it as one
+    // re-rendered the document, and the re-render wrote the model's caret over
+    // a click the browser had not reported yet.
+    const edits = records.filter((record) => !isInsideNonContent(record.target, this.dom))
+    if (edits.length === 0) return
     const blocks = new Set<HTMLElement>()
     let fallback = false
-    for (const record of records) {
+    for (const record of edits) {
       const block = this.blockElementAround(record.target)
       if (block) blocks.add(block)
       else fallback = true

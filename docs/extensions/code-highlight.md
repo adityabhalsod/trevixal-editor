@@ -30,10 +30,10 @@ a time budget on hostile input by its tests.
 
 ## Bundled languages
 
-JavaScript, TypeScript, Python, HTML, CSS, JSON, SQL, shell, Go, Rust, Java
-and Markdown, with the usual aliases (`js`, `ts`, `py`, `sh`, `rs`, `md`,
-`golang`, `jsx`, `tsx`, `scss`, `xml`, `vue`). Resolution is
-case-insensitive.
+JavaScript, TypeScript, Python, HTML, CSS, JSON, SQL, shell, Go, Rust, Java,
+Markdown, a terminal session (`console`) and a diff, with the usual aliases
+(`js`, `ts`, `py`, `sh`, `rs`, `md`, `golang`, `jsx`, `tsx`, `scss`, `xml`,
+`vue`, `terminal`, `patch`). Resolution is case-insensitive.
 
 These are rule sets rather than grammars: enough to colour code correctly in
 an editor, with no parser in the bundle.
@@ -55,6 +55,8 @@ Every language emits the same class names, so a theme is a dozen colours:
 | `tvx-tok-tag` | HTML and XML tags |
 | `tvx-tok-attribute` | Attributes, object keys, CSS properties |
 | `tvx-tok-selector` | CSS selectors and at-rules |
+| `tvx-tok-inserted` | A diff's added lines |
+| `tvx-tok-deleted` | A diff's removed lines |
 
 ## Your own languages
 
@@ -90,3 +92,40 @@ interface Highlighter {
 
 Wrap Shiki, Prism or highlight.js behind it, offsets in, offsets out, and
 nothing else in the editor changes.
+
+## Lines, titles and folding
+
+A code block's attributes say how its code is shown: `lineNumbers`,
+`highlightLines` (`"1,3-5"`), `wrap`, `title` and `collapsed`. They go out
+in HTML as `data-` attributes and in Markdown as the fence's meta, the way
+documentation sites write it:
+
+````md
+```ts title="app.ts" {1,3-5} showLineNumbers
+````
+
+`codeBlockLines(editor)` draws them. It puts a zero-width marker at the
+start of each line, out of the document, which the stylesheet turns into a
+number in the gutter and a band across a picked-out line. A diff's added and
+removed lines are banded too. A folded block shows eight lines and a
+*Show all* bar that unfolds it.
+
+## Terminal sessions and diffs
+
+`insertTerminal()` puts in a `console` block. `copyableCode(code, language)`
+is what its copy button copies: the commands after each `$` or `❯` prompt,
+without the prompt and without their output. A command that ends in `\`
+goes on into the next line. A `#` is never taken for a prompt, since a
+comment copied as a command would run.
+
+`lineDiff(before, after)` compares two versions line by line, and
+`insertCodeDiff(before, after, title?)` puts the result in a `diff` block.
+
+## Running code
+
+`enableCodeRunner(editor)` runs a JavaScript or HTML block in a frame with
+`sandbox="allow-scripts"` and no `allow-same-origin`, so it has no origin of
+its own and cannot reach the page, its storage or its cookies. A content
+security policy lets nothing be fetched. What JavaScript prints to the
+console is listed under the block; HTML is drawn there. The output belongs
+to the code that ran, so editing the code clears it.

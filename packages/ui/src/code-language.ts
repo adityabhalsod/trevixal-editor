@@ -1,5 +1,6 @@
-import { type Editor, editorDocument } from '@trevixal/core'
-import { bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
+import { type Editor, codeBlockTitle, editorDocument, normalizeLineRanges } from '@trevixal/core'
+import { openDialog } from './dialog'
+import { type Dropdown, bindListNavigation, createDropdown, focusFirstItem } from './dropdown'
 import { type IconName, createIcon } from './icons'
 
 /** One selectable language. `value` is written to the block's attribute. */
@@ -38,16 +39,46 @@ export interface CodeLanguageSelectOptions {
   readonly hint?: string | false
   /**
    * Copy the block's code. Supplying this adds a Copy button to the bar; it
-   * reports "Copied" or "Failed" for a moment from the returned result.
+   * reports "Copied" or "Failed" for a moment from the returned result. The
+   * block's language comes too, for a copy that depends on it (a terminal
+   * session's leaves its prompts out).
    */
-  readonly onCopy?: (code: string) => boolean | Promise<boolean>
+  readonly onCopy?: (code: string, language: string | null) => boolean | Promise<boolean>
   /** Labels for the copy button, overridable for localization. */
   readonly copyLabels?: {
     readonly idle?: string
     readonly copied?: string
     readonly failed?: string
   }
+  /**
+   * Add the block's options to the bar: numbered lines, wrapped lines, a
+   * folded block, lines picked out and a title. The block's attributes hold
+   * them; a host draws them (`codeBlockLines` in extension-code-highlight).
+   */
+  readonly blockOptions?: boolean
+  /**
+   * Run the block's code. With this, a Run button shows on the blocks
+   * `canRun` accepts, by their language.
+   */
+  readonly onRun?: () => void
+  readonly canRun?: (language: string | null) => boolean
 }
+
+/** One entry of the options menu, and the attribute it sets. */
+interface CodeOption {
+  readonly name: 'lineNumbers' | 'wrap' | 'collapsed' | 'highlightLines' | 'title'
+  readonly label: string
+  /** An on/off option, ticked while on; the others ask for a value. */
+  readonly toggle: boolean
+}
+
+const CODE_OPTIONS: readonly CodeOption[] = [
+  { name: 'lineNumbers', label: 'Line numbers', toggle: true },
+  { name: 'wrap', label: 'Wrap long lines', toggle: true },
+  { name: 'collapsed', label: 'Fold long block', toggle: true },
+  { name: 'highlightLines', label: 'Highlight lines…', toggle: false },
+  { name: 'title', label: 'Title or file name…', toggle: false },
+]
 
 /** Below this the hint is more clutter than help; the picker still fits. */
 const HINT_MIN_BLOCK_WIDTH = 440
@@ -177,6 +208,115 @@ export function createCodeLanguageSelect(
 
   root.appendChild(dropdown.element)
 
+  /** Set one option on the block at the caret: flip a toggle, or ask for a value. */
+  const applyOption = async (option: CodeOption): Promise<void> => {
+    const attrs = editor.getSnapshot().blockAttrs ?? {}
+    if (option.toggle) {
+      editor.commands.setBlockAttrs({ [option.name]: attrs[option.name] !== true })
+      editor.view?.focus()
+      return
+    }
+    const lines = option.name === 'highlightLines'
+    const values = await openDialog({
+      document: doc,
+      title: lines ? 'Highlight lines' : 'Code block title',
+      submitLabel: 'Apply',
+      fields: [
+        lines
+          ? {
+              name: 'value',
+              label: 'Lines',
+              type: 'text',
+              value: typeof attrs.highlightLines === 'string' ? attrs.highlightLines : '',
+              placeholder: '1, 3-5',
+              hint: 'Line numbers and ranges, with commas between. Empty picks none.',
+            }
+          : {
+              name: 'value',
+              label: 'Title or file name',
+              type: 'text',
+              value: typeof attrs.title === 'string' ? attrs.title : '',
+              placeholder: 'src/app.ts',
+            },
+      ],
+    })
+    editor.view?.focus()
+    if (!values) return
+    editor.commands.setBlockAttrs(
+      lines
+        ? { highlightLines: normalizeLineRanges(values.value) }
+        : { title: codeBlockTitle(values.value) },
+    )
+  }
+
+  let optionsDropdown: Dropdown | null = null
+  let disposeOptionsNavigation: (() => void) | null = null
+  if (options.blockOptions) {
+    optionsDropdown = createDropdown({
+      document: doc,
+      className: 'trevixal-codelang__dropdown trevixal-codelang__options',
+      render: (panel, self) => {
+        for (const option of CODE_OPTIONS) {
+          const button = doc.createElement('button')
+          button.type = 'button'
+          button.className = 'trevixal-menu__item'
+          button.setAttribute('role', option.toggle ? 'menuitemcheckbox' : 'menuitem')
+          button.dataset.trevixalCodeOption = option.name
+          const label = doc.createElement('span')
+          label.className = 'trevixal-menu__label'
+          label.textContent = option.label
+          const check = doc.createElement('span')
+          check.className = 'trevixal-menu__check'
+          const tick = option.toggle ? createIcon(doc, 'check') : null
+          if (tick) check.appendChild(tick)
+          button.append(label, check)
+          button.addEventListener('mousedown', (event) => event.preventDefault())
+          button.addEventListener('click', () => {
+            self.close()
+            void applyOption(option)
+          })
+          panel.appendChild(button)
+        }
+        disposeOptionsNavigation = bindListNavigation(panel)
+      },
+      onOpen: (panel) => {
+        const attrs = editor.getSnapshot().blockAttrs ?? {}
+        for (const option of CODE_OPTIONS) {
+          if (!option.toggle) continue
+          panel
+            .querySelector(`[data-trevixal-code-option="${option.name}"]`)
+            ?.setAttribute('aria-checked', String(attrs[option.name] === true))
+        }
+        focusFirstItem(panel)
+      },
+    })
+    const trigger = optionsDropdown.trigger
+    trigger.classList.add('trevixal-codelang__trigger', 'trevixal-codelang__options-trigger')
+    trigger.setAttribute('aria-label', 'Code block options')
+    trigger.title = 'Code block options'
+    const glyph = createIcon(doc, 'sliders')
+    if (glyph) trigger.appendChild(glyph)
+    root.appendChild(optionsDropdown.element)
+  }
+
+  // Run, for the blocks the host can run.
+  let runButton: HTMLButtonElement | null = null
+  const onRun = options.onRun
+  if (onRun) {
+    runButton = doc.createElement('button')
+    runButton.type = 'button'
+    runButton.className = 'trevixal-codelang__run'
+    runButton.setAttribute('aria-label', 'Run code')
+    runButton.title = 'Run code'
+    const glyph = createIcon(doc, 'play')
+    if (glyph) runButton.appendChild(glyph)
+    const label = doc.createElement('span')
+    label.textContent = 'Run'
+    runButton.appendChild(label)
+    runButton.addEventListener('click', () => onRun())
+    root.appendChild(runButton)
+  }
+
   // The copy button, when the host can reach a clipboard.
   const copyLabels = { ...COPY_LABELS, ...options.copyLabels }
   let copyTimer: ReturnType<typeof setTimeout> | null = null
@@ -208,11 +348,13 @@ export function createCodeLanguageSelect(
     copyButton.appendChild(copyLabel)
     copyButton.addEventListener('click', () => {
       // Read at click time: the block may have been edited since it was shown.
+      // From the model, not the DOM, which also holds the block's chrome.
       const block = activeBlock()
-      if (!block) return
-      const code = (block.querySelector('code') ?? block).textContent ?? ''
+      const node = block ? editor.view?.renderer.modelOf.get(block) : undefined
+      if (!block || !node) return
+      const language = typeof node.attrs.language === 'string' ? node.attrs.language : null
       Promise.resolve()
-        .then(() => onCopy(code))
+        .then(() => onCopy(node.textContent, language))
         .then(
           (ok) => setCopyState(ok ? 'copied' : 'failed'),
           () => setCopyState('failed'),
@@ -263,12 +405,14 @@ export function createCodeLanguageSelect(
     if (!block) {
       if (!root.hidden) {
         dropdown.close()
+        optionsDropdown?.close()
         root.hidden = true
       }
       return
     }
 
     const value = currentLanguage()
+    if (runButton) runButton.hidden = !(options.canRun?.(value || null) ?? false)
     // Only guess when the block names nothing: an explicit language, including
     // "Plain text", is a decision and detection is only an inference.
     // The detector is host code running on every caret move; one that throws
@@ -326,6 +470,8 @@ export function createCodeLanguageSelect(
       doc.removeEventListener('selectionchange', update)
       if (copyTimer) clearTimeout(copyTimer)
       disposeNavigation?.()
+      disposeOptionsNavigation?.()
+      optionsDropdown?.destroy()
       dropdown.destroy()
       root.remove()
     },
