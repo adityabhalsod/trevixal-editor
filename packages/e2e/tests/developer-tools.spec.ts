@@ -239,6 +239,29 @@ test('draws Graphviz and PlantUML diagrams beside Mermaid', async ({ page }) => 
   }
 })
 
+test('edits as Markdown in a box that fills the window, from the first line', async ({ page }) => {
+  const server = await serveDist(distDir)
+  try {
+    // The tour: long enough that a box opened at its end would show the end.
+    await page.goto(server.origin)
+    await page.waitForSelector(surface)
+    await runMenuItem(page, 'tools', 'markdownMode')
+    const box = page.locator('.trevixal-source__text')
+    await expect(box).toBeFocused()
+    const shape = await box.evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      window: window.innerHeight,
+      top: (element as HTMLTextAreaElement).scrollTop,
+      caret: (element as HTMLTextAreaElement).selectionStart,
+    }))
+    expect(shape.height).toBeGreaterThanOrEqual(shape.window * 0.6 - 1)
+    expect([shape.top, shape.caret]).toEqual([0, 0])
+    await page.keyboard.press('Escape')
+  } finally {
+    await server.close()
+  }
+})
+
 test('keeps front matter, and writes and reads MDX', async ({ page }) => {
   const server = await openBlank(page)
   try {

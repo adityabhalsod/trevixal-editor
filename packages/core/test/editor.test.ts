@@ -3,7 +3,8 @@ import { createEditor } from '../src/editor/editor'
 import { Schema } from '../src/model/schema'
 import { defaultMarks, defaultNodes } from '../src/schema/basic'
 import { serializeToHTML } from '../src/serialize/html'
-import { bold, doc, h, p, testSchema, text } from './helpers'
+import { TextSelection } from '../src/state/selection'
+import { blockquote, bold, doc, h, p, testSchema, text } from './helpers'
 
 describe('createEditor', () => {
   it('starts from an empty paragraph by default', () => {
@@ -48,6 +49,17 @@ describe('createEditor', () => {
     editor.commands.toggleMark('bold')
     expect(editor.getSnapshot().activeMarks).toContain('bold')
     expect(editor.getSnapshot().canUndo).toBe(true)
+  })
+
+  it('says when a quote wraps the caret, as it says which list does', () => {
+    const editor = createEditor({
+      schema: testSchema,
+      doc: doc(blockquote(p('Quoted')), p('Plain')),
+    })
+    expect(editor.getSnapshot().blockType).toBe('paragraph')
+    expect(editor.getSnapshot().inBlockquote).toBe(true)
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection({ path: [1], offset: 0 })))
+    expect(editor.getSnapshot().inBlockquote).toBe(false)
   })
 
   it('notifies and unsubscribes listeners', () => {

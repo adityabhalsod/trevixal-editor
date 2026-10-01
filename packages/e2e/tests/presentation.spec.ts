@@ -77,6 +77,57 @@ test('presents the document as slides, with notes, from the keyboard', async ({ 
   }
 })
 
+test('opens on the title, then a slide a section, when one heading heads the rest', async ({
+  page,
+}) => {
+  const server = await openTalk(page)
+  try {
+    await page.locator(`${surface} > h2`).first().click()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.type('# Our plan')
+    await expect(page.locator(`${surface} > h1`)).toHaveText('Our plan')
+    await runMenuItem(page, 'view', 'present')
+    const show = page.getByRole('dialog', { name: 'Presentation' })
+    await expect(show.locator('.trevixal-presentation__title')).toHaveText('Our plan')
+    await expect(show.locator('.trevixal-presentation__counter')).toHaveText('1 / 3')
+    await page.keyboard.press('Escape')
+  } finally {
+    await server.close()
+  }
+})
+
+test('fits a phone: a long line of code wraps instead of widening the slide', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const server = await openTalk(page)
+  try {
+    await page.locator(`${surface} > p`).last().click()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('```')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(
+      'const everyone = ["Ada", "Grace", "Katherine", "Dorothy", "Mary", "Hedy"]',
+    )
+    await runMenuItem(page, 'view', 'present')
+    const show = page.getByRole('dialog', { name: 'Presentation' })
+    await page.keyboard.press('End')
+    await expect(show.locator('pre')).toBeVisible()
+    const widths = await show.evaluate((element) => ({
+      overlay: element.scrollWidth,
+      window: window.innerWidth,
+      pre: element.querySelector('pre')?.scrollWidth ?? 0,
+      box: element.querySelector('pre')?.clientWidth ?? 0,
+    }))
+    expect(widths.overlay).toBeLessThanOrEqual(widths.window)
+    expect(widths.pre).toBeLessThanOrEqual(widths.box)
+    await page.keyboard.press('Escape')
+  } finally {
+    await server.close()
+  }
+})
+
 test('downloads the slides as a PowerPoint deck', async ({ page }) => {
   const server = await openTalk(page)
   try {

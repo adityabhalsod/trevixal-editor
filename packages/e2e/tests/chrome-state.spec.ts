@@ -185,6 +185,13 @@ test('a flagged word explains itself and offers its fix', async ({ page }) => {
   const server = await serveDist(distDir)
   try {
     await page.goto(server.origin)
+    // The tour gives the checks nothing to flag, so write a slip into it.
+    await page
+      .locator('#editor .trevixal-content > p')
+      .first()
+      .click({ position: { x: 4, y: 6 } })
+    await page.keyboard.press('End')
+    await page.keyboard.type(' Read the the notes.')
     const flagged = page.locator('#editor [data-trevixal-issue]').first()
     await expect(flagged).toBeVisible()
 

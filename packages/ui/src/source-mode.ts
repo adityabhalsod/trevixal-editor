@@ -6,6 +6,7 @@ import {
   serializeToHTML,
   serializeToMarkdown,
 } from '@trevixal/core'
+import { caretToStart } from './dialog'
 
 export type SourceFormat = 'markdown' | 'html'
 
@@ -110,7 +111,10 @@ export function createSourceMode(editor: Editor, options: SourceModeOptions = {}
       build()
       view.dom.hidden = true
       if (panel) view.dom.insertAdjacentElement('afterend', panel)
-      textarea?.focus()
+      if (textarea) {
+        textarea.focus()
+        caretToStart(textarea)
+      }
       options.onChange?.(true, format)
     },
     exit(apply = true) {

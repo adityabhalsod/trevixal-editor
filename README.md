@@ -35,7 +35,7 @@ const doc = editor.getJSON() // the document, as data you can store and validate
 | | |
 | --- | --- |
 | **Packages** | 25 under `@trevixal/*`. A headless core, an optional chrome, an assembled editor, five adapters, seventeen extensions; and `create-trevixal-extension` to start one of your own |
-| **Tests** | **3,023 unit** across 209 files · **327 browser** across 48 specs, on Chromium, Firefox and WebKit |
+| **Tests** | **3,051 unit** across 212 files · **333 browser** across 48 specs, on Chromium, Firefox and WebKit |
 | **Engines** | Chromium, Firefox and WebKit, all three driven by the browser suite |
 | **Size** | **49.1 kB** gzipped for the engine; 338.3 kB for the whole assembled editor |
 | **Dependencies** | None at runtime, in any published package |
@@ -373,33 +373,33 @@ file.
 
 | Package | Downloads | Tests | What it is |
 | --- | --- | ---: | --- |
-| [`@trevixal/core`](packages/core) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dcore&label=) | 664 | The engine: immutable `EditorState`, schema-validated documents, nine invertible step types, position mapping, undo history, commands, input rules, sanitizing HTML import, HTML/Markdown/text serializers, clipboard, find & replace, decoration layers, suggestion triggers, format painter, the `beforeinput` + IME view with MutationObserver repair. SSR-safe, `sideEffects: false`. |
-| [`@trevixal/editor-kit`](packages/editor-kit) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Deditor-kit&label=) | 78 | Every package below, assembled: one call builds the menubar, toolbar, status bar, sidebar panels, preview and mirror panes, and wires all twenty extensions to each other. The finished editor, for hosts that do not want to assemble one. |
-| [`@trevixal/ui`](packages/ui) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dui&label=) | 383 | The editing chrome: menubar, grouped toolbar, controls, dialogs, status bar, suggestion popup, command palette, shortcut manager, find & replace, TOC and outline, history panel, autosave and backups, themes/fonts/custom CSS/page view, view modes, source modes, export/import/print plumbing, and the SCSS design system. |
+| [`@trevixal/core`](packages/core) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dcore&label=) | 665 | The engine: immutable `EditorState`, schema-validated documents, nine invertible step types, position mapping, undo history, commands, input rules, sanitizing HTML import, HTML/Markdown/text serializers, clipboard, find & replace, decoration layers, suggestion triggers, format painter, the `beforeinput` + IME view with MutationObserver repair. SSR-safe, `sideEffects: false`. |
+| [`@trevixal/editor-kit`](packages/editor-kit) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Deditor-kit&label=) | 86 | Every package below, assembled: one call builds the menubar, toolbar, status bar, sidebar panels, preview and mirror panes, and wires all twenty extensions to each other. The finished editor, for hosts that do not want to assemble one. |
+| [`@trevixal/ui`](packages/ui) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dui&label=) | 397 | The editing chrome: menubar, grouped toolbar, controls, dialogs, status bar, suggestion popup, command palette, shortcut manager, find & replace, TOC and outline, history panel, autosave and backups, themes/fonts/custom CSS/page view, view modes, source modes, export/import/print plumbing, and the SCSS design system. |
 | [`@trevixal/react`](packages/react) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dreact&label=) | 17 | `useEditor`, `useEditorSnapshot`, `<EditorContent>`, `EditorProvider`, portal node views. |
 | [`@trevixal/vue`](packages/vue) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dvue&label=) | 19 | `useEditor` composable, `useEditorSnapshot`, `<EditorContent>`. |
 | [`@trevixal/svelte`](packages/svelte) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dsvelte&label=) | 8 | `use:trevixalEditor` action and an `editorStore` store contract. |
 | [`@trevixal/angular`](packages/angular) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dangular&label=) | 12 | `createAngularEditor` and `editorSnapshotSignal`. A signal-backed snapshot and view lifecycle. Functions rather than decorators, so it needs no Angular compiler. Zoneless. |
 | [`@trevixal/web-component`](packages/web-component) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dweb-component&label=) | 29 | `<trevixal-editor>` custom element plus a bundler-free IIFE CDN build. |
-| [`@trevixal/extension-table`](packages/extension-table) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-table&label=) | 277 | Tables: structure, merge/split (colspan), header row, alignment, background, borders, sort, resize, CSV in and out, text ↔ table. |
+| [`@trevixal/extension-table`](packages/extension-table) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-table&label=) | 279 | Tables: structure, merge/split (colspan), header row, alignment, background, borders, sort, resize, CSV in and out, text ↔ table. |
 | [`@trevixal/extension-image`](packages/extension-image) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-image&label=) | 107 | Images: pluggable storage, drag/paste/pick upload with progress and cancellation, resize handles, crop, rotate, compress, captions, alignment, a floating toolbar. |
 | [`@trevixal/extension-blocks`](packages/extension-blocks) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-blocks&label=) | 140 | Callouts, toggles, columns, cards, timelines, page breaks, badges, buttons, footnotes and endnotes, tabs, accordions, citations and reference lists, anchors, numbered captions, cross-references, tables of figures and an index, kept current as fields. |
 | [`@trevixal/extension-embed`](packages/extension-embed) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-embed&label=) | 134 | Video, audio, YouTube/Vimeo and allowlisted iframes, file attachments with pluggable storage, link preview cards. |
 | [`@trevixal/extension-math`](packages/extension-math) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-math&label=) | 125 | LaTeX → MathML for inline and display equations, `$…$` input rule, pluggable renderer. |
 | [`@trevixal/extension-diagram`](packages/extension-diagram) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-diagram&label=) | 36 | Live diagram previews under code blocks through any renderer; Mermaid adapter and lazy CDN loader included. |
-| [`@trevixal/extension-export`](packages/extension-export) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-export&label=) | 394 | DOCX and RTF writers and a DOCX reader, with their own ZIP and XML implementations; themed, with highlighted code and embedded diagrams. |
-| [`@trevixal/extension-comments`](packages/extension-comments) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-comments&label=) | 5 | Comment threads on a selection, replies, resolving, `@mentions` from a host list and a notifications hook, saved with the document and carried into `.docx` comments. |
+| [`@trevixal/extension-export`](packages/extension-export) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-export&label=) | 395 | DOCX and RTF writers and a DOCX reader, with their own ZIP and XML implementations; themed, with highlighted code and embedded diagrams. |
+| [`@trevixal/extension-comments`](packages/extension-comments) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-comments&label=) | 6 | Comment threads on a selection, replies, resolving, `@mentions` from a host list and a notifications hook, saved with the document and carried into `.docx` comments. |
 | [`@trevixal/extension-forms`](packages/extension-forms) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-forms&label=) | 6 | Fields in the text (text box, tick box, drop-down, date, signature) filled in by click or key, a fillable PDF form with real AcroForm fields, and mail merge from CSV or JSON into one document a row. |
 | [`create-trevixal-extension`](packages/create-trevixal-extension) | ![](https://img.shields.io/npm/dm/create-trevixal-extension?label=) | 10 | `npm create trevixal-extension <name>`: a new extension package with its node type, commands, menu entry and tests, laid out as the shipped extensions are; its tests pass and it typechecks as made. |
 | [`@trevixal/extension-security`](packages/extension-security) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-security&label=) | 84 | PBKDF2 + AES-GCM document encryption with expiry, an encrypted key-value storage wrapper, copy/cut/paste/print/download/context-menu restrictions. |
-| [`@trevixal/extension-writing`](packages/extension-writing) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-writing&label=) | 132 | Readability, passive voice, repeated words, long sentences, grammar rules, keyword density, reading/speaking time, goals, spell-check toggle. |
+| [`@trevixal/extension-writing`](packages/extension-writing) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-writing&label=) | 133 | Readability, passive voice, repeated words, long sentences, grammar rules, keyword density, reading/speaking time, goals, spell-check toggle. |
 | [`@trevixal/extension-workspace`](packages/extension-workspace) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-workspace&label=) | 152 | A document store with folders, templates, recents and favourites; a tab strip; a workspace panel; a split preview or mirrored second editor. |
 | [`@trevixal/extension-track-changes`](packages/extension-track-changes) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-track-changes&label=) | 52 | Suggestion mode: attributed, timestamped `ins`/`del` marks; accept and reject one or all; a review bar. |
 | [`@trevixal/extension-code-highlight`](packages/extension-code-highlight) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-code-highlight&label=) | 85 | Twelve bundled languages behind one `Highlighter` interface, language detection, copy-code buttons. Rendered as decorations. |
 | [`@trevixal/extension-format-code`](packages/extension-format-code) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-format-code&label=) | 34 | JSON and XML pretty-printing and minification, in place, for the code block at the caret. |
 | [`@trevixal/extension-slash-command`](packages/extension-slash-command) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-slash-command&label=) | 20 | The `/` menu: fuzzy filtering, keyboard-first, an extensible item list. |
 | [`@trevixal/extension-emoji`](packages/extension-emoji) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-emoji&label=) | 20 | The `:` picker with 114 built-in emoji and search. |
-| `@trevixal/e2e` *(private)* | — | 327 browser | The Playwright suite and its self-contained test pages. |
+| `@trevixal/e2e` *(private)* | — | 333 browser | The Playwright suite and its self-contained test pages. |
 | `@trevixal/example-*` *(private)* | — | — | [Eleven example apps](examples/README.md), each running the assembled editor, nine from a framework's lifecycle, two from none. |
 
 **What it costs** (`pnpm size`, minified and gzipped as a bundler would ship
@@ -1771,23 +1771,23 @@ this file. Two suites, split by what they can actually see: anything that
 needs a real browser (layout, scroll anchoring, focus, composition, printing,
 a `.docx` read back) is a browser test, and everything else is a unit test.
 
-### Unit tests: 3,023 across 26 packages
+### Unit tests: 3,051 across 26 packages
 
 | Package | Tests | Package | Tests |
 | --- | ---: | --- | ---: |
-| core | 664 | extension-track-changes | 52 |
-| extension-export | 394 | extension-diagram | 36 |
-| ui | 383 | extension-format-code | 34 |
-| extension-table | 277 | web-component | 29 |
+| core | 665 | extension-track-changes | 52 |
+| ui | 397 | extension-diagram | 36 |
+| extension-export | 395 | extension-format-code | 34 |
+| extension-table | 279 | web-component | 29 |
 | extension-workspace | 152 | extension-slash-command | 20 |
 | extension-blocks | 140 | extension-emoji | 20 |
 | extension-embed | 134 | vue | 19 |
-| extension-writing | 132 | react | 17 |
+| extension-writing | 133 | react | 17 |
 | extension-math | 125 | angular | 12 |
 | extension-image | 107 | create-trevixal-extension | 10 |
-| extension-code-highlight | 85 | svelte | 8 |
-| extension-security | 84 | extension-forms | 6 |
-| editor-kit | 78 | extension-comments | 5 |
+| editor-kit | 86 | svelte | 8 |
+| extension-code-highlight | 85 | extension-forms | 6 |
+| extension-security | 84 | extension-comments | 6 |
 
 Vitest, with happy-dom where a DOM is needed.
 
@@ -1801,11 +1801,11 @@ non-subscribing React sibling renders **zero** times while typing; SSR import
 tests for React, Vue and the web component; and the `review-2.test.ts` files, which were written
 as hypotheses by review passes and then corrected against real behaviour.
 
-### Browser tests: 327 across 48 specs, each run on Chromium, Firefox and WebKit
+### Browser tests: 333 across 48 specs, each run on Chromium, Firefox and WebKit
 
 | Spec | Tests | Covers |
 | --- | ---: | --- |
-| `feature-set.spec.ts` | 36 | The built demo through its own menus: every new node kind renders; every menu offers its features; tabs switch and write to the document; theme presets repaint; the shortcut manager rebinds; statistics; passive voice; the review bar; autosave; spell check toggles, reports and re-checks; menu labels stay readable in every theme; every entry has an icon; the palette matches the menus; menus stay on one line and on screen; a real `.docx` reads back; **exports carry the theme, the highlighting and the diagram** to the page and to Word; a saved page works from disk; print preview prints the theme and reveals tabs; Markdown export; slash `/tab` → table; emoji `:smi`; new-tab links carry `rel="noopener noreferrer"`; protection encrypts the autosave; a blocked copy says so; the sidebar comes and goes with its panels; read-only locks and unlocks; a Word paste arrives without its stylesheet and a Google Docs paste is not bold end to end |
+| `feature-set.spec.ts` | 37 | The built demo through its own menus: every new node kind renders; every menu offers its features; tabs switch and write to the document; theme presets repaint; the shortcut manager rebinds; statistics; passive voice; the review bar; autosave; spell check toggles, reports and re-checks; menu labels stay readable in every theme; every entry has an icon; the palette matches the menus; menus stay on one line and on screen; a real `.docx` reads back; **exports carry the theme, the highlighting and the diagram** to the page and to Word; a saved page works from disk; print preview prints the theme and reveals tabs; Markdown export; slash `/tab` → table; emoji `:smi`; new-tab links carry `rel="noopener noreferrer"`; protection encrypts the autosave; a blocked copy says so; the sidebar comes and goes with its panels; read-only locks and unlocks; a Word paste arrives without its stylesheet and a Google Docs paste is not bold end to end |
 | `full-editor-example.spec.ts` | 11 | The demo boots on its seeded document with its complete chrome; the cell toolbar appears only inside a table and offers every operation; the language picker floats over the block at the caret and lists every language; every menu item has an icon; code highlights; the format painter copies formatting |
 | `editor-ui.spec.ts` | 11 | Every control renders and drives the editor: a menu opens, runs and closes; the block, font-size and colour controls; alignment and indent; the table grid; the link dialog and character picker; image upload with progress; the status bar; clear formatting |
 | `chrome-state.spec.ts` | 12 | The chrome tells the truth about itself and stays where it was put: menus report what is on; the command palette leaves the page where it found it; every scrollbar follows the theme; both split panes show what the editor shows, diagrams, colours, tab strips and all; **the two panes scroll together**; a typed space appears at once; typing rewrites no attribute on a block it did not touch |
@@ -1820,19 +1820,19 @@ as hypotheses by review passes and then corrected against real behaviour.
 | `typing.spec.ts` | 5 | Typing, Enter/Backspace, `Mod-b`, undo/redo, caret sync |
 | `features.spec.ts` | 5 | Input rules: heading, bullet-list flow, Tab nesting, blockquote and em dash, and undo of a rule as its own step |
 | `track-changes.spec.ts` | 4 | Suggest, strike-through, accept all, reject all |
-| `accessibility.spec.ts` | 4 | axe-core audits over the editor and its chrome on load, with a menu open, with a dialog open, and in the dark theme with contrast included |
+| `accessibility.spec.ts` | 5 | axe-core audits over the editor and its chrome on load, with a menu open, with a dialog open, with the command palette open, and in the dark theme with contrast included |
 | `toolbar-reorder.spec.ts` | 3 | Drag a group by its grip and remember it; a bare click moves nothing; Space + arrows from the keyboard |
 | `docs.spec.ts` | 5 | The documentation site builds and serves, and its playground runs the real CDN bundle from this checkout |
 | `document-structure.spec.ts` | 12 | Heading numbers in every scheme; captions, cross-references, a table of figures, an index and endnotes; line numbers in the margin on screen and in the print, drop caps included; right to left; the block menu |
 | `table-tools.spec.ts` | 11 | AutoFit, distribute rows and columns, fixed widths; Draw table splits only the cells a line crosses, draws a new table, and the Eraser takes a line out; one undo each |
 | `media-tools.spec.ts` | 9 | A gallery, alt text and the lightbox, camera photos, image markup, audio recording with a waveform, video chapters, more embed providers, and the whiteboard |
 | `lists-and-tables.spec.ts` | 9 | Task counts, due dates and assignees; folding; sorting lists; frozen header rows and first columns; writer-defined multilevel lists; nested tables; captions and header rows repeated in print |
-| `developer-tools.spec.ts` | 9 | Code block line numbers, highlighted lines, wrap, titles and folding; diff and terminal blocks; running JavaScript and HTML; Vim and Emacs keys; front matter and MDX; Graphviz and PlantUML; numbered equations and chemistry |
+| `developer-tools.spec.ts` | 10 | Code block line numbers, highlighted lines, wrap, titles and folding; diff and terminal blocks; running JavaScript and HTML; Vim and Emacs keys; front matter and MDX; Graphviz and PlantUML; numbered equations and chemistry |
 | `cell-selection.spec.ts` | 9 | Clicks, double clicks and drags select cells and rectangles; merge acts on them; typing over a selection empties the cells and keeps the table |
 | `list-numbering.spec.ts` | 8 | Every multilevel scheme numbers its levels; the gallery marks the current scheme; an indented item takes the next level; a list’s own marker still wins |
 | `writing-assistance.spec.ts` | 7 | Inclusive wording, tone and clichés; the reading heat map; synonyms on right-click; the accessibility check; duplicate text across the workspace; citation styles from BibTeX; the writing assistant |
 | `table-design.spec.ts` | 7 | The Table design gallery and style options (header row, banding, first column, total row), the pen and the Border Painter, the Table menu ticks, one undo |
-| `data-tables.spec.ts` | 7 | Formulas that recompute, column types, checkboxes, filters, hidden columns, and a chart drawn from a table |
+| `data-tables.spec.ts` | 8 | Formulas that recompute, column types, checkboxes, filters, hidden columns, and a chart drawn from a table |
 | `productivity.spec.ts` | 6 | The palette prints the keys that fire; quick insert and its tray; the slash menu; Ctrl+F and the emoji key on a fresh page; custom paragraph keys; Customize toolbar and fullscreen |
 | `productivity-tools.spec.ts` | 6 | Go to a heading, bookmark or line; snippets; macros; multiple carets; recent documents in the palette; paste special |
 | `formatting-tools.spec.ts` | 6 | Hyphenation, widow control and text columns; tab stops with leaders on screen and in print; borders, shading and drop caps; AutoCorrect; the Styles pane |
@@ -1848,7 +1848,7 @@ as hypotheses by review passes and then corrected against real behaviour.
 | `trust.spec.ts` | 3 | Signing a document and noticing a later change, the audit log, and a passkey beside the password |
 | `security-privacy.spec.ts` | 3 | Redaction that copies, prints and downloads only a stand-in; a locked section; printing under a watermark; locking when asked or left idle |
 | `speech.spec.ts` | 2 | Dictation types at the caret; reading aloud moves the caret with the voice |
-| `presentation.spec.ts` | 2 | Presenting the document as slides with notes from the keyboard, and the PowerPoint download |
+| `presentation.spec.ts` | 4 | Presenting the document as slides with notes from the keyboard, and the PowerPoint download |
 | `long-documents.spec.ts` | 2 | Only what is on screen is laid out, pictures load as they near it, and a Word download is written in a worker |
 | `comments.spec.ts` | 2 | Comments on a selection, replies, resolving, the thread kept in the file, and a comment asked for without a selection |
 | `offline-app.spec.ts` | 1 | The full editor installs, and opens and works with no network at all |

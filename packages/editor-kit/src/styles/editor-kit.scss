@@ -459,11 +459,21 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   &__slide {
     align-self: center;
     justify-self: center;
+    // The slide is also document content, which brings padding and a
+    // border; counted inside the width, so 92vw stays within a phone.
+    box-sizing: border-box;
     width: min(1000px, 92vw);
     max-height: 80vh;
     overflow: auto;
     font-size: clamp(1rem, 2.2vw, 1.8rem);
     cursor: pointer;
+
+    // Code wraps on a slide: a strip that scrolls sideways cannot be reached
+    // from the keyboard, which moves between slides.
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
   }
 
   &__title {

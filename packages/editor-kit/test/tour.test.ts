@@ -1,6 +1,7 @@
 import { createEditor, serializeToHTML } from '@trevixal/core'
 import { fieldSteps } from '@trevixal/extension-blocks'
 import { formulaSteps } from '@trevixal/extension-table'
+import { createWritingAssistant } from '@trevixal/extension-writing'
 import { afterAll, describe, expect, test } from 'vitest'
 import { initialContent } from '../src/content'
 import { createFullSchema } from '../src/schema'
@@ -16,6 +17,14 @@ const html = serializeToHTML(editor.state.doc)
 afterAll(() => editor.destroy())
 
 describe('the tour', () => {
+  test('gives the writing checks nothing to underline, in any app it opens in', () => {
+    // The kit's own settings: an underline in the tour reads as a fault in it.
+    const writing = createWritingAssistant(editor, { longSentences: true })
+    const flagged = writing.refresh().issues.map((issue) => `${issue.kind}: ${issue.text}`)
+    writing.destroy()
+    expect(flagged).toEqual([])
+  })
+
   test('arrives with its fields already worked out, so opening it edits nothing', () => {
     // A server that renders it without the kit, as `examples/ssr` does,
     // shows the numbers too; the updater finds nothing to change on load.

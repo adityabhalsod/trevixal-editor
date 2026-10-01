@@ -4,6 +4,7 @@ import {
   type EditorNode,
   type EditorState,
   Fragment,
+  NodeSelection,
   ReplaceNodesStep,
   SetNodeAttrsStep,
   TextSelection,
@@ -768,6 +769,8 @@ interface WiredActions {
   readonly byName: ReadonlyMap<string, (editor: Editor) => void>
   /** Checked-state readers for host toggles that leave the document alone. */
   readonly activeByName: ReadonlyMap<string, () => boolean>
+  /** Whether the selection is in a table, which most Table menu entries need. */
+  readonly inTable: () => boolean
   readonly link: (editor: Editor) => void
   readonly image: (editor: Editor) => void
   readonly table: (editor: Editor, rows: number, cols: number) => void
@@ -993,13 +996,12 @@ function createActions(
     })
   })
   byName.set('wordCount', (target) => {
-    void openDialog({
+    void openInfoDialog({
       document,
       title: 'Word count',
-      submitLabel: 'Close',
-      fields: [
-        { name: 'words', label: 'Words', value: String(target.getWordCount()) },
-        { name: 'characters', label: 'Characters', value: String(target.getCharacterCount()) },
+      rows: [
+        { term: 'Words', description: String(target.getWordCount()) },
+        { term: 'Characters', description: String(target.getCharacterCount()) },
       ],
     })
   })
@@ -1211,7 +1213,7 @@ function createActions(
           submitLabel: 'Insert',
           fields: [
             { name: 'label', label: 'Label', type: 'text', required: true },
-            { name: 'tone', label: 'Tone', type: 'text', value: 'neutral' },
+            { name: 'tone', label: 'Tone', type: 'select', value: 'neutral', options: BADGE_TONES },
           ],
         }).then((values) => {
           target.view?.focus()
@@ -1699,6 +1701,14 @@ function createActions(
     if (chapters && chaptersAt) {
       byName.set('videoChapters', (target) => {
         const current = chaptersAt(target.state)
+        if (current === null) {
+          void openInfoDialog({
+            document,
+            title: 'Video chapters',
+            body: 'Select a video first: click it, then choose Video chapters again.',
+          })
+          return
+        }
         // The video is the one selected now; focus coming back after the
         // dialog can turn that selection into a caret beside it.
         const selection = target.state.selection
@@ -1706,25 +1716,19 @@ function createActions(
           document,
           title: 'Video chapters',
           submitLabel: 'Save',
-          body:
-            current === null
-              ? 'Select a video first: click it, then choose Video chapters again.'
-              : 'One chapter a line, its start then its title, as a video description lists them.',
-          fields:
-            current === null
-              ? []
-              : [
-                  {
-                    name: 'chapters',
-                    label: 'Chapters',
-                    type: 'textarea',
-                    value: current,
-                    placeholder: '0:00 Introduction\n1:30 Setting up',
-                  },
-                ],
+          body: 'One chapter a line, its start then its title, as a video description lists them.',
+          fields: [
+            {
+              name: 'chapters',
+              label: 'Chapters',
+              type: 'textarea',
+              value: current,
+              placeholder: '0:00 Introduction\n1:30 Setting up',
+            },
+          ],
         }).then((values) => {
           target.view?.focus()
-          if (!values || current === null) return
+          if (!values) return
           target.exec((state) => state.tr.setSelection(selection))
           target.exec(chapters(values.chapters ?? ''))
         })
@@ -1966,7 +1970,21 @@ function createActions(
     }
   }
 
-  return { byName, activeByName, link, image, table }
+  return { byName, activeByName, inTable: () => selectionInTable(editor), link, image, table }
+}
+
+/**
+ * Whether the selection sits in a table, or is one. A schema with no `table`
+ * node names its tables otherwise, so nothing can be said and nothing greys.
+ */
+function selectionInTable(editor: Editor): boolean {
+  if (!editor.schema.nodes.table) return true
+  const selection = editor.state.selection
+  const path = selection instanceof NodeSelection ? selection.path : selection.from.path
+  for (let depth = path.length; depth > 0; depth--) {
+    if (nodeAtPath(editor.state.doc, path.slice(0, depth))?.type.name === 'table') return true
+  }
+  return false
 }
 
 /** A place a link can point at inside the document: a heading with an id, or an anchor. */
@@ -2341,27 +2359,56 @@ function tableDesignCommands(commands: TableCommands | undefined): TableDesignCo
  * outright, along with any submenu and any separator run it leaves behind.
  */
 function withActions(menus: readonly Menu[], actions: WiredActions): readonly Menu[] {
-  const wire = (item: MenuItem): MenuItem | null => {
+  const wire = (item: MenuItem, needsTable: boolean): MenuItem | null => {
     if (item.separator) return item
     if (item.items) {
-      const items = item.items.map(wire).filter((entry): entry is MenuItem => entry !== null)
+      const items = item.items
+        .map((entry) => wire(entry, needsTable))
+        .filter((entry): entry is MenuItem => entry !== null)
       return hasAction(items) ? { ...item, items: tidySeparators(items) } : null
     }
     if (item.run) return item
     const handler = actions.byName.get(item.name)
     if (!handler) return null
     const active = actions.activeByName.get(item.name)
-    return active ? { ...item, run: handler, isActive: () => active() } : { ...item, run: handler }
+    const wired = active
+      ? { ...item, run: handler, isActive: () => active() }
+      : { ...item, run: handler }
+    // Greyed out away from a table, as Word's are, rather than doing nothing.
+    return needsTable && !MAKES_A_TABLE.has(item.name) && !item.isEnabled
+      ? { ...wired, isEnabled: () => actions.inTable() }
+      : wired
   }
   return menus
     .map((menu) => ({
       ...menu,
       items: tidySeparators(
-        menu.items.map(wire).filter((entry): entry is MenuItem => entry !== null),
+        menu.items
+          .map((entry) => wire(entry, menu.name === 'table'))
+          .filter((entry): entry is MenuItem => entry !== null),
       ),
     }))
     .filter((menu) => hasAction(menu.items))
 }
+
+/** The Table menu entries that make a table, or pick up a tool for one, anywhere. */
+const MAKES_A_TABLE = new Set([
+  'insertTable',
+  'drawTable',
+  'tableEraser',
+  'borderPainter',
+  'convertTextToTable',
+  'importCsv',
+])
+
+/** The tones a badge is drawn in; any other word would come out neutral. */
+const BADGE_TONES = [
+  { value: 'neutral', label: 'Neutral' },
+  { value: 'info', label: 'Info' },
+  { value: 'success', label: 'Success' },
+  { value: 'warning', label: 'Warning' },
+  { value: 'danger', label: 'Danger' },
+]
 
 /** The menu entries that start, stop and play a macro, which a macro does not record. */
 const MACRO_ENTRIES = new Set(['macroRecord', 'macroPlay'])

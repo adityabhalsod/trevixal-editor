@@ -56,6 +56,13 @@ test('shows the chrome in another language, mirrored for Arabic, and remembers i
     await expect(
       page.locator('#chrome .trevixal-toolbar [data-trevixal-item="bold"]'),
     ).toHaveAttribute('aria-label', 'Fett')
+    // The toolbar's lists too, and what they show: the Format menu's words.
+    const list = (name: string) =>
+      page.locator(
+        `#chrome .trevixal-toolbar [data-trevixal-item="${name}"] .trevixal-select__label`,
+      )
+    await expect(list('fontFamily')).toHaveText('Schrift')
+    await expect(list('blockFormat')).toHaveText('Absatz')
 
     await runMenuItem(page, 'view', 'language-ar')
     await expect(file).toHaveText('ملف')

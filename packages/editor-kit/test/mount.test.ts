@@ -37,6 +37,20 @@ test('opens the document it was given rather than the tour', () => {
   expect(mounted.editor.getText()).toBe('Only this.')
 })
 
+test('shows the History panel on the first View ▸ History, and hides it on the next', () => {
+  mounted = mountFullEditor({ element: host })
+  const entry = host.querySelector<HTMLButtonElement>('[data-trevixal-item="historyPanel"]')
+  const panel = () => host.querySelector<HTMLElement>('.trevixal-history')
+  const section = () => panel()?.parentElement ?? null
+  entry?.click()
+  expect(panel()).not.toBeNull()
+  expect(section()?.hidden).toBe(false)
+  expect(entry?.getAttribute('aria-checked')).toBe('true')
+  entry?.click()
+  expect(panel()).toBeNull()
+  expect(entry?.getAttribute('aria-checked')).toBe('false')
+})
+
 test('keeps two namespaces out of each other saved preferences', () => {
   window.localStorage.setItem('one:preferences', JSON.stringify({ theme: 'dark', preset: null }))
   mounted = mountFullEditor({ element: host, namespace: 'two' })

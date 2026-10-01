@@ -3,8 +3,10 @@ import type { EditorNode } from '@trevixal/core'
 /**
  * A document as slides: each top-level heading starts one, at the highest
  * level the document has, so a talk written with level-two headings works
- * as well as one with level-one. Note callouts are the speaker's notes: they
- * leave the slide and go to its notes instead.
+ * as well as one with level-one. A level used only once is the document's
+ * title: it opens the talk, and the slides split at the level below it.
+ * Note callouts are the speaker's notes: they leave the slide and go to its
+ * notes instead.
  */
 
 export interface Slide {
@@ -21,15 +23,19 @@ function isNote(block: EditorNode): boolean {
   return block.type.name === 'callout' && block.attrs.variant === 'note'
 }
 
-/** The heading level slides split at: the highest one the document uses. */
+/**
+ * The heading level slides split at: the highest one the document uses more
+ * than once, or the highest one when every level is used once.
+ */
 function slideLevel(doc: EditorNode): number | null {
-  let level: number | null = null
+  const counts = new Map<number, number>()
   for (const block of doc.content.children) {
     if (block.type.name !== 'heading') continue
-    const each = Number(block.attrs.level) || 1
-    level = level === null ? each : Math.min(level, each)
+    const level = Number(block.attrs.level) || 1
+    counts.set(level, (counts.get(level) ?? 0) + 1)
   }
-  return level
+  const levels = [...counts.keys()].sort((a, b) => a - b)
+  return levels.find((level) => (counts.get(level) ?? 0) > 1) ?? levels[0] ?? null
 }
 
 /** The slides a document makes, in order. A document with no headings is one slide. */
@@ -38,7 +44,9 @@ export function documentSlides(doc: EditorNode): Slide[] {
   const slides: { title: string; blocks: EditorNode[]; notes: string[] }[] = []
   let current: { title: string; blocks: EditorNode[]; notes: string[] } | null = null
   for (const block of doc.content.children) {
-    const starts = block.type.name === 'heading' && Number(block.attrs.level) === level
+    // A title above the split level opens a slide of its own.
+    const starts =
+      block.type.name === 'heading' && level !== null && (Number(block.attrs.level) || 1) <= level
     if (starts || !current) {
       current = { title: starts ? block.textContent.trim() : '', blocks: [], notes: [] }
       slides.push(current)

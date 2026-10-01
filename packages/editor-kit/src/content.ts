@@ -328,7 +328,7 @@ export const initialContent = {
       attrs: { open: true },
       content: [
         { type: 'toggleSummary', content: [{ type: 'text', text: 'A collapsible section' }] },
-        { type: 'toggleContent', content: [paragraph('Hidden until the summary is clicked.')] },
+        { type: 'toggleContent', content: [paragraph('Click the summary to show or hide this.')] },
       ],
     },
     {
@@ -393,7 +393,7 @@ export const initialContent = {
         { type: 'math', attrs: { latex: 'e^{i\\pi} + 1 = 0' } },
         { type: 'text', text: ', chemistry too: ' },
         { type: 'math', attrs: { latex: '\\ce{2H2 + O2 -> 2H2O}' } },
-        { type: 'text', text: '. On their own line they can be numbered:' },
+        { type: 'text', text: '. On their own line they take a number:' },
       ],
     },
     {
@@ -674,7 +674,7 @@ export const initialContent = {
             {
               type: 'accordionContent',
               content: [
-                paragraph('Native <details> elements whose folding is written back to the model.'),
+                paragraph('Native <details> elements: the model keeps which ones are open.'),
               ],
             },
           ],

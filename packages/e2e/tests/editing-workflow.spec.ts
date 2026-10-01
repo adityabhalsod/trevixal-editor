@@ -97,6 +97,16 @@ test('saves a named version and compares it with the document now, and two versi
     )
     await comparison.getByRole('button', { name: 'Close' }).click()
 
+    // Nothing is ticked yet, so Compare the two can do nothing, and looks it.
+    const compareTwo = versions.getByRole('button', { name: 'Compare the two' })
+    await expect(compareTwo).toBeDisabled()
+    expect(
+      await compareTwo.evaluate((button) => Number(getComputedStyle(button).opacity)),
+    ).toBeLessThan(1)
+    expect(await compareTwo.evaluate((button) => getComputedStyle(button).cursor)).toBe(
+      'not-allowed',
+    )
+
     // A second version from the dialog itself, and the two compared.
     await versions.locator('[name="versionName"]').fill('Draft 2')
     await versions.getByRole('button', { name: 'Save version' }).click()

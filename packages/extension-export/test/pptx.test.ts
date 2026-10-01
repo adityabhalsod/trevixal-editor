@@ -49,6 +49,20 @@ describe('slides from a document', () => {
     expect(slides[1]?.blocks.map((block) => block.type.name)).toEqual(['paragraph'])
     expect(slides[2]?.blocks.map((block) => block.type.name)).toEqual(['bulletList', 'heading'])
   })
+
+  it('make a lone title the opening slide and split at the sections under it', () => {
+    const report = schema.node('doc', undefined, [
+      h(1, 'Quarterly report'),
+      p(text('For the board.')),
+      h(2, 'Sales'),
+      p(text('Up a tenth.')),
+      h(2, 'Hiring'),
+      p(text('Four joined.')),
+    ])
+    const slides = documentSlides(report)
+    expect(slides.map((slide) => slide.title)).toEqual(['Quarterly report', 'Sales', 'Hiring'])
+    expect(slides[0]?.blocks.map((block) => block.textContent)).toEqual(['For the board.'])
+  })
 })
 
 describe('the PowerPoint file', () => {

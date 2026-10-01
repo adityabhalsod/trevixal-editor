@@ -9,6 +9,7 @@ import {
   listNumberingAt,
 } from '@trevixal/core'
 import { bindListNavigation, createDropdown } from './dropdown'
+import { ARIA_SUFFIX, type Translator } from './i18n'
 import { createIcon } from './icons'
 
 /** A choice in a toolbar select (block format, font family, font size). */
@@ -29,36 +30,50 @@ export interface SelectControlOptions {
   readonly ariaLabel: string
   /** Fixed trigger width, e.g. `"7.5rem"`, so the toolbar does not reflow. */
   readonly width?: string
+  /**
+   * The catalogue key a choice is translated under, where the same choice
+   * has one already: the Format menu's `menu.styleHeading1` for Heading 1.
+   */
+  readonly optionKey?: (value: string) => string
 }
 
 export interface Control {
   readonly element: HTMLElement
   refresh(snapshot: EditorSnapshot): void
+  /** Relabel in a catalogue's words: `key` for the name, `key.aria` for the spoken one. */
+  relabel?(translate: Translator, key: string): void
   destroy(): void
 }
 
 /** A labelled dropdown that reflects and sets one value. */
 export function createSelectControl(options: SelectControlOptions): Control {
   const { document } = options
+  let placeholder = options.placeholder
+  let ariaLabel = options.ariaLabel
+  /** Each choice's label, in the language the chrome is in. */
+  const optionLabels = new Map(options.options.map((option) => [option.value, option.label]))
+  let value: string | null = null
   const label = document.createElement('span')
   label.className = 'trevixal-select__label'
-  label.textContent = options.placeholder
+  label.textContent = placeholder
 
   const buttons = new Map<string, HTMLButtonElement>()
+  let listbox: HTMLElement | null = null
   let releaseNavigation: (() => void) | null = null
   const dropdown = createDropdown({
     document,
     className: 'trevixal-select',
     render: (panel, self) => {
+      listbox = panel
       panel.setAttribute('role', 'listbox')
-      panel.setAttribute('aria-label', options.ariaLabel)
+      panel.setAttribute('aria-label', ariaLabel)
       for (const option of options.options) {
         const button = document.createElement('button')
         button.type = 'button'
         button.className = 'trevixal-select__option'
         button.setAttribute('role', 'option')
         button.dataset.value = option.value
-        button.textContent = option.label
+        button.textContent = optionLabels.get(option.value) ?? option.label
         if (option.previewStyle) button.setAttribute('style', option.previewStyle)
         button.addEventListener('click', () => {
           self.close()
@@ -72,21 +87,42 @@ export function createSelectControl(options: SelectControlOptions): Control {
   })
 
   dropdown.trigger.append(label, chevron(document))
-  dropdown.trigger.setAttribute('aria-label', options.ariaLabel)
+  dropdown.trigger.setAttribute('aria-label', ariaLabel)
   if (options.width) dropdown.trigger.style.width = options.width
+
+  const showValue = (): void => {
+    // A value the offered list does not carry, a 13pt size pasted in from
+    // elsewhere, is still what the document says. Falling back to the
+    // placeholder would claim nothing is set at all.
+    label.textContent = (value ? optionLabels.get(value) : undefined) ?? value ?? placeholder
+  }
 
   return {
     element: dropdown.element,
     refresh(snapshot) {
-      const value = options.valueOf(snapshot)
-      const match = value ? options.options.find((entry) => entry.value === value) : undefined
-      // A value the offered list does not carry, a 13pt size pasted in from
-      // elsewhere, is still what the document says. Falling back to the
-      // placeholder would claim nothing is set at all.
-      label.textContent = match?.label ?? value ?? options.placeholder
+      value = options.valueOf(snapshot)
+      showValue()
       for (const [candidate, button] of buttons) {
         button.setAttribute('aria-selected', String(candidate === value))
       }
+    },
+    relabel(translate, key) {
+      placeholder = translate(key, options.placeholder)
+      // A spoken name the same as the label has no key of its own: it follows
+      // the label, as a toolbar button's does.
+      const spoken = options.ariaLabel === options.placeholder ? placeholder : options.ariaLabel
+      ariaLabel = translate(`${key}${ARIA_SUFFIX}`, spoken)
+      dropdown.trigger.setAttribute('aria-label', ariaLabel)
+      listbox?.setAttribute('aria-label', ariaLabel)
+      for (const option of options.options) {
+        const text = options.optionKey
+          ? translate(options.optionKey(option.value), option.label)
+          : option.label
+        optionLabels.set(option.value, text)
+        const button = buttons.get(option.value)
+        if (button) button.textContent = text
+      }
+      showValue()
     },
     destroy() {
       releaseNavigation?.()
@@ -528,6 +564,8 @@ export function defaultFontSizes(): readonly SelectOption[] {
 /** Resolve the block-format select value from a snapshot. */
 export function blockFormatValue(snapshot: EditorSnapshot): string | null {
   if (!snapshot.blockType) return null
+  // The paragraph inside a quote reads as the quote, the block it is in.
+  if (snapshot.inBlockquote && snapshot.blockType === 'paragraph') return 'blockquote'
   if (snapshot.blockType === 'heading') {
     const level = snapshot.blockAttrs?.level
     return typeof level === 'number' ? `heading:${level}` : 'heading:1'

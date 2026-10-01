@@ -108,7 +108,9 @@ Draw table, Eraser and Border painter are tools rather than commands: picking
 one hands it to the pointer, and the entry shows a tick until you pick it
 again or press `Escape`. The table style, style options, line style, line
 weight, freeze, cell padding and vertical alignment entries tick what the
-table at the caret has.
+table at the caret has. The entries that work on a table are greyed out
+until the caret is in one; Insert table, Draw table, the Eraser, the Border
+painter, Convert text to table and Import CSV work anywhere.
 
 ## View
 

@@ -224,6 +224,13 @@ test.describe('the assembled feature set', () => {
     const server = await serveDist(distDir)
     try {
       await page.goto(server.origin)
+      // The tour is written in the active voice, so give the check a passive.
+      await page
+        .locator('#editor .trevixal-content > p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await page.keyboard.press('End')
+      await page.keyboard.type(' The report was written by Sam.')
       const flagged = page.locator('#editor .trevixal-writing--passive')
       await expect(flagged.first()).toBeVisible()
       // Decorations never enter the document, so the serialized output has none.
@@ -1167,6 +1174,26 @@ test.describe('links, security and the second surface', () => {
 
       await runMenuItem(page, 'view', 'workspacePanel')
       await expect(sidebar).toBeVisible()
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('View ▸ History shows the steps at once, and hides them again', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await page
+        .locator('#editor .trevixal-content > p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await page.keyboard.type('New words ')
+      await runMenuItem(page, 'view', 'historyPanel')
+      const history = page.locator('.trevixal-history')
+      await expect(history).toBeVisible()
+      await expect(history).toContainText('Typing')
+      await runMenuItem(page, 'view', 'historyPanel')
+      await expect(history).toHaveCount(0)
     } finally {
       await server.close()
     }

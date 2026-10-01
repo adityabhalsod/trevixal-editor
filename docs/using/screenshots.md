@@ -162,6 +162,55 @@ The toolbar along the bottom of a phone, and the formatting bubble, as
 
 <ScreenshotGallery :shots="phone" />
 
+## Everyday editing
+
+The editor as it opens, the toolbar’s lists and pickers, the slash menu, quick
+insert, the command palette, find and replace, emoji and symbols, and the
+counts, as [A tour of the editor](./tour) and
+[Keyboard and typing shortcuts](./shortcuts) describe them.
+
+<ScreenshotGallery :shots="everyday" />
+
+## Themes and views
+
+The themes, focus mode, the side-by-side preview, read-only mode, and the
+document as Markdown or HTML, as [Appearance](./appearance) describes them.
+
+<ScreenshotGallery :shots="views" />
+
+## Blocks in the tour
+
+The tour every example opens with: tasks, callouts, columns and cards,
+typography, equations, diagrams, tabs and accordions, as
+[A tour of the editor](./tour) describes them.
+
+<ScreenshotGallery :shots="tourBlocks" />
+
+## Tables and lists, day to day
+
+The Table menu at a table, table design, a rectangle of cells merged, and the
+multilevel list gallery, as [Lists and tables](./lists-and-tables) describes
+them.
+
+<ScreenshotGallery :shots="tableBasics" />
+
+## Suggestions, history and several documents
+
+Suggesting mode and the review bar, the history of changes, the workspace’s
+documents and tabs, and a split view, as
+[Reviewing with tracked changes](./review) and
+[Several documents](./workspace) describe them.
+
+<ScreenshotGallery :shots="panels" />
+
+## Help and settings
+
+The keyboard shortcuts and how to change them, the toolbar’s groups,
+restrictions, and a theme or CSS of your own, as [Appearance](./appearance)
+and [Protecting a document](./protection) describe them.
+
+<ScreenshotGallery :shots="helpAndSettings" />
+
 <script setup>
 const longDocuments = [
   { file: '01-report-overview.png', caption: 'A quarterly report to work on' },
@@ -392,5 +441,70 @@ const trust = [
 const phone = [
   { file: '170-toolbar-along-the-bottom.png', caption: 'On a phone the toolbar runs along the bottom, one row that scrolls, with buttons sized for a thumb' },
   { file: '171-formatting-bubble-on-a-phone.png', caption: 'Selected words still get their formatting bubble' },
+]
+
+const everyday = [
+  { file: '172-full-editor.png', caption: 'The full editor: menubar, toolbar, status line, review bar, contents and outline beside the document' },
+  { file: '173-toolbar-block-format.png', caption: 'The toolbar’s block format: paragraph, headings, quote and code' },
+  { file: '174-toolbar-font.png', caption: 'Fonts from the toolbar, each shown in itself' },
+  { file: '175-toolbar-text-colour.png', caption: 'Text colour: the theme’s palette, a custom colour, or none' },
+  { file: '176-toolbar-table-grid.png', caption: 'Insert a table by dragging out its size' },
+  { file: '177-slash-menu.png', caption: 'Type / in an empty line: every block, each with what it makes' },
+  { file: '178-slash-menu-filtered.png', caption: 'Keep typing to narrow it: /call finds the callouts' },
+  { file: '179-quick-insert.png', caption: 'The toolbar’s +: search everything there is to insert, Enter puts it in' },
+  { file: '180-command-palette.png', caption: 'Ctrl+K: every command by name, with the key that runs it' },
+  { file: '181-find-and-replace.png', caption: 'Ctrl+F: find and replace, with match case, whole words and regular expressions' },
+  { file: '182-emoji-picker.png', caption: 'Insert ▸ Emoji: a click puts one in at the caret' },
+  { file: '183-special-characters.png', caption: 'Insert ▸ Special character: symbols, arrows, maths and currency' },
+  { file: '184-document-statistics.png', caption: 'Tools ▸ Document statistics: words, reading time and readability' },
+  { file: '185-writing-goal.png', caption: 'Tools ▸ Writing goal: a word count to reach, its progress on the status line' },
+  { file: '186-insert-menu.png', caption: 'The Insert menu: pictures, media, links, equations and diagrams first' },
+  { file: '187-insert-menu-blocks.png', caption: 'Insert: callouts, toggles, columns, cards, timelines, tabs and accordions' },
+]
+
+const views = [
+  { file: '188-view-menu-themes.png', caption: 'View ▸ Theme: light, dark, sepia, Nord, Solarized, high contrast, midnight or your own' },
+  { file: '189-theme-dark.png', caption: 'The dark theme' },
+  { file: '190-theme-sepia.png', caption: 'Sepia, warm for long reading' },
+  { file: '191-theme-high-contrast.png', caption: 'High contrast' },
+  { file: '192-view-menu-modes-and-panels.png', caption: 'View: focus mode, typewriter scrolling, fullscreen, page view, the side panels and the split views' },
+  { file: '193-focus-mode.png', caption: 'Focus mode: the document alone, the paragraph being written in full colour' },
+  { file: '194-side-by-side-preview.png', caption: 'View ▸ Side-by-side preview: the saved page beside the one being edited' },
+  { file: '195-read-only.png', caption: 'View ▸ Read-only mode: the document to read, the editing tools set aside' },
+  { file: '196-edit-as-markdown.png', caption: 'Tools ▸ Edit as Markdown: the same document as Markdown source, edited as text' },
+  { file: '197-source-code.png', caption: 'Tools ▸ Source code: the document’s HTML, to read or change' },
+]
+
+const tourBlocks = [
+  { file: '198-tasks.png', caption: 'Task lists: tick an item off, give it a date and a person' },
+  { file: '199-callouts.png', caption: 'Callouts: info, success, warning, danger and note' },
+  { file: '200-layout.png', caption: 'Columns, a card, a toggle and a timeline' },
+  { file: '201-typography.png', caption: 'Typography: fonts, sizes, colours, highlights, small caps and spacing' },
+  { file: '202-diagrams.png', caption: 'Mermaid, Graphviz and PlantUML drawn from their code' },
+  { file: '203-tabs-and-accordions.png', caption: 'Tabs and an accordion' },
+  { file: '204-equations.png', caption: 'Equations in the text and on a line of their own, numbered, chemistry among them' },
+]
+
+const tableBasics = [
+  { file: '205-table-menu.png', caption: 'The Table menu: rows, columns, merging and splitting, captions and frozen headers for the table at the caret' },
+  { file: '206-table-design.png', caption: 'Table design: a gallery of styles, the style options, and a pen for borders' },
+  { file: '207-cells-selected.png', caption: 'Double-click a cell and drag: a rectangle of cells, ready to merge, shade or clear' },
+  { file: '208-cells-merged.png', caption: 'Table ▸ Merge cells: the four cells made one' },
+  { file: '209-multilevel-list-gallery.png', caption: 'Multilevel lists: 1. a. i., legal numbering, Roman, a bullet scheme, or one of your own' },
+]
+
+const panels = [
+  { file: '210-suggesting-mode.png', caption: 'View ▸ Suggesting mode: an insertion and a deletion kept as suggestions, the review bar counting them' },
+  { file: '211-history-panel.png', caption: 'View ▸ History: the edits so far, grouped, each one a place to go back to' },
+  { file: '212-documents-and-tabs.png', caption: 'View ▸ Documents: the workspace’s documents and folders, each open one a tab' },
+  { file: '213-split-editor.png', caption: 'View ▸ Split editor: two places in one document, edited side by side' },
+]
+
+const helpAndSettings = [
+  { file: '214-keyboard-shortcuts.png', caption: 'Help ▸ Keyboard shortcuts: search them, and change any to keys of your own' },
+  { file: '215-customize-toolbar.png', caption: 'Help ▸ Customize toolbar: the groups to show, and their order' },
+  { file: '216-restrictions.png', caption: 'File ▸ Restrictions: refuse copying, pasting, printing or downloading' },
+  { file: '217-custom-theme.png', caption: 'View ▸ Theme ▸ Custom theme: five colours, and the rest of the palette worked out from them' },
+  { file: '218-custom-css.png', caption: 'View ▸ Theme ▸ Custom CSS: rules of your own, kept to the editor' },
 ]
 </script>

@@ -145,6 +145,20 @@ export function blockText(block: EditorNode): string {
   return text
 }
 
+/** Where a block's inline code runs, as offsets into its `blockText`. */
+function codeRanges(block: EditorNode): (readonly [number, number])[] {
+  const ranges: (readonly [number, number])[] = []
+  let offset = 0
+  for (const child of block.content.children) {
+    const size = child.isText ? (child as TextNode).text.length : inlineSize(child)
+    if (child.isText && child.marks.some((mark) => mark.type.name === 'code')) {
+      ranges.push([offset, offset + size])
+    }
+    offset += size
+  }
+  return ranges
+}
+
 /** Code and other verbatim blocks are not prose; the checks skip them. */
 function isProse(block: EditorNode): boolean {
   const spec = block.type.spec as { preserveWhitespace?: boolean; code?: boolean }
@@ -296,6 +310,14 @@ export function createWritingAssistant(
             found.splice(index, 1)
           }
         }
+      }
+      // Inline code quotes its text verbatim: a `:` or a `teh` in it is no
+      // slip of the writer's. A long sentence is long whatever it quotes.
+      const code = codeRanges(node)
+      for (let index = found.length - 1; index >= 0 && code.length > 0; index--) {
+        const issue = found[index] as Omit<WritingIssue, 'id'>
+        if (issue.kind === 'long') continue
+        if (code.some(([from, to]) => issue.from < to && issue.to > from)) found.splice(index, 1)
       }
       if (found.length === 0) continue
       found.sort((a, b) => a.from - b.from || a.to - b.to)

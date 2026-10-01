@@ -148,8 +148,9 @@ its window is resized.
 
 ## Limits
 
-- Text columns cover the whole document. There are no section or column
-  breaks, and line numbers are placed for text in a single column.
+- Text columns cover the whole document, or one section of it when *Insert >
+  Section break* gives the section its own columns. There is no column
+  break, and line numbers are placed for text in a single column.
 - In a `.docx` and in RTF, a drop cap's size is worked out from the body
   text's, so it can come out a little larger or smaller than on screen.
 - RTF carries each style's look but not its name.

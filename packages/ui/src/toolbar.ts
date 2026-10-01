@@ -2,6 +2,7 @@ import type { Command, Editor, EditorNode, EditorSnapshot, PageSection, Path } f
 import {
   type Control,
   NO_LIST_NUMBERING,
+  type SelectControlOptions,
   type SelectOption,
   applyBlockFormat,
   blockFormatValue,
@@ -18,6 +19,7 @@ import {
 } from './controls'
 import {
   ARIA_SUFFIX,
+  MENU_KEY,
   type Messages,
   TOOLBAR_GROUP_KEY,
   TOOLBAR_KEY,
@@ -66,6 +68,10 @@ export interface ToolbarItem {
 /** A non-button control (select, color picker, table grid) built on demand. */
 export interface ToolbarControl {
   readonly name: string
+  /** The words it shows when nothing is chosen, translated under `toolbar.<name>`. */
+  readonly label?: string
+  /** Its accessible name, where that differs, under `toolbar.<name>.aria`. */
+  readonly ariaLabel?: string
   readonly create: (editor: Editor, document: Document) => Control
 }
 
@@ -407,6 +413,40 @@ const alignItem = (
   isActive: (snapshot) => snapshot.align === align,
 })
 
+/**
+ * A toolbar select, its visible and spoken names given once, so the toolbar
+ * and the catalogue of labels to translate read the same words.
+ */
+function selectItem(
+  name: string,
+  label: string,
+  ariaLabel: string,
+  select: (editor: Editor) => Omit<SelectControlOptions, 'document' | 'placeholder' | 'ariaLabel'>,
+): ToolbarControl {
+  return {
+    name,
+    label,
+    ariaLabel,
+    create: (editor, document) =>
+      createSelectControl({ document, placeholder: label, ariaLabel, ...select(editor) }),
+  }
+}
+
+/** `upper` as `Upper`, for a catalogue key built from a value. */
+const capitalized = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1)
+
+/** The Format menu's key for the same block format, whose translation it shares. */
+function blockFormatKey(value: string): string {
+  if (value.startsWith('heading:'))
+    return `${MENU_KEY}styleHeading${value.slice('heading:'.length)}`
+  const styles: Readonly<Record<string, string>> = {
+    paragraph: 'styleParagraph',
+    blockquote: 'styleQuote',
+    codeBlock: 'styleCodeBlock',
+  }
+  return `${MENU_KEY}${styles[value] ?? `blockFormat-${value}`}`
+}
+
 /** Case conversions offered by the case select. */
 const CASE_OPTIONS: readonly SelectOption[] = [
   { value: 'upper', label: 'UPPERCASE' },
@@ -567,81 +607,49 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
       name: 'block',
       label: 'Block',
       items: [
-        {
-          name: 'blockFormat',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.blockFormats ?? defaultBlockFormats(),
-              placeholder: 'Paragraph',
-              ariaLabel: 'Block format',
-              width: '8.5rem',
-              valueOf: blockFormatValue,
-              onSelect: (value) => applyBlockFormat(editor, value),
+        selectItem('blockFormat', 'Paragraph', 'Block format', (editor) => ({
+          options: options.blockFormats ?? defaultBlockFormats(),
+          optionKey: blockFormatKey,
+          width: '8.5rem',
+          valueOf: blockFormatValue,
+          onSelect: (value) => applyBlockFormat(editor, value),
+        })),
+        selectItem('lineHeight', 'Line height', 'Line height', (editor) => ({
+          options: options.lineHeights ?? defaultLineHeights(),
+          optionKey: (value) => `${MENU_KEY}lineHeight-${value || 'default'}`,
+          width: '7rem',
+          valueOf: (snapshot) => blockStringAttr(snapshot, 'lineHeight'),
+          onSelect: (value) => editor.commands.setLineHeight(value || null),
+        })),
+        selectItem('paragraphSpacing', 'Spacing', 'Paragraph spacing', (editor) => ({
+          options: options.paragraphSpacings ?? defaultParagraphSpacings(),
+          optionKey: (value) => `${MENU_KEY}paragraphSpacing-${value || 'none'}`,
+          width: '7rem',
+          valueOf: (snapshot) => blockStringAttr(snapshot, 'spaceAfter'),
+          onSelect: (value) =>
+            editor.commands.setParagraphSpacing({
+              before: value || null,
+              after: value || null,
             }),
-        },
-        {
-          name: 'lineHeight',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.lineHeights ?? defaultLineHeights(),
-              placeholder: 'Line height',
-              ariaLabel: 'Line height',
-              width: '7rem',
-              valueOf: (snapshot) => blockStringAttr(snapshot, 'lineHeight'),
-              onSelect: (value) => editor.commands.setLineHeight(value || null),
-            }),
-        },
-        {
-          name: 'paragraphSpacing',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.paragraphSpacings ?? defaultParagraphSpacings(),
-              placeholder: 'Spacing',
-              ariaLabel: 'Paragraph spacing',
-              width: '7rem',
-              valueOf: (snapshot) => blockStringAttr(snapshot, 'spaceAfter'),
-              onSelect: (value) =>
-                editor.commands.setParagraphSpacing({
-                  before: value || null,
-                  after: value || null,
-                }),
-            }),
-        },
+        })),
       ],
     },
     {
       name: 'typography',
       label: 'Font',
       items: [
-        {
-          name: 'fontFamily',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.fontFamilies ?? defaultFontFamilies(),
-              placeholder: 'Font',
-              ariaLabel: 'Font family',
-              width: '8rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'fontFamily', 'family'),
-              onSelect: (value) => editor.commands.setFontFamily(value),
-            }),
-        },
-        {
-          name: 'fontSize',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.fontSizes ?? defaultFontSizes(),
-              placeholder: 'Size',
-              ariaLabel: 'Font size',
-              width: '5rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'fontSize', 'size'),
-              onSelect: (value) => editor.commands.setFontSize(value),
-            }),
-        },
+        selectItem('fontFamily', 'Font', 'Font family', (editor) => ({
+          options: options.fontFamilies ?? defaultFontFamilies(),
+          width: '8rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'fontFamily', 'family'),
+          onSelect: (value) => editor.commands.setFontFamily(value),
+        })),
+        selectItem('fontSize', 'Size', 'Font size', (editor) => ({
+          options: options.fontSizes ?? defaultFontSizes(),
+          width: '5rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'fontSize', 'size'),
+          onSelect: (value) => editor.commands.setFontSize(value),
+        })),
       ],
     },
     {
@@ -663,38 +671,26 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           run: (editor) => editor.commands.toggleSmallCaps(),
           isActive: (snapshot) => snapshot.activeMarks.includes('smallCaps'),
         },
-        {
-          name: 'letterSpacing',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: options.letterSpacings ?? defaultLetterSpacings(),
-              placeholder: 'Spacing',
-              ariaLabel: 'Letter spacing',
-              width: '6.5rem',
-              valueOf: (snapshot) => stringAttr(snapshot, 'letterSpacing', 'spacing'),
-              onSelect: (value) => editor.commands.setLetterSpacing(value || null),
-            }),
-        },
-        {
-          name: 'convertCase',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: CASE_OPTIONS,
-              placeholder: 'Case',
-              ariaLabel: 'Change case',
-              width: '6.5rem',
-              // Case is an action, not a state the document carries, so the
-              // select never shows a current value.
-              valueOf: () => null,
-              onSelect: (value) => {
-                if (value === 'upper' || value === 'lower' || value === 'title') {
-                  editor.commands.convertCase(value)
-                }
-              },
-            }),
-        },
+        selectItem('letterSpacing', 'Letter spacing', 'Letter spacing', (editor) => ({
+          options: options.letterSpacings ?? defaultLetterSpacings(),
+          optionKey: (value) => `${MENU_KEY}letterSpacing-${value || 'normal'}`,
+          width: '8.5rem',
+          valueOf: (snapshot) => stringAttr(snapshot, 'letterSpacing', 'spacing'),
+          onSelect: (value) => editor.commands.setLetterSpacing(value || null),
+        })),
+        selectItem('convertCase', 'Case', 'Change case', (editor) => ({
+          options: CASE_OPTIONS,
+          optionKey: (value) => `${MENU_KEY}case${capitalized(value)}`,
+          width: '6.5rem',
+          // Case is an action, not a state the document carries, so the
+          // select never shows a current value.
+          valueOf: () => null,
+          onSelect: (value) => {
+            if (value === 'upper' || value === 'lower' || value === 'title') {
+              editor.commands.convertCase(value)
+            }
+          },
+        })),
       ],
     },
     {
@@ -722,21 +718,15 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           run: (editor) => editor.commands.toggleTaskList(),
           isActive: (snapshot) => snapshot.listType === 'taskList',
         },
-        {
-          name: 'listStyle',
-          create: (editor, document) =>
-            createSelectControl({
-              document,
-              options: LIST_STYLE_OPTIONS,
-              placeholder: 'List style',
-              ariaLabel: 'List style',
-              width: '8rem',
-              valueOf: () => null,
-              // Declines outside a list, and for a style the list type does
-              // not allow, so a bullet list cannot be given roman numerals.
-              onSelect: (value) => editor.commands.setListStyle(value || null),
-            }),
-        },
+        selectItem('listStyle', 'List style', 'List style', (editor) => ({
+          options: LIST_STYLE_OPTIONS,
+          optionKey: (value) => `${MENU_KEY}listStyle-${value || 'default'}`,
+          width: '8rem',
+          valueOf: () => null,
+          // Declines outside a list, and for a style the list type does
+          // not allow, so a bullet list cannot be given roman numerals.
+          onSelect: (value) => editor.commands.setListStyle(value || null),
+        })),
         {
           name: 'listNumbering',
           create: (editor, document) =>
@@ -853,7 +843,7 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           label: 'Quote',
           icon: 'quote',
           run: (editor) => editor.commands.wrapIn('blockquote'),
-          isActive: (snapshot) => snapshot.blockType === 'blockquote',
+          isActive: (snapshot) => snapshot.inBlockquote,
         },
         {
           name: 'horizontalRule',
@@ -909,22 +899,16 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
       label: 'Blocks',
       items: present([
         options.blockCommands?.insertCallout
-          ? {
-              name: 'callout',
-              create: (editor, document) =>
-                createSelectControl({
-                  document,
-                  options: CALLOUT_OPTIONS,
-                  placeholder: 'Callout',
-                  ariaLabel: 'Insert callout',
-                  width: '7.5rem',
-                  valueOf: () => null,
-                  onSelect: (value) => {
-                    const command = options.blockCommands?.insertCallout?.(value)
-                    if (command) editor.exec(command)
-                  },
-                }),
-            }
+          ? selectItem('callout', 'Callout', 'Insert callout', (editor) => ({
+              options: CALLOUT_OPTIONS,
+              optionKey: (value) => `${MENU_KEY}callout${capitalized(value)}`,
+              width: '7.5rem',
+              valueOf: () => null,
+              onSelect: (value) => {
+                const command = options.blockCommands?.insertCallout?.(value)
+                if (command) editor.exec(command)
+              },
+            }))
           : null,
         commandItem(
           'toggleBlock',
@@ -933,23 +917,17 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           options.blockCommands?.insertToggleBlock,
         ),
         options.blockCommands?.insertColumns
-          ? {
-              name: 'columns',
-              create: (editor, document) =>
-                createSelectControl({
-                  document,
-                  options: COLUMN_OPTIONS,
-                  placeholder: 'Columns',
-                  ariaLabel: 'Insert columns',
-                  width: '7rem',
-                  valueOf: () => null,
-                  onSelect: (value) => {
-                    const count = Number.parseInt(value, 10)
-                    const command = options.blockCommands?.insertColumns?.(count)
-                    if (command) editor.exec(command)
-                  },
-                }),
-            }
+          ? selectItem('columns', 'Columns', 'Insert columns', (editor) => ({
+              options: COLUMN_OPTIONS,
+              optionKey: (value) => `${MENU_KEY}columns${value}`,
+              width: '7rem',
+              valueOf: () => null,
+              onSelect: (value) => {
+                const count = Number.parseInt(value, 10)
+                const command = options.blockCommands?.insertColumns?.(count)
+                if (command) editor.exec(command)
+              },
+            }))
           : null,
         commandItem('card', 'card', 'Card', options.blockCommands?.insertCard),
         commandItem('timeline', 'timeline', 'Timeline', options.blockCommands?.insertTimeline),
@@ -1125,6 +1103,7 @@ export function createToolbar(
       if (isControl(entry)) {
         const control = entry.create(editor, document)
         control.element.dataset.trevixalItem = entry.name
+        control.relabel?.(translate, `${TOOLBAR_KEY}${entry.name}`)
         groupElement.appendChild(control.element)
         controls.push(control)
         continue
@@ -1234,6 +1213,9 @@ export function createToolbar(
       groupInfo = merged.map((group) => ({ name: group.name, label: groupLabel(group) }))
       labelGroups()
       for (const { item, element } of buttons) labelButton(element, item, translate)
+      for (const control of controls) {
+        control.relabel?.(translate, `${TOOLBAR_KEY}${control.element.dataset.trevixalItem}`)
+      }
       retitle()
     },
     destroy() {

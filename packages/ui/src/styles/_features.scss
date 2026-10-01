@@ -144,7 +144,9 @@
 
   &__text {
     flex: 1;
-    min-height: 16rem;
+    // It stands in for the whole document, so it takes most of the window
+    // rather than a strip of it.
+    min-height: max(16rem, 60vh);
     padding: t.token('space-3');
     background: t.token('color-code-bg');
     color: t.token('color-text');

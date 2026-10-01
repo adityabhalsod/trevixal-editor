@@ -1112,6 +1112,13 @@
       border-color: t.token('color-accent');
     }
 
+    // A button that cannot act yet, Compare the two before two are ticked or
+    // Take photo without a camera, must not look like one that can.
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     &:focus-visible {
       outline: none;
       box-shadow: t.token('focus-ring');

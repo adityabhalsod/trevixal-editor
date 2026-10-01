@@ -540,6 +540,11 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   /** Show or hide a sidebar panel, and the sidebar with the last of them. */
   function togglePanel(panel: HTMLElement): void {
     panel.hidden = !panel.hidden
+    fitSidebar()
+  }
+
+  /** The sidebar shows while any of its panels does. */
+  function fitSidebar(): void {
     layout.sidebar.hidden = layout.panels.every((section) => section.hidden)
   }
 
@@ -1112,9 +1117,11 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       toggleTableOfContents: () => togglePanel(tocPanel),
       toggleOutline: () => togglePanel(outlinePanel),
       toggleStylesPane: () => togglePanel(layout.styles),
+      // The history toggle shows and hides its own section as it builds and
+      // drops the panel; toggling the section again would undo that.
       toggleHistoryPanel: () => {
         toggleHistory()
-        togglePanel(historyPanel)
+        fitSidebar()
       },
       toggleWorkspace: () => {
         togglePanel(workspacePanel)

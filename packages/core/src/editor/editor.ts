@@ -163,6 +163,8 @@ export interface EditorSnapshot {
   readonly blockAttrs: Attrs | null
   /** Type name of the list wrapping the selection, when inside one. */
   readonly listType: string | null
+  /** Whether a blockquote wraps the selection; `blockType` is the paragraph inside it. */
+  readonly inBlockquote: boolean
   /** Text alignment of the block holding the selection head. */
   readonly align: string | null
   /** Indent level of the block holding the selection head. */
@@ -430,6 +432,7 @@ export class Editor {
       blockType: textblock?.type.name ?? null,
       blockAttrs: textblock?.attrs ?? null,
       listType: enclosingListType(this.state.doc, selection.from.path),
+      inBlockquote: insideType(this.state.doc, selection.from.path, 'blockquote'),
       align: typeof textblock?.attrs.align === 'string' ? textblock.attrs.align : null,
       indent: typeof indent === 'number' ? indent : 0,
       canUndo: this.canUndo,
@@ -486,6 +489,14 @@ function enclosingListType(doc: EditorNode, path: Path): string | null {
   return nodeAtPath(doc, path.slice(0, -2))?.type.name ?? null
 }
 
+/** Whether a node named `name` holds the node at `path`, at any depth. */
+function insideType(doc: EditorNode, path: Path, name: string): boolean {
+  for (let depth = path.length - 1; depth > 0; depth--) {
+    if (nodeAtPath(doc, path.slice(0, depth))?.type.name === name) return true
+  }
+  return false
+}
+
 /** Attributes of the first mark of `name` covering the selection, if any. */
 function activeMarkAttrs(state: EditorState, name: string): Attrs | null {
   const type = state.schema.marks[name]
@@ -512,6 +523,7 @@ function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
   return (
     a.blockType === b.blockType &&
     a.listType === b.listType &&
+    a.inBlockquote === b.inBlockquote &&
     a.align === b.align &&
     a.indent === b.indent &&
     a.canUndo === b.canUndo &&

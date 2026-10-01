@@ -25,9 +25,11 @@ file actually contains.
 
 *View > Present* shows the document as slides, full screen. Each top-level
 heading starts a slide: the highest heading level the document uses, so a
-talk written with level-two headings works too. A note callout (*Insert >
-Callout > Note*) is for the speaker: it stays off the slide and shows in the
-notes instead.
+talk written with level-two headings works too. A level used only once is
+the document's title: it opens the talk as a slide of its own, and the rest
+split at the level below, so a report with one title and its sections makes
+a slide a section. A note callout (*Insert > Callout > Note*) is for the
+speaker: it stays off the slide and shows in the notes instead.
 
 | Key | Does |
 | --- | --- |

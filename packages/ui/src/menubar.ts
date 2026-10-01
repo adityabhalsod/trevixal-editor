@@ -504,7 +504,9 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
               icon: 'langPlain',
               run: (editor) => editor.commands.setParagraph(),
               isActive: (snapshot) =>
-                snapshot.blockType === 'paragraph' && !snapshot.blockAttrs?.paragraphStyle,
+                snapshot.blockType === 'paragraph' &&
+                !snapshot.blockAttrs?.paragraphStyle &&
+                !snapshot.inBlockquote,
             },
             ...(
               [
@@ -531,7 +533,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
               label: 'Quote',
               icon: 'quote',
               run: (editor) => editor.commands.wrapIn('blockquote'),
-              isActive: (snapshot) => snapshot.blockType === 'blockquote',
+              isActive: (snapshot) => snapshot.inBlockquote,
             },
             {
               name: 'styleCodeBlock',
