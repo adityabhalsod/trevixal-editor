@@ -218,15 +218,9 @@ importers:
 
   examples/svelte:
     dependencies:
-      '@trevixal/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@trevixal/editor-kit':
         specifier: workspace:*
         version: link:../../packages/editor-kit
-      '@trevixal/svelte':
-        specifier: workspace:*
-        version: link:../../packages/svelte
       '@trevixal/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -286,18 +280,12 @@ importers:
 
   examples/vue:
     dependencies:
-      '@trevixal/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@trevixal/editor-kit':
         specifier: workspace:*
         version: link:../../packages/editor-kit
       '@trevixal/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@trevixal/vue':
-        specifier: workspace:*
-        version: link:../../packages/vue
       vue:
         specifier: ^3.5.13
         version: 3.5.42(typescript@5.9.3)

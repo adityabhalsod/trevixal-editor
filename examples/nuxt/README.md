@@ -31,8 +31,9 @@ anyone on a slow connection.
 
 `pnpm build` runs `nuxt generate`, which writes `.output/public`. A folder of
 static files, deployable anywhere. A browser test fetches the generated HTML
-and checks that the prose is in it and the editor is not, then loads the page
-and checks the editor arrives.
+and checks that the fallback is in it and the editor is not, then loads the
+page and checks the editor arrives. Once it has, the page is the editor and
+nothing else, as the [full-editor example](../full-editor) is.
 
 ## License
 

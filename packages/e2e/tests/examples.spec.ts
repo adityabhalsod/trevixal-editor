@@ -16,11 +16,11 @@ const examples = join(dirname(fileURLToPath(import.meta.url)), '../../../example
  */
 
 /**
- * Each framework example now shows the same page twice over: the whole editor,
- * mounted from that framework's lifecycle, and underneath it the adapter on
- * its own. So every locator here says which of the two it means. An
- * unscoped `.trevixal-content` matches the assembled editor, the panel below
- * it, and both panes the assembled editor can open beside itself.
+ * The React example shows the same page twice over: the whole editor, mounted
+ * from React's lifecycle, and underneath it the adapter on its own. So every
+ * locator here says which of the two it means. An unscoped
+ * `.trevixal-content` matches the assembled editor, the panel below it, and
+ * both panes the assembled editor can open beside itself.
  */
 const surface = '.panel .trevixal-content'
 
@@ -161,42 +161,27 @@ test.describe('example apps', () => {
     }
   })
 
-  test('the Vue example renders a Vue component inside the document', async ({ page }) => {
+  test('the Vue example mounts the whole editor from onMounted', async ({ page }) => {
     const server = await serveDist(join(examples, 'vue/dist'))
     try {
       await page.goto(server.origin)
       await mountsTheWholeEditor(page)
-      await types(page, 'hello from vue')
-      await expect(page.locator(`${surface} p`).first()).toContainText('hello from vue')
-
-      const counter = page.locator('.counter')
-      await expect(counter).toHaveText(/counted 0 times/)
-      await counter.click()
-      await expect(counter).toHaveText(/counted 1 times/)
-
-      // The component holds no state: undo rewinds the document, and the
-      // component follows it.
-      await page.locator('.panel button', { hasText: 'Undo' }).click()
-      await expect(counter).toHaveText(/counted 0 times/)
+      // The page is the editor and nothing else, as the full-editor example
+      // is, so a second editing surface here would mean the mount ran twice.
+      await expect(page.locator('.trevixal-content')).toHaveCount(1)
     } finally {
       await server.close()
     }
   })
 
-  test('the Svelte example renders a Svelte component inside the document', async ({ page }) => {
+  test('the Svelte example mounts the whole editor from an effect', async ({ page }) => {
     const server = await serveDist(join(examples, 'svelte/dist'))
     try {
       await page.goto(server.origin)
       await mountsTheWholeEditor(page)
-      await types(page, 'hello from svelte')
-      await expect(page.locator(`${surface} p`).first()).toContainText('hello from svelte')
-
-      const counter = page.locator('.counter')
-      await expect(counter).toHaveText(/counted 0 times/)
-      await counter.click()
-      await expect(counter).toHaveText(/counted 1 times/)
-      await page.locator('.panel button', { hasText: 'Undo' }).click()
-      await expect(counter).toHaveText(/counted 0 times/)
+      // The page is the editor and nothing else, as the full-editor example
+      // is, so a second editing surface here would mean the mount ran twice.
+      await expect(page.locator('.trevixal-content')).toHaveCount(1)
     } finally {
       await server.close()
     }
@@ -250,10 +235,10 @@ test.describe('example apps', () => {
   }) => {
     const server = await serveDist(join(examples, 'nuxt/.output/public'))
     try {
-      // The generated HTML, before any script has run. The prose is in it and
-      // the editor is not, which is the whole shape of a `<ClientOnly>` page.
+      // The generated HTML, before any script has run. The fallback is in it
+      // and the editor is not, which is the whole shape of a `<ClientOnly>` page.
       const source = await (await page.request.get(server.origin)).text()
-      expect(source).toContain('Prerendered, client-mounted')
+      expect(source).toContain('Loading the editor…')
       expect(source).not.toContain('trevixal-menubar')
 
       await page.goto(server.origin)
@@ -292,9 +277,10 @@ test.describe('example apps', () => {
       args: ['start'],
     })
     try {
+      // The island is a `ssr: false` import, so the server sends its
+      // placeholder, and its markup cannot be here.
       const source = await (await page.request.get(server.origin)).text()
-      expect(source).toContain('Server-rendered, client-mounted')
-      // The island is a `ssr: false` import, so its markup cannot be here.
+      expect(source).toContain('Loading the editor…')
       expect(source).not.toContain('trevixal-menubar')
 
       await page.goto(server.origin)
@@ -315,6 +301,12 @@ test.describe('example apps', () => {
       // The page is the editor and nothing else, so a second surface here
       // would mean the global was mounted twice.
       await expect(page.locator('#editor .trevixal-content')).toHaveCount(1)
+
+      // The language catalogues are modules beside the page, imported by
+      // path with no bundler, so picking one has to fetch and apply it.
+      await page.click('[data-trevixal-menu="view"]')
+      await page.click('[data-trevixal-menu="view"] ~ * [data-trevixal-item="language-de"]')
+      await expect(page.locator('[data-trevixal-menu="file"]')).toHaveText('Datei')
     } finally {
       await server.close()
     }

@@ -25,9 +25,9 @@ pnpm --filter @trevixal/example-<name> dev
 | [`full-editor`](full-editor) | none, plain DOM | The whole thing with no framework at all, in five lines |
 | [`react`](react) | `useEffect` | Strict mode mounting twice, and a teardown that survives it. Plus the adapter alone: a toolbar that does not re-render while you type |
 | [`next`](next) | `useEffect` behind `ssr: false` | The App Router client boundary, and a Vercel deployment |
-| [`vue`](vue) | `onMounted` | A Vue component rendered *inside* the document |
+| [`vue`](vue) | `onMounted` | Why the mount waits for `onMounted`, not `setup` |
 | [`nuxt`](nuxt) | `onMounted` inside `<ClientOnly>` | A prerendered page with a client-only island |
-| [`svelte`](svelte) | `$effect` | A Svelte component rendered inside the document |
+| [`svelte`](svelte) | `$effect` | The teardown an effect returns |
 | [`sveltekit`](sveltekit) | `$effect` + a dynamic import | Why the *import*, not the call, is what has to move |
 | [`angular`](angular) | `afterNextRender` | Zoneless, outside change detection |
 | [`solid`](solid) | `onMount` | That no adapter package is needed to mount it |

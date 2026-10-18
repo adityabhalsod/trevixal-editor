@@ -172,6 +172,23 @@ describe('the tour', () => {
     }
   })
 
+  test('shows each text style on a line of its own', () => {
+    for (const line of [
+      '<p><strong>Bold</strong></p>',
+      '<p><em>Italic</em></p>',
+      '<p><u>Underline</u></p>',
+      '<p><s>Strikethrough</s></p>',
+      '<p><code>Inline code</code></p>',
+      '<p>Super<sup>script</sup></p>',
+      '<p>Sub<sub>script</sub></p>',
+      '<p><span style="font-variant-caps: small-caps">Small caps</span></p>',
+      '<p><span style="letter-spacing: 0.1em">Letter spacing</span></p>',
+      '<p>UPPER CASE, lower case and Title Case</p>',
+    ]) {
+      expect(html, line).toContain(line)
+    }
+  })
+
   test('shows the list and table tools', () => {
     for (const marker of [
       'data-assignee="Lee"',

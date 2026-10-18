@@ -41,6 +41,12 @@ const task = (
 const text = (value: string, marks?: unknown[]): unknown =>
   marks ? { type: 'text', text: value, marks } : { type: 'text', text: value }
 
+/** A paragraph of one run of text, in the given marks. */
+const styledParagraph = (value: string, marks: unknown[]): unknown => ({
+  type: 'paragraph',
+  content: [text(value, marks)],
+})
+
 /** Words marked for the index, filed under `entry`. */
 const indexed = (value: string, id: string): unknown =>
   text(value, [{ type: 'indexTerm', attrs: { id, entry: value, sub: null } }])
@@ -348,20 +354,23 @@ export const initialContent = {
     },
 
     { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Typography' }] },
+    // The toolbar's text styles, one to a line, each line in its own style.
+    // Change case is one tool, so its three results share a line: a line of
+    // its own starting "lower case" is underlined as a sentence wanting a capital.
+    styledParagraph('Bold', [{ type: 'bold' }]),
+    styledParagraph('Italic', [{ type: 'italic' }]),
+    styledParagraph('Underline', [{ type: 'underline' }]),
+    styledParagraph('Strikethrough', [{ type: 'strikethrough' }]),
+    styledParagraph('Inline code', [{ type: 'code' }]),
+    { type: 'paragraph', content: [text('Super'), text('script', [{ type: 'superscript' }])] },
+    { type: 'paragraph', content: [text('Sub'), text('script', [{ type: 'subscript' }])] },
+    styledParagraph('Small caps', [{ type: 'smallCaps' }]),
+    styledParagraph('Letter spacing', [{ type: 'letterSpacing', attrs: { spacing: '0.1em' } }]),
+    paragraph('UPPER CASE, lower case and Title Case'),
     {
       type: 'paragraph',
       attrs: { lineHeight: '2', spaceBefore: null, spaceAfter: '16px' },
-      content: [
-        { type: 'text', text: 'Double line height, ' },
-        { type: 'text', marks: [{ type: 'smallCaps' }], text: 'small caps' },
-        { type: 'text', text: ', and ' },
-        {
-          type: 'text',
-          marks: [{ type: 'letterSpacing', attrs: { spacing: '0.1em' } }],
-          text: 'wide letter spacing',
-        },
-        { type: 'text', text: '.' },
-      ],
+      content: [text('Double line height')],
     },
     {
       type: 'bulletList',

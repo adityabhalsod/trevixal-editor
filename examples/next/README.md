@@ -22,12 +22,14 @@ files rather than one:
 
 | | |
 | --- | --- |
-| [`app/page.tsx`](app/page.tsx) | A server component. Renders the prose, and the island. |
+| [`app/page.tsx`](app/page.tsx) | A server component. Renders the island. |
 | [`app/editor-island.tsx`](app/editor-island.tsx) | `'use client'`, and the `ssr: false` dynamic import. |
 | [`app/full-editor.tsx`](app/full-editor.tsx) | The mount itself, in a `useEffect`. |
 
-Everything outside the island is still server-rendered: fetch the page as text
-and the prose is in it, which a browser test checks rather than claims.
+The page is still server-rendered: fetch it as text and the island's
+placeholder is in it while the editor is not, which a browser test checks
+rather than claims. Once mounted, the page is the editor and nothing else, as
+the [full-editor example](../full-editor) is.
 
 ## Deploying to Vercel
 

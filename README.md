@@ -465,9 +465,9 @@ and nothing else:
 | [`full-editor`](examples/full-editor) | none, plain DOM | The whole thing, with no framework at all |
 | [`react`](examples/react) | `useEffect` | Strict mode mounting twice, and a teardown that survives it |
 | [`next`](examples/next) | `useEffect` behind `ssr: false` | The App Router client boundary, and deploying to Vercel |
-| [`vue`](examples/vue) | `onMounted` | A Vue component rendered inside the document |
+| [`vue`](examples/vue) | `onMounted` | Why the mount waits for `onMounted`, not `setup` |
 | [`nuxt`](examples/nuxt) | `onMounted` inside `<ClientOnly>` | A prerendered page with a client-only island |
-| [`svelte`](examples/svelte) | `$effect` | A Svelte component rendered inside the document |
+| [`svelte`](examples/svelte) | `$effect` | The teardown an effect returns |
 | [`sveltekit`](examples/sveltekit) | `$effect` + a dynamic import | Why the *import* is the thing that has to move |
 | [`angular`](examples/angular) | `afterNextRender` | Zoneless signals, and no change detection at all |
 | [`solid`](examples/solid) | `onMount` | That no adapter package is needed to mount it |

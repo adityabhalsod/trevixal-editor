@@ -4,19 +4,16 @@ export default defineNuxtConfig({
   // is not in that HTML, see `app.vue`, but everything around it is, which
   // is the point of using Nuxt for a page that ends up client-only anyway.
   ssr: true,
-  css: [
-    '@trevixal/ui/styles.css',
-    '@trevixal/editor-kit/styles.css',
-    '../../shared/page.css',
-    '../../shared/loading.css',
-  ],
+  css: ['@trevixal/ui/styles.css', '@trevixal/editor-kit/styles.css', '../../shared/loading.css'],
   app: {
     head: {
       title: 'Trevixal: Nuxt',
       // `trevixal` on the page as well as on the editor: the theme tokens are
       // inherited, so the margin around the editor follows the theme rather
-      // than staying white behind a dark document.
-      bodyAttrs: { class: 'trevixal' },
+      // than staying white behind a dark document. `margin: 0` is the page's
+      // only rule of its own, as in the full-editor example: the editor's
+      // ship with its stylesheets.
+      bodyAttrs: { class: 'trevixal', style: 'margin: 0' },
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     },
   },

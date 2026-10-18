@@ -28,6 +28,30 @@ import replaced by a global. There is no npm, no bundler and no build step.
 `index.html` is the whole example, and almost all of it is the two comments
 explaining those tags.
 
+## The chrome's languages
+
+View ▸ Language needs the catalogues too, as it does in every other example.
+They ship as ES modules, one per language, so the page names them and imports
+each only when it is picked:
+
+```js
+TrevixalKit.mountFullEditor({
+  element: document.querySelector('#app'),
+  languages: Object.fromEntries(
+    ['de', 'fr', 'es', 'pt', 'hi', 'ja', 'zh', 'ar'].map((code) => [
+      code,
+      () =>
+        import(`https://unpkg.com/@trevixal/ui/dist/locales/${code}.js`).then(
+          (module) => module.default,
+        ),
+    ]),
+  ),
+})
+```
+
+A browser imports no module into a page opened from disk, so there the menus
+stay in English.
+
 ## What it costs
 
 Measured by `pnpm size`, minified and gzipped:

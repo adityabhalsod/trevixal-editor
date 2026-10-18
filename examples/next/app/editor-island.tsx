@@ -12,8 +12,9 @@ import dynamic from 'next/dynamic'
  *
  * `ssr: false` is what actually keeps it out of the server render, and the App
  * Router only accepts it inside a client component, which is all this file
- * is. `page.tsx` stays a server component and renders this, so the prose
- * around the editor is still server-rendered HTML a crawler can read.
+ * is. `page.tsx` stays a server component and renders this, so the page is
+ * still server-rendered HTML, the placeholder below in it until the editor
+ * replaces it.
  */
 const FullEditor = dynamic(() => import('./full-editor'), {
   ssr: false,

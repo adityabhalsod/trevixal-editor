@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Trevixal in a Vue 3 app: the whole editor mounted from onMounted, and a Vue component rendered inside the document.",
+  "description": "Trevixal in a Vue 3 app: the whole editor, mounted from onMounted.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,10 +11,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@trevixal/core": "workspace:*",
     "@trevixal/editor-kit": "workspace:*",
     "@trevixal/ui": "workspace:*",
-    "@trevixal/vue": "workspace:*",
     "vue": "^3.5.13"
   },
   "devDependencies": {
