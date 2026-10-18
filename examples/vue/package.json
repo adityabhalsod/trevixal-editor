@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a Vue 3 app: the whole editor, mounted from onMounted.",
   "scripts": {
-    "dev": "vite",
+    "dev": "exec node ../shared/run-server.mjs vite",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit"

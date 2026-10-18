@@ -8,6 +8,7 @@ carrying a copy of it.
 | [`page.css`](page.css) | react · solid · sveltekit | The host page: body margin and colours, the measure `main` sits in, the panel rule and the muted prose beneath |
 | [`panel.css`](panel.css) | react | The adapter panel React mounts below the assembled editor, its toolbar, its render counter and its editing surface |
 | [`loading.css`](loading.css) | next · nuxt | The placeholder shown while a client-only island fetches the editor's chunk |
+| [`run-server.mjs`](run-server.mjs) | every example's `dev` script | Runs the dev server so that Ctrl+C stops it without pnpm reporting a failed script. Started with `exec`, so it needs a POSIX shell |
 
 An example loads only what its own page uses, which is why solid and sveltekit
 take `page.css` and not `panel.css`, they show the editor and a paragraph, not

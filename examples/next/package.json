@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a Next.js App Router app, deployed to Vercel: the whole editor, client-only, inside a server-rendered page.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "exec node ../shared/run-server.mjs next dev",
     "build": "next build",
     "preview": "next start",
     "typecheck": "tsc --noEmit"

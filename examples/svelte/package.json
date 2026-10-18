@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a Svelte app: the whole editor, mounted from an effect.",
   "scripts": {
-    "dev": "vite",
+    "dev": "exec node ../shared/run-server.mjs vite",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Render a Trevixal document on the server, build the whole editor over it in the browser.",
   "scripts": {
-    "dev": "node render.mjs && node serve.mjs",
+    "dev": "node render.mjs && exec node ../shared/run-server.mjs node serve.mjs",
     "build": "node render.mjs",
     "preview": "node serve.mjs"
   },

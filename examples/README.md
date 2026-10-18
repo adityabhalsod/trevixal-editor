@@ -18,6 +18,11 @@ pnpm build                                    # the packages resolve through dis
 pnpm --filter @trevixal/example-<name> dev
 ```
 
+Ctrl+C stops the server, with no error from pnpm. Each `dev` script starts
+its server through [`shared/run-server.mjs`](shared/run-server.mjs) with
+`exec`, a POSIX shell builtin, so on Windows run them from WSL, or with Git
+Bash as pnpm's `script-shell`.
+
 ## The whole editor, once per framework
 
 | Example | The hook | What it also shows |
@@ -53,9 +58,10 @@ them.
 
 ## Shared between them
 
-[`shared/`](shared) holds the page styles the examples had a copy of each.
-Nothing framework-specific lives there, and no example loads a rule it does
-not use. See [its README](shared/README.md).
+[`shared/`](shared) holds the page styles the examples had a copy of each,
+and the runner their `dev` scripts start the server through. Nothing
+framework-specific lives there, and no example loads a rule it does not use.
+See [its README](shared/README.md).
 
 ## License
 

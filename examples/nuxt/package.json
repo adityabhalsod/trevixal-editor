@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a Nuxt app: the whole editor inside <ClientOnly>, on a page that is still prerendered.",
   "scripts": {
-    "dev": "nuxt dev",
+    "dev": "exec node ../shared/run-server.mjs nuxt dev",
     "build": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
