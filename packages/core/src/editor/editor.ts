@@ -24,6 +24,7 @@ import {
   splitBlock,
   toggleMark,
   toggleSmallCaps,
+  toggleWrap,
   unsetMark,
   wrapIn,
 } from '../commands/commands'
@@ -688,6 +689,11 @@ export class EditorCommands {
 
   wrapIn(name: string, attrs?: Attrs): boolean {
     return this.editor.exec(wrapIn(name, attrs))
+  }
+
+  /** Wrap the selected blocks, or take them out of the nearest `name` they are in. */
+  toggleWrap(name: string, attrs?: Attrs): boolean {
+    return this.editor.exec(toggleWrap(name, attrs))
   }
 
   toggleBulletList(): boolean {

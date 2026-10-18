@@ -532,7 +532,7 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
               name: 'styleQuote',
               label: 'Quote',
               icon: 'quote',
-              run: (editor) => editor.commands.wrapIn('blockquote'),
+              run: (editor) => editor.commands.toggleWrap('blockquote'),
               isActive: (snapshot) => snapshot.inBlockquote,
             },
             {

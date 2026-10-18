@@ -394,13 +394,16 @@ test('the format painter copies formatting in the full-editor example', async ({
     await page.goto(server.origin)
     const surface = page.locator('#editor .trevixal-content')
     await clearDocument(page)
-    await page.keyboard.type('bold plain')
+    // A capital, so the writing check has no sentence start to underline: its
+    // underline would split the bold word into two <strong>s, whenever it
+    // landed before the check below did.
+    await page.keyboard.type('Bold plain')
 
     // Bold the first word.
     await page.keyboard.press('Home')
     for (let i = 0; i < 4; i++) await page.keyboard.press('Shift+ArrowRight')
     await page.click('.trevixal-toolbar [data-trevixal-item="bold"]')
-    await expect(surface.locator('strong')).toHaveText('bold')
+    await expect(surface.locator('strong')).toHaveText('Bold')
 
     // Copy it, then paint it onto the second word.
     const painter = page.locator('.trevixal-toolbar [data-trevixal-item="formatPainter"]')

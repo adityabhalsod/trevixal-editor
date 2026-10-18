@@ -842,7 +842,7 @@ export function defaultToolbarGroups(options: ToolbarOptions = {}): readonly Too
           name: 'blockquote',
           label: 'Quote',
           icon: 'quote',
-          run: (editor) => editor.commands.wrapIn('blockquote'),
+          run: (editor) => editor.commands.toggleWrap('blockquote'),
           isActive: (snapshot) => snapshot.inBlockquote,
         },
         {

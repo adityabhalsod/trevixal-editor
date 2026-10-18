@@ -5,7 +5,9 @@ import {
   deleteBackwardInPreformatted,
   deleteCharBackward,
   deleteCharForward,
+  deleteEmptyBlockAfterContainer,
   deleteSelection,
+  escapeWrapperOnBackspace,
   escapeWrapperOnEnter,
   insertContent,
   insertInlineNode,
@@ -18,7 +20,7 @@ import {
   typeInPreformatted,
 } from '../commands/commands'
 import { linkifyText } from '../commands/links'
-import { setTaskChecked, splitListItem } from '../commands/lists'
+import { liftEmptyListItem, setTaskChecked, splitListItem } from '../commands/lists'
 import type { Editor } from '../editor/editor'
 import { NEW_HISTORY_GROUP } from '../history/history'
 import { type InputRule, applyInputRules, defaultInputRules } from '../input-rules/input-rules'
@@ -660,7 +662,17 @@ export class EditorView {
         consume(chainCommands(insertNewlineInPreformatted, insertInlineNode('hardBreak')))
         break
       case 'deleteContentBackward':
-        consume(chainCommands(deleteBackwardInPreformatted, deleteCharBackward))
+        // On a blank line, Backspace first clears the line's list or quote,
+        // then steps back to the end of the line above.
+        consume(
+          chainCommands(
+            deleteBackwardInPreformatted,
+            liftEmptyListItem,
+            escapeWrapperOnBackspace,
+            deleteCharBackward,
+            deleteEmptyBlockAfterContainer,
+          ),
+        )
         break
       case 'deleteWordBackward':
       case 'deleteSoftLineBackward':

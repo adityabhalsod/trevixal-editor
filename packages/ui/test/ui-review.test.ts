@@ -241,4 +241,23 @@ describe('inside a quote', () => {
     ui.destroy()
     editor.destroy()
   })
+
+  it('takes the words back out on a second press, rather than nesting another quote', () => {
+    const { editor, container } = mount('<p>Words</p>')
+    const ui = createEditorUI(editor, { container })
+    editor.dispatch(editor.state.tr.setSelection(new TextSelection(pos([0], 2))))
+    const quote = container.querySelector<HTMLButtonElement>(
+      '.trevixal-toolbar [data-trevixal-item="blockquote"]',
+    )
+    quote?.click()
+    expect(editor.getHTML()).toBe('<blockquote><p>Words</p></blockquote>')
+    quote?.click()
+    expect(editor.getHTML()).toBe('<p>Words</p>')
+    // Format ▸ Quote toggles the same way.
+    item('styleQuote')?.click()
+    item('styleQuote')?.click()
+    expect(editor.getHTML()).toBe('<p>Words</p>')
+    ui.destroy()
+    editor.destroy()
+  })
 })

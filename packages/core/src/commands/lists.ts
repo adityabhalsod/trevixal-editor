@@ -207,6 +207,23 @@ export const splitListItem: Command = (state) => {
   return tr
 }
 
+/**
+ * Backspace on an empty point takes it out of its list, as Enter on one does:
+ * the way a word processor's Backspace clears a blank line's numbering. A
+ * nested point comes out one level; a top-level one becomes a plain line. A
+ * point with text, or a blank line below a point's first, is left to
+ * Backspace's own deleting and joining.
+ */
+export const liftEmptyListItem: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  if (!listContextAt(state.doc, path) || path[path.length - 1] !== 0) return null
+  const block = nodeAtPath(state.doc, path)
+  if (!block?.isTextblock || inlineLength(block.content) > 0) return null
+  return liftListItem(state)
+}
+
 /** Tab: nest the current item under its previous sibling. */
 export const sinkListItem: Command = (state) => {
   const selection = state.selection

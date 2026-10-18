@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Command } from '../src/commands/commands'
-import { liftListItem, sinkListItem, splitListItem, toggleList } from '../src/commands/lists'
+import {
+  liftEmptyListItem,
+  liftListItem,
+  sinkListItem,
+  splitListItem,
+  toggleList,
+} from '../src/commands/lists'
 import { Fragment } from '../src/model/fragment'
 import type { EditorNode } from '../src/model/node'
 import type { EditorState } from '../src/state/editor-state'
@@ -66,6 +72,37 @@ describe('splitListItem', () => {
   it('does not apply outside a list', () => {
     const state = stateWith(doc(p('x')), cursor([0], 0))
     expect(splitListItem(state)).toBeNull()
+  })
+})
+
+describe('liftEmptyListItem', () => {
+  it('Backspace on an empty point clears its numbering, as Enter on one does', () => {
+    const state = stateWith(doc(ol(li(p('One')), li(p('Two')), li(p()))), cursor([0, 2, 0], 0))
+    const next = run(state, liftEmptyListItem)
+    expect(next.doc.eq(doc(ol(li(p('One')), li(p('Two'))), p()))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [1], offset: 0 })
+  })
+
+  it('outdents an empty nested point one level at a time', () => {
+    const state = stateWith(doc(ul(li(p('a'), ul(li(p()))))), cursor([0, 0, 1, 0, 0], 0))
+    const next = run(state, liftEmptyListItem)
+    expect(next.doc.eq(doc(ul(li(p('a')), li(p()))))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [0, 1, 0], offset: 0 })
+  })
+
+  it('declines on a point with text, so Backspace deletes as before', () => {
+    const state = stateWith(doc(ul(li(p('a')))), cursor([0, 0, 0], 0))
+    expect(liftEmptyListItem(state)).toBeNull()
+  })
+
+  it('declines on an empty line below the first in a point, which joins the line above', () => {
+    const state = stateWith(doc(ul(li(p('a'), p()))), cursor([0, 0, 1], 0))
+    expect(liftEmptyListItem(state)).toBeNull()
+  })
+
+  it('declines outside a list', () => {
+    const state = stateWith(doc(p()), cursor([0], 0))
+    expect(liftEmptyListItem(state)).toBeNull()
   })
 })
 
