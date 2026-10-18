@@ -34,6 +34,7 @@ import { JoinNodesStep, SplitNodeStep, withoutId } from '../state/steps/split-jo
 import { LiftNodesStep, WrapNodesStep } from '../state/steps/wrap-lift'
 import type { Transaction } from '../state/transaction'
 import { deleteRange } from './helpers'
+import { plainBlocks } from './plain-blocks'
 
 /**
  * A command inspects a state and produces the transaction realizing it, or
@@ -284,16 +285,32 @@ export const clearBlockFormatting: Command = (state) => {
   return tr.docChanged ? tr : null
 }
 
-/** Strip marks and reset block layout in one undoable step. */
-export const clearAllFormatting: Command = (state) => {
-  const marks = clearFormatting(state)
-  const layout = clearBlockFormatting(marks ? state.apply(marks) : state)
-  if (!marks) return layout
-  if (!layout) return marks
-  // Removing marks leaves every block where it was, so the layout steps
-  // apply unchanged on top of the mark steps.
-  for (const step of layout.steps) marks.step(step)
-  return marks
+/**
+ * Strip marks, reset block layout and make the selected blocks plain
+ * paragraphs, in one undoable step: out of the lists and quotes around them,
+ * headings and named paragraph styles dropped, and inline atoms that are
+ * styled words (see {@link NodeSpec.plainText}) turned into those words.
+ */
+export const clearAllFormatting: Command = (state) =>
+  inSequence(state, [clearFormatting, clearBlockFormatting, plainBlocks])
+
+/**
+ * Run commands one after another, each on the state the one before it left,
+ * as a single transaction. Null when none of them changed anything.
+ */
+function inSequence(state: EditorState, commands: readonly Command[]): Transaction | null {
+  let combined: Transaction | null = null
+  for (const command of commands) {
+    const tr = command(combined ? state.apply(combined) : state)
+    if (!tr) continue
+    if (!combined) {
+      combined = tr
+      continue
+    }
+    for (const step of tr.steps) combined.step(step)
+    combined.setSelection(tr.selection)
+  }
+  return combined
 }
 
 /**

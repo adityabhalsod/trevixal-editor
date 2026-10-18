@@ -817,7 +817,8 @@ accent). *Custom CSS…* adds your own rules, scoped so they cannot leak out of
 the editor. *Add a font…* loads a web font on demand.
 
 *View* also holds **Focus mode** (dims everything but the paragraph you are
-in), **Typewriter scrolling** (keeps the caret line in place), **Fullscreen**,
+in), **Typewriter scrolling** (keeps the caret line in place), **Fullscreen** (at
+the page's width or across the screen),
 **Page view** (paginated A4 / US Letter / US Legal / A5 with margins, or
 continuous) and four **widths**, narrow, normal, wide, full.
 
@@ -933,7 +934,7 @@ The host contracts, as declared in [`editor-ui.ts`](packages/ui/src/editor-ui.ts
 | `diagramCommands` | `DiagramCommands` | `insertDiagram(code?)` |
 | `codeFormatCommands` | from `codeFormatUICommands()` | Format JSON, Format XML, Minify |
 | `fileActions` | `FileActions` | `newDocument`, `openDocument`, `saveDocument`, `downloadAs(format)`, `importDocument`, `exportSelection`, `printPreview`, `exportPDF`, `backups`, `protectDocument`, `documentRestrictions` |
-| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), AutoFormat (`toggleSmartTypography`, `toggleAutocorrect`, `autocorrectOptions`), `toggleStylesPane`, `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
+| `viewActions` | `ViewActions` | Theme (`setTheme`, `setThemePreset`, `customTheme`, `customCSS`, `manageFonts`), modes (`toggleFocusMode`, `toggleTypewriter`, `toggleFullscreen`, `toggleFullscreenScreenWidth`, `togglePageMode`), panels (`toggleTableOfContents`, `toggleOutline`, `toggleHistoryPanel`, `toggleWorkspace`, `toggleSplitPreview`, `toggleSplitEditor`), `toggleReadOnly`, `toggleTrackChanges`, `setWidth`, `openCommandPalette`, `copyCode`, `formatPainter`, `insertEmoji`, `toggleSourceMode('markdown' \| 'html')`, writing (`showWritingStats`, `setWritingGoal`, `toggleWritingAssistant`, `toggleWritingCheck(kind)`, `isWritingCheckEnabled`, `toggleSpellcheck`, `isSpellcheckEnabled`), AutoFormat (`toggleSmartTypography`, `toggleAutocorrect`, `autocorrectOptions`), `toggleStylesPane`, `customizeToolbar`, `showKeyboardShortcuts`, `showAbout`, and the state readbacks `isViewToggleOn(toggle)`, `activeWidth()`, `activeTheme()`, `activeSourceMode()` that put a tick beside whatever is currently on |
 | `menus`, `toolbar`, `showMenubar`, `showStatusBar`, `shortcutLabels` | | Replace the menu tree, pass `ToolbarOptions`, hide pieces, print the shortcut manager's labels |
 
 Every piece is also available on its own (`createMenubar`, `createToolbar`,
@@ -1805,7 +1806,7 @@ as hypotheses by review passes and then corrected against real behaviour.
 
 | Spec | Tests | Covers |
 | --- | ---: | --- |
-| `feature-set.spec.ts` | 37 | The built demo through its own menus: every new node kind renders; every menu offers its features; tabs switch and write to the document; theme presets repaint; the shortcut manager rebinds; statistics; passive voice; the review bar; autosave; spell check toggles, reports and re-checks; menu labels stay readable in every theme; every entry has an icon; the palette matches the menus; menus stay on one line and on screen; a real `.docx` reads back; **exports carry the theme, the highlighting and the diagram** to the page and to Word; a saved page works from disk; print preview prints the theme and reveals tabs; Markdown export; slash `/tab` → table; emoji `:smi`; new-tab links carry `rel="noopener noreferrer"`; protection encrypts the autosave; a blocked copy says so; the sidebar comes and goes with its panels; read-only locks and unlocks; a Word paste arrives without its stylesheet and a Google Docs paste is not bold end to end |
+| `feature-set.spec.ts` | 38 | The built demo through its own menus: every new node kind renders; every menu offers its features; tabs switch and write to the document; theme presets repaint; the shortcut manager rebinds; statistics; passive voice; the review bar; autosave; spell check toggles, reports and re-checks; menu labels stay readable in every theme; every entry has an icon; the palette matches the menus; menus stay on one line and on screen; a real `.docx` reads back; **exports carry the theme, the highlighting and the diagram** to the page and to Word; a saved page works from disk; print preview prints the theme and reveals tabs; Markdown export; slash `/tab` → table; emoji `:smi`; new-tab links carry `rel="noopener noreferrer"`; protection encrypts the autosave; a blocked copy says so; the sidebar comes and goes with its panels; a block’s grip waits while the pointer crosses the margin to it; read-only locks and unlocks; a Word paste arrives without its stylesheet and a Google Docs paste is not bold end to end |
 | `full-editor-example.spec.ts` | 11 | The demo boots on its seeded document with its complete chrome; the cell toolbar appears only inside a table and offers every operation; the language picker floats over the block at the caret and lists every language; every menu item has an icon; code highlights; the format painter copies formatting |
 | `editor-ui.spec.ts` | 11 | Every control renders and drives the editor: a menu opens, runs and closes; the block, font-size and colour controls; alignment and indent; the table grid; the link dialog and character picker; image upload with progress; the status bar; clear formatting |
 | `chrome-state.spec.ts` | 12 | The chrome tells the truth about itself and stays where it was put: menus report what is on; the command palette leaves the page where it found it; every scrollbar follows the theme; both split panes show what the editor shows, diagrams, colours, tab strips and all; **the two panes scroll together**; a typed space appears at once; typing rewrites no attribute on a block it did not touch |
@@ -1833,9 +1834,9 @@ as hypotheses by review passes and then corrected against real behaviour.
 | `writing-assistance.spec.ts` | 7 | Inclusive wording, tone and clichés; the reading heat map; synonyms on right-click; the accessibility check; duplicate text across the workspace; citation styles from BibTeX; the writing assistant |
 | `table-design.spec.ts` | 7 | The Table design gallery and style options (header row, banding, first column, total row), the pen and the Border Painter, the Table menu ticks, one undo |
 | `data-tables.spec.ts` | 8 | Formulas that recompute, column types, checkboxes, filters, hidden columns, and a chart drawn from a table |
-| `productivity.spec.ts` | 6 | The palette prints the keys that fire; quick insert and its tray; the slash menu; Ctrl+F and the emoji key on a fresh page; custom paragraph keys; Customize toolbar and fullscreen |
+| `productivity.spec.ts` | 7 | The palette prints the keys that fire; quick insert and its tray; the slash menu; Ctrl+F and the emoji key on a fresh page; custom paragraph keys; Customize toolbar and fullscreen; fullscreen at the page's width or the window's |
 | `productivity-tools.spec.ts` | 6 | Go to a heading, bookmark or line; snippets; macros; multiple carets; recent documents in the palette; paste special |
-| `formatting-tools.spec.ts` | 6 | Hyphenation, widow control and text columns; tab stops with leaders on screen and in print; borders, shading and drop caps; AutoCorrect; the Styles pane |
+| `formatting-tools.spec.ts` | 8 | Hyphenation, widow control and text columns; tab stops with leaders on screen and in print; borders, shading and drop caps; AutoCorrect; the Styles pane; Clear all formatting to plain paragraphs; tight letter spacing |
 | `file-formats.spec.ts` | 6 | OpenDocument out and back, EPUB and LaTeX, a web page in one file, a workspace folder at once, Notion exports and a PDF’s text in |
 | `vertical-merge.spec.ts` | 5 | Merging down a column and across a rectangle, splitting into rows, rows inserted and deleted inside a merged cell, first-column styling that finds the right cells |
 | `page-layout.spec.ts` | 5 | Page setup and the page view; the print laid out as numbered pages, none running over; columns flowing down each page; a landscape section; Word gets it all; in Chromium, one sheet of PDF for each page laid out |
@@ -1993,7 +1994,7 @@ AutoFit contents / AutoFit window / Fixed column width · Distribute rows evenly
 
 **View**: **Theme ▸** Light / Dark / Match the system / Sepia / Nord /
 Solarized / High contrast / Midnight / Custom theme… / Custom CSS… · Add a
-font… · Focus mode · Typewriter scrolling · Fullscreen · Page view · Table of
+font… · Focus mode · Typewriter scrolling · Fullscreen ▸ Page width / Screen width · Page view · Table of
 contents · Document outline · History · Documents · Side-by-side preview ·
 Split editor · Narrow / Normal / Wide / Full width · Read-only mode ·
 Suggesting mode

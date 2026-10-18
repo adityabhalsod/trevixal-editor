@@ -413,6 +413,7 @@ export type ViewToggle =
   | 'focusMode'
   | 'typewriterMode'
   | 'fullscreen'
+  | 'fullscreenScreenWidth'
   | 'pageMode'
   | 'tableOfContents'
   | 'documentOutline'
@@ -439,6 +440,7 @@ export const VIEW_TOGGLES: readonly ViewToggle[] = [
   'focusMode',
   'typewriterMode',
   'fullscreen',
+  'fullscreenScreenWidth',
   'pageMode',
   'tableOfContents',
   'documentOutline',
@@ -471,6 +473,11 @@ export interface ViewActions {
   readonly toggleFocusMode?: () => void
   readonly toggleTypewriter?: () => void
   readonly toggleFullscreen?: () => void
+  /**
+   * Fullscreen across the whole screen, the document stretching with the
+   * window, where {@link toggleFullscreen} keeps it at its own width.
+   */
+  readonly toggleFullscreenScreenWidth?: () => void
   readonly togglePageMode?: () => void
   readonly toggleTableOfContents?: () => void
   readonly toggleOutline?: () => void
@@ -1463,6 +1470,7 @@ function createActions(
       ['focusMode', view.toggleFocusMode],
       ['typewriterMode', view.toggleTypewriter],
       ['fullscreen', view.toggleFullscreen],
+      ['fullscreenScreenWidth', view.toggleFullscreenScreenWidth],
       ['pageMode', view.togglePageMode],
       ['tableOfContents', view.toggleTableOfContents],
       ['documentOutline', view.toggleOutline],

@@ -71,6 +71,17 @@ export function safeLength(value: unknown): string | null {
   return /^\d+(\.\d+)?(px|pt|em|rem|%|vw|vh|ch)$/i.test(css) ? css : null
 }
 
+/**
+ * Letter spacing: a {@link safeLength} that may be negative, because tight
+ * spacing draws the letters closer than the font sets them.
+ */
+function safeLetterSpacing(value: unknown): string | null {
+  const css = safeCSSValue(value, 32)
+  if (!css?.startsWith('-')) return safeLength(css)
+  const length = safeLength(css.slice(1))
+  return length ? `-${length}` : null
+}
+
 /** Alignment, indent, vertical-rhythm, direction and paragraph-format attrs shared by textblocks. */
 export function blockLayoutAttrs(): Record<string, { default?: unknown }> {
   return {
@@ -784,12 +795,12 @@ export function defaultMarks(): Record<string, MarkSpec> {
     },
     letterSpacing: {
       attrs: { spacing: {} },
-      toHTML: (mark) => styleSpan('letter-spacing', safeLength(mark.attrs.spacing)),
+      toHTML: (mark) => styleSpan('letter-spacing', safeLetterSpacing(mark.attrs.spacing)),
       parseHTML: [
         {
           tag: 'span',
           getAttrs: (element) => {
-            const spacing = safeLength(element.style.letterSpacing)
+            const spacing = safeLetterSpacing(element.style.letterSpacing)
             return spacing ? { spacing } : false
           },
         },

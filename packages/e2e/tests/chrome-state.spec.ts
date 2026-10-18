@@ -424,13 +424,15 @@ for (const numbered of [false, true]) {
       if (numbered) await menu(page, 'format', 'headingNumbering-outline')
       await menu(page, 'view', 'splitPreview')
       // Before the panes can be lined up, the document has to stop changing
-      // height. The seeded document draws a diagram asynchronously, Mermaid is
-      // fetched from a CDN the first time one renders, and a block that grows
-      // after the two panes have been measured moves everything below it in one
-      // of them before the other, which reads exactly like a broken link. It
-      // only ever showed up under a full parallel run, where the fetch is slow
-      // enough to land after the first scroll.
-      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(1)
+      // height. The seeded document draws a diagram and a chart asynchronously,
+      // Mermaid is fetched from a CDN the first time one renders, and a block
+      // that grows after the two panes have been measured moves everything
+      // below it in one of them before the other, which reads exactly like a
+      // broken link. It only ever showed up under a full parallel run, where
+      // the fetch is slow enough to land after the first scroll.
+      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(2, {
+        timeout: 30_000,
+      })
       await previewSettled(page)
 
       const frame = page.frameLocator('.trevixal-split__preview')
@@ -560,20 +562,25 @@ test('both panes show what the editor shows', async ({ page }) => {
           ),
         )
 
-    // The editor's own diagram first. The preview does not draw one, it is
-    // handed the markup the editor already drew, so asking the preview for a
-    // diagram before the editor has one is asking it to have copied something
-    // that does not exist yet. Mermaid is fetched from a CDN the first time a
-    // diagram renders, which makes that the ordinary case on a cold run rather
-    // than a rare one, and it is why this failed about one WebKit run in three
-    // while passing every time in isolation.
-    await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(1)
+    // The editor's own diagrams first, the diagram and the chart. The preview
+    // does not draw one, it is handed the markup the editor already drew, so
+    // asking the preview for a diagram before the editor has one is asking it
+    // to have copied something that does not exist yet. Mermaid is fetched
+    // from a CDN the first time a diagram renders, which makes that the
+    // ordinary case on a cold run rather than a rare one, and it is why this
+    // failed about one WebKit run in three while passing every time in
+    // isolation.
+    await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(2, {
+      timeout: 30_000,
+    })
 
     // Then the preview, while the document is still untouched: an edit sets a
     // re-render going, and a render landing after a click on the frame
     // replaces the document that click just changed.
     await previewSettled(page)
-    await expect(frame.locator('.trevixal-diagram svg')).toHaveCount(1)
+    await expect(frame.locator('.trevixal-diagram svg')).toHaveCount(2, {
+      timeout: 30_000,
+    })
     await expect(frame.locator('pre code span[style*="color"]').first()).toBeVisible()
 
     // Its tab strip is wired by the page itself, from the same script the
@@ -593,7 +600,9 @@ test('both panes show what the editor shows', async ({ page }) => {
     // into the document, which is why this comes after the preview's.
     const mirror = page.locator('#mirror')
     await expect(mirror.locator('[class*="tvx-tok-"]').first()).toBeVisible()
-    await expect(mirror.locator('.trevixal-diagram svg')).toHaveCount(1)
+    await expect(mirror.locator('.trevixal-diagram svg')).toHaveCount(2, {
+      timeout: 30_000,
+    })
 
     const panels = () =>
       page.evaluate(() =>

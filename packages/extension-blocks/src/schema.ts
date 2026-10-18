@@ -329,6 +329,8 @@ export function blockNodes(): Record<string, NodeSpec> {
       group: 'inline',
       atom: true,
       attrs: { label: { default: '' }, tone: { default: 'neutral' } },
+      // Styled words, so Clear all formatting leaves just the words.
+      plainText: (node) => stringAttr(node.attrs.label),
       toHTML: (node) => {
         const tone = badgeTone(node.attrs.tone)
         return {
@@ -360,6 +362,7 @@ export function blockNodes(): Record<string, NodeSpec> {
       group: 'inline',
       atom: true,
       attrs: { label: { default: '' }, href: { default: null } },
+      plainText: (node) => stringAttr(node.attrs.label),
       // Rendered as a <span>, not an <a>: core's `link` mark claims every
       // <a> with a valid href, and marks are matched before nodes, so an
       // <a>-tagged node here would import as a link-marked text run and the

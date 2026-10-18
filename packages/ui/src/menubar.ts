@@ -1239,7 +1239,17 @@ export function defaultMenus(options: DefaultMenusOptions = {}): readonly Menu[]
         separator('view-sep-modes'),
         { name: 'focusMode', label: 'Focus mode', icon: 'focusMode' },
         { name: 'typewriterMode', label: 'Typewriter scrolling', icon: 'focusMode' },
-        { name: 'fullscreen', label: 'Fullscreen', icon: 'fullscreen' },
+        {
+          name: 'fullscreenMenu',
+          label: 'Fullscreen',
+          icon: 'fullscreen',
+          // The document in the middle of the screen at its own width, or
+          // across the whole screen, stretching with the window.
+          items: [
+            { name: 'fullscreen', label: 'Page width', icon: 'fullscreen' },
+            { name: 'fullscreenScreenWidth', label: 'Screen width', icon: 'fullscreen' },
+          ],
+        },
         { name: 'pageMode', label: 'Page view', icon: 'pageBreak' },
         { name: 'present', label: 'Present', icon: 'play' },
         separator('view-sep-panels'),

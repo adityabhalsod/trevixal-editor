@@ -60,6 +60,31 @@ test('keeps two namespaces out of each other saved preferences', () => {
   expect(strayed).toEqual(['one:preferences'])
 })
 
+test('goes fullscreen at the screen’s width or the page’s, and across from one to the other', () => {
+  mounted = mountFullEditor({ element: host })
+  const entry = (name: string) =>
+    host.querySelector<HTMLButtonElement>(`[data-trevixal-item="${name}"]`) as HTMLButtonElement
+  const shell = host.querySelector('.editor-shell') as HTMLElement
+  entry('fullscreenScreenWidth').click()
+  expect(shell.classList.contains('trevixal-fullscreen')).toBe(true)
+  expect(shell.dataset.trevixalFullscreenWidth).toBe('screen')
+  expect(entry('fullscreenScreenWidth').getAttribute('aria-checked')).toBe('true')
+  expect(entry('fullscreen').getAttribute('aria-checked')).toBe('false')
+  // Page width from there narrows the page without leaving fullscreen...
+  entry('fullscreen').click()
+  expect(shell.classList.contains('trevixal-fullscreen')).toBe(true)
+  expect(shell.dataset.trevixalFullscreenWidth).toBe('page')
+  // ...and picking it again leaves.
+  entry('fullscreen').click()
+  expect(shell.classList.contains('trevixal-fullscreen')).toBe(false)
+})
+
+test('loads Open Sans, which the font list offers and few systems have installed', () => {
+  mounted = mountFullEditor({ element: host })
+  const loading = [...document.querySelectorAll<HTMLLinkElement>('link[data-trevixal-font]')]
+  expect(loading.map((link) => link.dataset.trevixalFont)).toContain('Open Sans')
+})
+
 test('destroy empties the host and can be called twice', () => {
   const editor = mountFullEditor({ element: host })
   editor.destroy()

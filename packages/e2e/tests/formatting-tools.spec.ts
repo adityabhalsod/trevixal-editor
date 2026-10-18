@@ -313,4 +313,77 @@ test.describe('the formatting tools of the built demo', () => {
       await server.close()
     }
   })
+
+  test('Ctrl+\\ leaves plain paragraphs: no bullets, no headings, a button as its words', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      const surface = page.locator('#editor .trevixal-content')
+      const extras = surface.locator('> p', { hasText: 'Inline extras' })
+      await expect(extras.locator('.trevixal-button')).toHaveCount(1)
+      // From the tour's first bullet to the line holding a badge and a button.
+      await surface
+        .locator('> ul p')
+        .first()
+        .click({ position: { x: 4, y: 6 } })
+      await expect(surface).toBeFocused()
+      await surface.evaluate((root) => {
+        const list = root.querySelector(':scope > ul p')?.firstChild
+        const line = [...root.children].find((child) =>
+          child.textContent?.startsWith('Inline extras'),
+        )
+        const end = line?.querySelector('.trevixal-button')?.nextSibling
+        if (!list || !end) throw new Error('the tour has moved')
+        root.ownerDocument.getSelection()?.setBaseAndExtent(list, 0, end, 1)
+      })
+      await page.keyboard.press('Control+Backslash')
+
+      await expect(surface.locator('> p', { hasText: /^A bullet list$/ })).toHaveCount(1)
+      await expect(surface.locator('> p', { hasText: /^Typography$/ })).toHaveCount(1)
+      await expect(surface.locator('> h2', { hasText: 'Typography' })).toHaveCount(0)
+      await expect(extras.locator('.trevixal-button, .trevixal-badge')).toHaveCount(0)
+      await expect(extras).toContainText('New a badge, A button, and')
+      // The containers stay, made plain inside.
+      await expect(surface.locator('.trevixal-callout')).toHaveCount(5)
+
+      // One undo puts all of it back.
+      await page.keyboard.press('ControlOrMeta+z')
+      await expect(surface.locator('> ul').first()).toContainText('A bullet list')
+      await expect(extras.locator('.trevixal-button')).toHaveCount(1)
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('letter spacing draws tight as well as wide, and Normal takes it off', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      const paragraph = await freshParagraph(page, 'Letters drawn closer together')
+      const pick = async (option: string): Promise<void> => {
+        await page.keyboard.press('Home')
+        await page.keyboard.press('Shift+End')
+        await page.click(
+          '.trevixal-toolbar [data-trevixal-item="letterSpacing"] .trevixal-dropdown__trigger',
+        )
+        await page.click(`.trevixal-select__option:text-is("${option}")`)
+      }
+      const width = () =>
+        paragraph.evaluate((element) => {
+          const range = element.ownerDocument.createRange()
+          range.selectNodeContents(element)
+          return range.getBoundingClientRect().width
+        })
+      const normal = await width()
+      await pick('Tight')
+      await expect(paragraph.locator('span[style*="letter-spacing: -0.02em"]')).toHaveCount(1)
+      expect(await width()).toBeLessThan(normal)
+      await pick('Normal')
+      await expect(paragraph.locator('span[style*="letter-spacing"]')).toHaveCount(0)
+    } finally {
+      await server.close()
+    }
+  })
 })

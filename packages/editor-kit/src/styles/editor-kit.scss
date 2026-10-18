@@ -229,6 +229,24 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   }
 }
 
+// View ▸ Fullscreen ▸ Screen width: the document stretches with the window
+// instead of keeping its own width, and the page view's sheet with it, its
+// margins kept and a strip of the desk left either side.
+.editor-shell.trevixal-viewmode--fullscreen[data-trevixal-fullscreen-width='screen'] {
+  > #editor {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
+  &.trevixal-paged {
+    padding-inline: 1rem;
+
+    #editor .trevixal-content {
+      width: auto;
+    }
+  }
+}
+
 // ------------------------------------------------------------- the readouts
 
 .statusline {

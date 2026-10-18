@@ -21,6 +21,7 @@ import { KEYBOARD_INSET_PROPERTY, trackVirtualKeyboard } from '../src/mobile'
 import { MOTION_ATTRIBUTE, scrollBehavior } from '../src/motion'
 import {
   ThemeFileError,
+  buildCustomTheme,
   createThemeController,
   currentTheme,
   parseTheme,
@@ -61,6 +62,24 @@ describe('theme files', () => {
       }),
     )
     expect(hostile.tokens).toEqual({ 'color-text': '#111111' })
+  })
+
+  it('write every colour as a hex code, the selection wash keeping its transparency', () => {
+    const hexOnly = (tokens: Record<string, unknown>) =>
+      Object.values(tokens).every((value) => /^#[0-9a-f]{6}([0-9a-f]{2})?$/.test(String(value)))
+    const theme = createThemeController(document, { preset: 'nord' })
+    const nord = JSON.parse(serializeTheme(currentTheme(theme)))
+    // rgba(136, 192, 208, 0.28): 0.28 of 255 rounds to 71, 0x47.
+    expect(nord.tokens['color-selection']).toBe('#88c0d047')
+    expect(hexOnly(nord.tokens)).toBe(true)
+    expect(parseTheme(JSON.stringify(nord)).tokens['color-selection']).toBe('#88c0d047')
+
+    const custom = buildCustomTheme({
+      tokens: { 'color-bg': '#ffffff', 'color-accent': '#2563eb' },
+    })
+    const file = JSON.parse(serializeTheme(custom))
+    expect(file.tokens['color-selection']).toBe('#2563eb40')
+    expect(hexOnly(file.tokens)).toBe(true)
   })
 
   it('refuse a file that is not a theme', () => {

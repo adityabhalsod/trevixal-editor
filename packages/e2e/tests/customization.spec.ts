@@ -113,6 +113,8 @@ test('exports the theme in force, and imports one from a file', async ({ page })
     const exported = JSON.parse(await readFile((await (await pending).path()) as string, 'utf8'))
     expect(exported).toMatchObject({ format: 'trevixal-theme', name: 'nord', base: 'dark' })
     expect(exported.tokens['color-bg']).toBe('#2e3440')
+    // A colour with transparency too: hex, its alpha in the last two digits.
+    expect(exported.tokens['color-selection']).toBe('#88c0d047')
 
     const chooser = page.waitForEvent('filechooser')
     await runMenuItem(page, 'view', 'importTheme')

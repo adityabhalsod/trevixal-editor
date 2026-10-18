@@ -175,8 +175,17 @@ import { runAssist } from './writing-assist'
 import { showAccessibilityReport, showDuplicateText } from './writing-reports'
 
 // A chart's series, in the chrome's accent and then hues as dark: Mermaid's
-// own first colour is a lavender barely darker than the page.
-const CHART_PALETTE = '#4f46e5, #d97706, #059669, #dc2626, #0284c7, #7c3aed'
+// own first colour is a lavender barely darker than the page, and its pie
+// slices are pastels the page all but swallows.
+const CHART_COLOURS = ['#4f46e5', '#d97706', '#059669', '#dc2626', '#0284c7', '#7c3aed']
+const CHART_THEME = {
+  xyChart: { plotColorPalette: CHART_COLOURS.join(', ') },
+  // A pie's slices in the same colours, at full strength, with the shares
+  // on them in white to read on every one.
+  ...Object.fromEntries(CHART_COLOURS.map((colour, index) => [`pie${index + 1}`, colour])),
+  pieOpacity: '1',
+  pieSectionTextColor: '#ffffff',
+}
 
 /**
  * Build the whole editor inside `options.element` and return a handle to it.
@@ -328,9 +337,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     }
     if (!mermaidRenderer) {
       const { loadMermaid } = await import('@trevixal/extension-diagram')
-      mermaidRenderer = createMermaidRenderer(await loadMermaid(), {
-        themeVariables: { xyChart: { plotColorPalette: CHART_PALETTE } },
-      })
+      mermaidRenderer = createMermaidRenderer(await loadMermaid(), { themeVariables: CHART_THEME })
     }
     return mermaidRenderer(code, context)
   }
@@ -343,7 +350,11 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
     // another render, and the pane would go on showing an empty plate until the
     // next keystroke happened to refresh it. Mermaid is fetched from a CDN on
     // first use, so this is the ordinary case on a cold load, not a rare one.
-    panes.refreshPreview()
+    //
+    // A task later, not now: the extension puts the drawing in the page once
+    // this resolves, and a refresh before then copies the page without it.
+    // With two diagrams drawn together, the second was always the one missing.
+    setTimeout(() => panes.refreshPreview())
     return drawn
   }
   const diagrams = diagram(editor, { render: renderDiagram, languages: EVERY_DIAGRAM_LANGUAGE })
@@ -506,6 +517,20 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   })
   const focus = createFocusMode(editor)
   const fullscreen = createFullscreenToggle(editor, { target: editorShell })
+  /** How wide fullscreen sets the document: at its own width, or across the whole screen. */
+  const fullscreenWidth = (): 'page' | 'screen' =>
+    editorShell.dataset.trevixalFullscreenWidth === 'screen' ? 'screen' : 'page'
+  /**
+   * View ▸ Fullscreen ▸ Page width or Screen width: into fullscreen at that
+   * width, across to it from the other, or out again from it. The toolbar
+   * button and the shortcut only toggle, at the width chosen last.
+   */
+  const showFullscreen = (width: 'page' | 'screen'): void => {
+    const leaving = fullscreen.isFullscreen && fullscreenWidth() === width
+    editorShell.dataset.trevixalFullscreenWidth = width
+    if (leaving) void fullscreen.exit()
+    else if (!fullscreen.isFullscreen) void fullscreen.enter()
+  }
   const typewriter = createTypewriter(editor)
 
   const tocPanel = layout.toc
@@ -1112,7 +1137,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       setWidth: (width) => setEditorWidth(editorShell, width),
       toggleFocusMode: () => focus.toggle(),
       toggleTypewriter: () => typewriter.toggle(),
-      toggleFullscreen: () => void fullscreen.toggle(),
+      toggleFullscreen: () => showFullscreen('page'),
+      toggleFullscreenScreenWidth: () => showFullscreen('screen'),
       togglePageMode: () => chrome.page.toggle(),
       toggleTableOfContents: () => togglePanel(tocPanel),
       toggleOutline: () => togglePanel(outlinePanel),
@@ -1196,7 +1222,9 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
           case 'typewriterMode':
             return typewriter.isActive
           case 'fullscreen':
-            return fullscreen.isFullscreen
+            return fullscreen.isFullscreen && fullscreenWidth() === 'page'
+          case 'fullscreenScreenWidth':
+            return fullscreen.isFullscreen && fullscreenWidth() === 'screen'
           case 'pageMode':
             return chrome.page.mode === 'paged'
           case 'tableOfContents':

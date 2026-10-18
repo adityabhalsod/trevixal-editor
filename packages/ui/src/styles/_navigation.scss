@@ -568,6 +568,12 @@
   }
 }
 
+// The cover scrolls the document itself, so the page under it must not scroll
+// as well: its own scrollbar showed beside the cover's, two side by side.
+html:has(.trevixal-fullscreen) {
+  overflow: hidden;
+}
+
 .trevixal-viewmode__button {
   padding: t.token('space-1') t.token('space-2');
   border: 1px solid t.token('color-border');

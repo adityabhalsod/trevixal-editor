@@ -168,10 +168,12 @@ back. *Table > Hide column* hides the caret's column, and *Show hidden
 columns* brings it back.
 
 *Table > Insert chart* draws the table as a bar, line or pie chart, using a
-Mermaid diagram after the table. The first column labels the points. Each
-other column with numbers in it becomes a series, named by its header. In a
-bar chart the first series is drawn as bars and the others as lines, so no
-series hides behind another. A total row is left out: the table style's
+Mermaid diagram after the table. The first line of each row's first cell
+names its point. Each other column with numbers in it becomes a series, named
+by its header. In a bar chart the first series is drawn as bars and the
+others as lines, so no series hides behind another. When the names are too
+long to sit side by side along the bottom, a bar chart turns on its side, with
+each name on a line of its own, and a line chart shortens them. A total row is left out: the table style's
 total row, or a row whose formulas add up the rows above it. The chart does
 not update when the table changes, as a Word chart made from a table does
 not. Draw it again after a change.

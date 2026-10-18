@@ -15,6 +15,7 @@ import {
   nodeAtPath,
   pathOfElement,
   pos,
+  textblocks,
 } from '@trevixal/core'
 import { cellContextAt, gridCellOf } from './commands'
 import { rowGroups } from './features'
@@ -470,6 +471,30 @@ function quoted(text: string): string {
   return `"${text.replace(/"/g, "'").replace(/\s+/g, ' ').trim()}"`
 }
 
+/**
+ * How many letters of row names fit along the bottom of a chart, all told:
+ * Mermaid draws the names level and side by side, and a longer one runs
+ * into its neighbours.
+ */
+const AXIS_ROOM = 80
+/** The longest row name a chart on its side still shows in full. */
+const SIDE_ROOM = 40
+
+/** A row's name: the first line of its first cell, without a colon left hanging. */
+function rowLabel(cell: EditorNode): string {
+  const line = textblocks(cell)[0]?.node
+  return line ? cellShownText(line).replace(/\s*:\s*$/, '') : ''
+}
+
+/** `text` cut to `room` letters with an ellipsis, at a word where one is near. */
+function shortened(text: string, room: number): string {
+  if (text.length <= room) return text
+  const cut = text.slice(0, room - 1)
+  const space = cut.lastIndexOf(' ')
+  const head = space > room / 2 ? cut.slice(0, space) : cut
+  return `${head.replace(/[\s,;:.]+$/, '')}…`
+}
+
 /** Whether a cell totals the rows above it: a formula over ABOVE, as a total row holds. */
 function totalsAbove(node: EditorNode): boolean {
   if (node.type.name === 'tableFormula')
@@ -484,7 +509,10 @@ function totalsAbove(node: EditorNode): boolean {
  * chart draws the series after the first as lines, as Mermaid would lay
  * their bars over the first's and hide them. Rows with no number, and a
  * total row (Word's option, or one whose formulas add up the rows above),
- * are left out. Null when the table has no numbers to draw.
+ * are left out. Names too long to sit side by side along the bottom turn a
+ * bar chart on its side, where each has a line of its own, and are
+ * shortened along the bottom of a line chart. Null when the table has no
+ * numbers to draw.
  */
 export function tableChartSource(table: EditorNode, kind: ChartKind): string | null {
   const map = TableMap.of(table)
@@ -509,7 +537,11 @@ export function tableChartSource(table: EditorNode, kind: ChartKind): string | n
       ),
   )
   if (body.length === 0 || map.width < 2) return null
-  const labels = body.map((group) => text(group.first, 0) || `Row ${group.first + 1}`)
+  const labels = body.map((group) => {
+    const cell = map.at(group.first, 0)
+    const label = cell && cell.top === group.first ? rowLabel(cell.node) : ''
+    return label || `Row ${group.first + 1}`
+  })
   const series: { name: string; values: number[] }[] = []
   for (let column = 1; column < map.width; column++) {
     const values = body.map((group) => parseCellNumber(text(group.first, column)))
@@ -523,7 +555,16 @@ export function tableChartSource(table: EditorNode, kind: ChartKind): string | n
     const lines = labels.map((label, index) => `    ${quoted(label)} : ${first.values[index] ?? 0}`)
     return [`pie title ${first.name || 'Chart'}`, ...lines].join('\n')
   }
-  const lines = ['xychart-beta', `    x-axis [${labels.map(quoted).join(', ')}]`]
+  const room = Math.floor(AXIS_ROOM / labels.length)
+  const fits = labels.every((label) => label.length <= room)
+  const sideways = kind === 'bar' && !fits
+  const names = fits
+    ? labels
+    : labels.map((label) => shortened(label, sideways ? SIDE_ROOM : Math.max(room, 4)))
+  const lines = [
+    sideways ? 'xychart-beta horizontal' : 'xychart-beta',
+    `    x-axis [${names.map(quoted).join(', ')}]`,
+  ]
   if (series.length === 1 && first.name) lines.push(`    y-axis ${quoted(first.name)}`)
   series.forEach(({ values }, index) => {
     const plot = kind === 'bar' && index > 0 ? 'line' : kind
@@ -545,7 +586,11 @@ export function insertTableChart(kind: ChartKind): Command {
     if (!context || !codeBlock) return null
     const source = tableChartSource(context.table, kind)
     if (!source) return null
-    const block = codeBlock.create({ language: 'mermaid' }, Fragment.of(state.schema.text(source)))
+    // Wrapped: a row of long names reads in full instead of scrolling sideways.
+    const block = codeBlock.create(
+      { language: 'mermaid', wrap: true },
+      Fragment.of(state.schema.text(source)),
+    )
     const parent = context.tablePath.slice(0, -1)
     const index = (context.tablePath[context.tablePath.length - 1] as number) + 1
     const tr = state.tr.step(new ReplaceNodesStep(parent, index, index, Fragment.of(block)))

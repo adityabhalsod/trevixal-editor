@@ -293,14 +293,40 @@ export function currentTheme(theme: ThemeController): ThemePreset {
   return { name: base, label: base === 'dark' ? 'Dark' : 'Light', base, tokens: {} }
 }
 
-/** A theme as a file: JSON another editor imports with {@link parseTheme}. */
+/**
+ * A theme as a file: JSON another editor imports with {@link parseTheme}.
+ * Every `rgb()` colour is written as a hex code, the way the rest of a
+ * palette is, its transparency kept in two more digits.
+ */
 export function serializeTheme(preset: ThemePreset): string {
-  const { name, label, base, tokens } = preset
+  const { name, label, base } = preset
+  const tokens = Object.fromEntries(
+    Object.entries(preset.tokens).map(([token, value]) => [token, rgbToHex(value) ?? value]),
+  )
   return JSON.stringify(
     { format: THEME_FILE_FORMAT, version: 1, name, label, base, tokens },
     null,
     2,
   )
+}
+
+const RGB = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)\s*(?:[,/]\s*([\d.]+)(%?)\s*)?\)$/i
+
+/** `rgb()` or `rgba()` as `#rrggbb`, or `#rrggbbaa` when see-through; null for anything else. */
+function rgbToHex(value: string): string | null {
+  const match = RGB.exec(value.trim())
+  if (!match) return null
+  const channels = [match[1], match[2], match[3]].map(Number)
+  if (channels.some((channel) => channel > 255)) return null
+  const alpha = match[4] === undefined ? 1 : Number(match[4]) / (match[5] ? 100 : 1)
+  if (!Number.isFinite(alpha)) return null
+  const opaque = `#${channels.map(hexByte).join('')}`
+  return alpha >= 1 ? opaque : `${opaque}${hexByte(Math.round(alpha * 255))}`
+}
+
+/** One colour channel, 0 to 255, as two hex digits. */
+function hexByte(value: number): string {
+  return value.toString(16).padStart(2, '0')
 }
 
 /**
@@ -498,8 +524,7 @@ export function mixColors(a: string, b: string, amount: number): string {
   if (!first || !second) return a
   const channel = (index: number): number =>
     Math.round((first[index] as number) * (1 - amount) + (second[index] as number) * amount)
-  const hex = (value: number): string => value.toString(16).padStart(2, '0')
-  return `#${hex(channel(0))}${hex(channel(1))}${hex(channel(2))}`
+  return `#${hexByte(channel(0))}${hexByte(channel(1))}${hexByte(channel(2))}`
 }
 
 // ------------------------------------------------------------------- fonts

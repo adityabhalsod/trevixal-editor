@@ -8,13 +8,17 @@ import { HISTORY_LABEL } from '../src/history/history'
 import { applyInputRules, defaultInputRules } from '../src/input-rules/input-rules'
 import { paragraphCount, sentenceCount, wordCount } from '../src/model/counts'
 import { Fragment } from '../src/model/fragment'
+import type { EditorNode } from '../src/model/node'
 import { pos } from '../src/model/position'
 import { Schema } from '../src/model/schema'
 import { defaultMarks, defaultNodes, safeElementId } from '../src/schema/basic'
 import { escapeHTML, serializeToHTML } from '../src/serialize/html'
 import { parseHTML } from '../src/serialize/parse-html'
+import { EditorState } from '../src/state/editor-state'
+import { TextSelection } from '../src/state/selection'
 import { SetNodeAttrsStep } from '../src/state/steps/attrs-step'
-import { bold, cursor, doc, p, range, stateWith, testSchema, text } from './helpers'
+import type { Transaction } from '../src/state/transaction'
+import { blockquote, bold, cursor, doc, p, range, stateWith, testSchema, text } from './helpers'
 
 describe('document counts', () => {
   const sample = doc(p('Hello world. How are you?'), p(''), p('Third line'))
@@ -119,6 +123,138 @@ describe('clearing block formatting', () => {
 
   it('declines when nothing needs resetting', () => {
     expect(clearBlockFormatting(stateWith(doc(p('plain')), cursor([0], 0)))).toBeNull()
+  })
+})
+
+describe('clearing all formatting', () => {
+  const item = (...children: EditorNode[]) =>
+    testSchema.node('listItem', undefined, Fragment.from(children))
+  const bullets = (...items: EditorNode[]) =>
+    testSchema.node('bulletList', undefined, Fragment.from(items))
+  const numbered = (attrs: Record<string, unknown>, ...items: EditorNode[]) =>
+    testSchema.node('orderedList', attrs, Fragment.from(items))
+  const cleared = (state: ReturnType<typeof stateWith>) => {
+    const tr = clearAllFormatting(state)
+    expect(tr).not.toBeNull()
+    return state.apply(tr as NonNullable<typeof tr>)
+  }
+  const shape = (node: EditorNode): unknown =>
+    node.isTextblock
+      ? `${node.type.name}:${node.textContent}`
+      : { [node.type.name]: node.content.children.map(shape) }
+
+  it('takes the selected points out of their lists, at every level, as plain lines', () => {
+    const list = bullets(item(p('One'), bullets(item(p('Two')))), item(p('Three')))
+    const next = cleared(stateWith(doc(list), range([0, 0, 0], 0, [0, 1, 0], 5)))
+    expect(next.doc.content.children.map(shape)).toEqual([
+      'paragraph:One',
+      'paragraph:Two',
+      'paragraph:Three',
+    ])
+    // The selection still covers the same words.
+    expect(next.selection.from).toEqual(pos([0], 0))
+    expect(next.selection.to).toEqual(pos([2], 5))
+  })
+
+  it('leaves the points outside the selection in a list of the same kind', () => {
+    const list = numbered(
+      { listStyle: 'upper-roman' },
+      item(p('a')),
+      item(p('b')),
+      item(p('c')),
+      item(p('d')),
+    )
+    const next = cleared(stateWith(doc(list), range([0, 1, 0], 0, [0, 2, 0], 1)))
+    expect(next.doc.content.children.map(shape)).toEqual([
+      { orderedList: [{ listItem: ['paragraph:a'] }] },
+      'paragraph:b',
+      'paragraph:c',
+      { orderedList: [{ listItem: ['paragraph:d'] }] },
+    ])
+    expect(next.doc.child(3).attrs.listStyle).toBe('upper-roman')
+  })
+
+  it('lifts a nested point out on its own, and the points under it with it', () => {
+    const list = bullets(
+      item(p('Parent'), bullets(item(p('Picked')), item(p('Sibling')))),
+      item(p('Next')),
+    )
+    const next = cleared(stateWith(doc(list), range([0, 0, 1, 0, 0], 0, [0, 0, 1, 0, 0], 6)))
+    expect(next.doc.content.children.map(shape)).toEqual([
+      { bulletList: [{ listItem: ['paragraph:Parent'] }] },
+      'paragraph:Picked',
+      { bulletList: [{ listItem: ['paragraph:Sibling'] }] },
+      { bulletList: [{ listItem: ['paragraph:Next'] }] },
+    ])
+  })
+
+  it('takes the selected lines out of a quote, leaving the rest quoted', () => {
+    const quote = blockquote(p('kept'), p('plain'), p('kept too'))
+    const next = cleared(stateWith(doc(quote), range([0, 1], 0, [0, 1], 5)))
+    expect(next.doc.content.children.map(shape)).toEqual([
+      { blockquote: ['paragraph:kept'] },
+      'paragraph:plain',
+      { blockquote: ['paragraph:kept too'] },
+    ])
+  })
+
+  it('turns headings into paragraphs that keep their link target, and drops a named style', () => {
+    const heading = testSchema.node(
+      'heading',
+      { level: 2, id: 'intro' },
+      Fragment.of(text('Intro')),
+    )
+    const quoted = testSchema.node(
+      'paragraph',
+      { paragraphStyle: 'quote' },
+      Fragment.of(text('Said')),
+    )
+    const next = cleared(stateWith(doc(heading, quoted), range([0], 0, [1], 4)))
+    expect(next.doc.child(0).type.name).toBe('paragraph')
+    expect(next.doc.child(0).attrs.id).toBe('intro')
+    expect(next.doc.child(1).attrs.paragraphStyle).toBeNull()
+  })
+
+  it('turns an atom that is styled words into its words, and keeps one that is content', () => {
+    const schema = new Schema({
+      nodes: {
+        ...defaultNodes(),
+        chip: {
+          inline: true,
+          group: 'inline',
+          atom: true,
+          attrs: { label: { default: '' } },
+          plainText: (node) => String(node.attrs.label),
+        },
+        marker: { inline: true, group: 'inline', atom: true },
+      },
+      marks: defaultMarks(),
+    })
+    const line = schema.node(
+      'paragraph',
+      undefined,
+      Fragment.from([
+        schema.text('Press '),
+        schema.node('chip', { label: 'Save' }),
+        schema.node('marker'),
+        schema.text(' now'),
+      ]),
+    )
+    const state = EditorState.create({
+      schema,
+      doc: schema.node('doc', undefined, Fragment.of(line)),
+      selection: new TextSelection(pos([0], 0), pos([0], 12)),
+    })
+    const next = state.apply(clearAllFormatting(state) as NonNullable<Transaction>)
+    const block = next.doc.child(0)
+    expect(block.textContent).toBe('Press Save now')
+    expect(block.content.children.map((child) => child.type.name)).toContain('marker')
+    // The selection grows by the words the chip became.
+    expect(next.selection.to).toEqual(pos([0], 15))
+  })
+
+  it('declines when the selection is plain already', () => {
+    expect(clearAllFormatting(stateWith(doc(p('plain')), range([0], 0, [0], 5)))).toBeNull()
   })
 })
 

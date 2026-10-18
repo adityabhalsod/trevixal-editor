@@ -119,7 +119,7 @@ contrast / Midnight / Custom theme... / Custom CSS... / Import theme... / Export
 theme... / Save theme with document · Add a font... · **Language >** English /
 Deutsch / Français / Español / Português / हिन्दी / 日本語 / 中文 / العربية ·
 **Toolbar >** Minimal / Writing / Developer / Full · Present · Focus
-mode `Ctrl+Shift+F` · Typewriter scrolling · Fullscreen `Ctrl+Shift+Enter` ·
+mode `Ctrl+Shift+F` · Typewriter scrolling · **Fullscreen**: Page width `Ctrl+Shift+Enter` / Screen width ·
 Page view · Table of contents · Document outline · History · Comments · Documents ·
 Side-by-side preview · Split editor `Ctrl+Alt+S` · Narrow / Normal / Wide /
 Full width · Read-only mode · Suggesting mode · Reduce motion · Dyslexia-friendly

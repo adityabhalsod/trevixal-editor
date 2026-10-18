@@ -169,6 +169,14 @@ export function createChrome(
 
   const fonts = createFontManager(document, {
     fonts: [
+      // The font select offers Open Sans, which few systems have installed;
+      // without it here the choice falls back to System UI and looks the same.
+      // Its stack is the select's own, so Document fonts lists it once.
+      {
+        family: 'Open Sans',
+        stack: "'Open Sans', system-ui, sans-serif",
+        url: googleFontURL('Open Sans'),
+      },
       { family: 'Inter', stack: '"Inter", system-ui, sans-serif', url: googleFontURL('Inter') },
       {
         family: 'Merriweather',

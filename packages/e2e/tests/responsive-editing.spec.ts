@@ -55,7 +55,6 @@ test.describe('responsive chrome and code editing', () => {
               const box = control.getBoundingClientRect()
               return box.left < 0 || box.right > window.innerWidth
             }).length,
-            pageScrollsSideways: document.documentElement.scrollWidth > window.innerWidth,
             toolbarHeight: bars[1].getBoundingClientRect().height,
           }
         })
@@ -71,7 +70,12 @@ test.describe('responsive chrome and code editing', () => {
         // the first few controls: every control has to stay on screen.
         expect(narrow.scrollsSideways).toBe(false)
         expect(narrow.offscreen).toBe(0)
-        expect(narrow.pageScrollsSideways).toBe(false)
+        // A tabbed line takes its stops from the new width a frame after the
+        // resize (tab-layout.ts), which a loaded WebKit can take longer than
+        // the wait above to draw, and reaches past the edge until it does.
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth))
+          .toBe(false)
         expect(narrow.toolbarHeight).toBeGreaterThan(wide.toolbarHeight)
       }
     } finally {

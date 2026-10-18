@@ -48,7 +48,7 @@ bright white scrollbar.
 | --- | --- |
 | Focus mode | Dims everything but the paragraph you are in |
 | Typewriter scrolling | Keeps the caret line in place while you type |
-| Fullscreen | The page alone, centred, across the whole screen: no menus, sidebar or banners. The slash menu, the palette and dialogs still open over it. `Esc` leaves |
+| Fullscreen | The page alone, across the whole screen: no menus, sidebar or banners. *Page width* keeps the document at its own width in the middle of the screen. *Screen width* stretches it, and the page view's sheet, across the window as it grows or narrows. `Ctrl+Shift+Enter` and the toolbar button use the width chosen last. The slash menu, the palette and dialogs still open over it. `Esc` leaves |
 | Page view | The document's paper (*File > Page setup*), turned and with its margins, its header, footer and watermark on each sheet; or continuous. See [Page setup and printing](./files#page-setup-and-printing) |
 | Width | Narrow, normal, wide or full |
 | Read-only mode | Locks the surface without a password; see [Protecting a document](./protection) |

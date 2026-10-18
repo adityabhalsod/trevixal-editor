@@ -320,6 +320,74 @@ describe('block drag handle', () => {
     editor.destroy()
   })
 
+  /**
+   * Three 20px blocks on a surface whose left edge is at 100px; the grip
+   * hangs in the gutter to their left. Returns a pointer move outside the
+   * surface, at a point on the page.
+   */
+  const laidOut = () => {
+    const editor = threeBlocks()
+    const surface = editor.view?.dom as HTMLElement
+    stubRect(surface, { left: 100, top: 0, width: 600, height: 60 })
+    ;[...surface.children].forEach((child, index) =>
+      stubRect(child, { left: 117, top: index * 20, width: 566, height: 20 }),
+    )
+    stubRect(host, { left: 0, top: 0, width: 800, height: 400 })
+    const handle = createBlockDragHandle(editor, { container: host })
+    const moveOnPage = (clientX: number, clientY: number, buttons = 0) =>
+      document.body.dispatchEvent(
+        new PointerEvent('pointermove', { clientX, clientY, buttons, bubbles: true }),
+      )
+    return { editor, surface, handle, moveOnPage }
+  }
+
+  it('stays beside the block while the pointer crosses the margin to it', () => {
+    const { editor, surface, handle, moveOnPage } = laidOut()
+    surface.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 300, clientY: 30, bubbles: true }),
+    )
+    expect(handle.element.hidden).toBe(false)
+    // Along the row and out past the surface's edge, below the grip, then up
+    // to it: the way a hand goes.
+    surface.dispatchEvent(new PointerEvent('pointerleave', { relatedTarget: document.body }))
+    moveOnPage(95, 30)
+    expect(handle.element.hidden).toBe(false)
+    expect(handle.element.style.top).toBe('20px')
+    handle.destroy()
+    editor.destroy()
+  })
+
+  it('shows the grip when the pointer comes in from the margin, and hides it well away', () => {
+    const { editor, handle, moveOnPage } = laidOut()
+    moveOnPage(90, 50)
+    expect(handle.element.hidden).toBe(false)
+    expect(handle.element.style.top).toBe('40px')
+    moveOnPage(20, 50)
+    expect(handle.element.hidden).toBe(true)
+    handle.destroy()
+    editor.destroy()
+  })
+
+  it('lets go of a press whose end it never heard, rather than staying stuck', () => {
+    // Firefox delivers no pointerup to the grip when the button comes up over
+    // an embedded frame, and a pointercancel ends a touch the same way.
+    const { editor, surface, handle, moveOnPage } = laidOut()
+    surface.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: 300, clientY: 10, bubbles: true }),
+    )
+    handle.element.setPointerCapture = () => undefined
+    handle.element.dispatchEvent(new PointerEvent('pointerdown', { clientY: 10, buttons: 1 }))
+    expect(handle.element.getAttribute('aria-pressed')).toBe('true')
+    moveOnPage(300, 50, 0)
+    expect(handle.element.hasAttribute('aria-pressed')).toBe(false)
+    expect(editor.state.doc.child(0).textContent).toBe('one')
+    // And the grip follows the pointer again.
+    moveOnPage(300, 50, 0)
+    expect(handle.element.style.top).toBe('40px')
+    handle.destroy()
+    editor.destroy()
+  })
+
   it('takes its grip and its drop line away when destroyed', () => {
     const editor = threeBlocks()
     const handle = createBlockDragHandle(editor, { container: host })

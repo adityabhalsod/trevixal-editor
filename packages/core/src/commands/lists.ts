@@ -41,6 +41,11 @@ export function isListItemTypeName(typeName: string | undefined): boolean {
   return typeName !== undefined && ITEM_TYPE_NAMES.has(typeName)
 }
 
+/** Whether a node type names a list: bullets, numbers or tasks. */
+export function isListTypeName(typeName: string): boolean {
+  return Object.hasOwn(ITEM_TYPES, typeName)
+}
+
 /** Item type a list type holds; `listItem` for anything unregistered. */
 function itemTypeNameFor(listTypeName: string): string {
   return ITEM_TYPES[listTypeName] ?? 'listItem'

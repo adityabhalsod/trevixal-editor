@@ -138,6 +138,17 @@ line: the text after the tab ends flush with it rather than wrapping.
 
 In a `.docx` each stop is Word's own, at the same place.
 
+## Clearing formatting
+
+*Format > Clear text formatting* takes the text styles off the selection: bold,
+colours, fonts, sizes, links and the rest. *Format > Clear all formatting*
+(`Ctrl+\`) leaves plain paragraphs. It also resets alignment, indent and
+spacing, takes bullets and numbering off at every level, turns headings and
+named paragraph styles back into normal text, and takes lines out of a quote.
+A button or a badge becomes its words. Tables, callouts, columns, cards and
+code blocks stay, and what is inside them is made plain. One undo puts it all
+back.
+
 ## In print
 
 The print shows all of these as the screen does. A document with tabs is laid

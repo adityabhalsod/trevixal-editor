@@ -66,8 +66,9 @@ test('the full-editor example opens on a seeded document', async ({ page }) => {
     await expect(surface.locator('blockquote')).toBeVisible()
     await expect(surface.locator('table').first()).toBeVisible()
     // TypeScript, SQL, one unlabelled block for auto-detection, a terminal
-    // session, and the Mermaid source the diagram extension previews.
-    await expect(surface.locator('pre')).toHaveCount(5)
+    // session, and the Mermaid sources the diagram extension previews: a
+    // diagram and the budget's chart.
+    await expect(surface.locator('pre')).toHaveCount(6)
     // Code arrives highlighted, in two different languages.
     await expect(surface.locator('pre .tvx-tok-keyword').first()).toBeVisible()
 

@@ -804,8 +804,10 @@ test.describe('downloading a document', () => {
     try {
       await page.goto(server.origin)
       // The diagram renderer is asynchronous; nothing can be captured from a
-      // preview that has not been drawn yet.
-      await page.waitForSelector('#editor .trevixal-diagram svg')
+      // preview that has not been drawn yet. The tour holds a diagram and a chart.
+      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(2, {
+        timeout: 30_000,
+      })
       const editorInk = await page.evaluate(() => {
         const span = document.querySelector('#editor .trevixal-content pre .tvx-tok-keyword')
         return span ? getComputedStyle(span).color : ''
@@ -838,7 +840,7 @@ test.describe('downloading a document', () => {
       })
       await saved.close()
       expect(exported.spans).toBeGreaterThan(4)
-      expect(exported.diagrams).toBe(1)
+      expect(exported.diagrams).toBe(2)
       expect(exported.mermaidSource).toBe(0)
 
       // The colours have to be the ones the editor resolved, not a second
@@ -1399,6 +1401,46 @@ test.describe('links, security and the second surface', () => {
       // That link is gone; the ones it was not pointing at are untouched.
       await expect(link).toHaveCount(0)
       await expect(page.locator('#editor .trevixal-content a')).toHaveCount(anchorsBefore - 1)
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('the grip waits while the pointer crosses the margin to it, and drags its block', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      const grip = page.locator('.trevixal-blockgrip')
+      const table = page.locator('#editor .trevixal-content > table').first()
+      const after = page.locator('#editor .trevixal-content > table + *').first()
+      const words = (await after.textContent()) ?? ''
+      await table.scrollIntoViewIfNeeded()
+      const box = await table.boundingBox()
+      const edge = (await page.locator('#editor .trevixal-content').boundingBox())?.x ?? 0
+      if (!box) throw new Error('no table')
+
+      // Along the table's last row and out past the surface's edge, then up
+      // to the grip at its top, which is how a hand goes for it.
+      await page.mouse.move(box.x + 40, box.y + box.height - 8)
+      await expect(grip).toBeVisible()
+      await page.mouse.move(edge - 4, box.y + box.height - 8, { steps: 8 })
+      await page.mouse.move(edge - 4, box.y + 10, { steps: 8 })
+      await expect(grip).toBeVisible()
+
+      // And from there it drags the table below the paragraph after it.
+      const next = await after.boundingBox()
+      if (!next) throw new Error('nothing after the table')
+      await page.mouse.down()
+      await page.mouse.move(edge - 4, next.y + next.height + 6, { steps: 10 })
+      await page.mouse.up()
+      await expect(page.locator('#editor .trevixal-content > table + *').first()).not.toHaveText(
+        words,
+      )
+      await expect(page.locator('#editor .trevixal-content > :has(+ table)').first()).toHaveText(
+        words,
+      )
     } finally {
       await server.close()
     }

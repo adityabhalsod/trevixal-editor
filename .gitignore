@@ -22,3 +22,6 @@ examples/nuxt/dist
 
 # Tarballs and metrics the release workflow packs; rebuilt every run.
 dist-release/
+
+# graphify output
+graphify-out/

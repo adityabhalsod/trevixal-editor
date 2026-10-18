@@ -51,6 +51,13 @@ export interface NodeSpec {
   readonly marks?: string
   /** Preserve whitespace verbatim when parsing into this node (code blocks). */
   readonly preserveWhitespace?: boolean
+  /**
+   * For an inline atom that is styled words rather than content, a button or
+   * a badge: the text it turns into when Clear all formatting makes the
+   * selection plain. An atom without one (a mention, a footnote marker, an
+   * equation) is content, and stays.
+   */
+  readonly plainText?: (node: EditorNode) => string
   readonly toHTML?: (node: EditorNode) => HTMLSpec
   readonly parseHTML?: readonly ParseRule[]
 }

@@ -363,11 +363,47 @@ describe('charts from a table', () => {
     )
   })
 
+  it('names a row by the first line of its first cell, without a colon left hanging', () => {
+    const crew = schema.node(
+      'tableCell',
+      {},
+      Fragment.from([p('Lights, the day before:'), p('Crew of four')]),
+    )
+    const doc = docOf(row(head('Item'), head('Cost')), row(crew, cell('780')))
+    expect(tableChartSource(doc.child(0), 'pie')).toBe(
+      'pie title Cost\n    "Lights, the day before" : 780',
+    )
+  })
+
+  // Four names, the longest 22 letters: more than the 80 the bottom of a
+  // chart has room for, all told.
+  const longNames = docOf(
+    row(head('Item'), head('Cost')),
+    row(cell('Hall hire, two days'), cell('1200')),
+    row(cell('Catering, 120 guests'), cell('2640')),
+    row(cell('Banners and programmes'), cell('483')),
+    row(cell('Insurance'), cell('140')),
+  )
+
+  it('turns a bar chart on its side when the names are too long for the bottom', () => {
+    expect(tableChartSource(longNames.child(0), 'bar')).toBe(
+      'xychart-beta horizontal\n    x-axis ["Hall hire, two days", "Catering, 120 guests", "Banners and programmes", "Insurance"]\n    y-axis "Cost"\n    bar [1200, 2640, 483, 140]',
+    )
+  })
+
+  it('shortens, at a word, the names too long for the bottom of a line chart', () => {
+    expect(tableChartSource(longNames.child(0), 'line')).toBe(
+      'xychart-beta\n    x-axis ["Hall hire, two days", "Catering, 120 guests", "Banners and…", "Insurance"]\n    y-axis "Cost"\n    line [1200, 2640, 483, 140]',
+    )
+  })
+
   it('goes in after the table as a Mermaid block', () => {
     const next = run(at(budget(), 1, 1), insertTableChart('line'))
     const block = next.doc.child(1)
     expect(block.type.name).toBe('codeBlock')
     expect(block.attrs.language).toBe('mermaid')
+    // Wrapped, so a long row of names reads in full rather than scrolling.
+    expect(block.attrs.wrap).toBe(true)
     expect(block.textContent).toContain('line [1200, 2640, 780]')
   })
 

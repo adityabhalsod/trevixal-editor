@@ -1,6 +1,6 @@
 import { createEditor, serializeToHTML } from '@trevixal/core'
 import { fieldSteps } from '@trevixal/extension-blocks'
-import { formulaSteps } from '@trevixal/extension-table'
+import { formulaSteps, tableChartSource } from '@trevixal/extension-table'
 import { createWritingAssistant } from '@trevixal/extension-writing'
 import { afterAll, describe, expect, test } from 'vitest'
 import { initialContent } from '../src/content'
@@ -214,11 +214,20 @@ describe('the tour', () => {
     expect(formulaSteps(editor.state.doc)).toEqual([])
   })
 
+  test('draws its budget as Table ▸ Insert chart ▸ Bar chart draws it', () => {
+    const blocks = editor.state.doc.content.children
+    const budget = blocks.find(
+      (block) => block.type.name === 'table' && block.textContent.startsWith('Item'),
+    )
+    const chart = blocks.find((block) => block.textContent.startsWith('xychart-beta'))
+    expect(budget && tableChartSource(budget, 'bar')).toBe(chart?.textContent)
+  })
+
   test('keeps what the browser suite counts on', () => {
     const count = (pattern: RegExp): number => html.match(pattern)?.length ?? 0
-    // Three tasks, the third undone; five code blocks; one tab strip of two.
+    // Three tasks, the third undone; six code blocks; one tab strip of two.
     expect(count(/data-type="taskItem"/g)).toBe(3)
-    expect(count(/<pre[ >]/g)).toBe(5)
+    expect(count(/<pre[ >]/g)).toBe(6)
     expect(count(/data-checked="false"/g)).toBe(1)
     expect(html).toContain('<h1>Trevixal</h1>')
   })

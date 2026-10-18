@@ -77,10 +77,12 @@ test.describe('accessibility', () => {
     try {
       await page.goto(server.origin)
       await page.waitForSelector('#editor .trevixal-content')
-      // The seeded document holds a diagram, which is drawn asynchronously.
-      // Auditing before it lands measures the placeholder instead, and the
-      // suite would pass or fail on how fast the machine is.
-      await page.waitForSelector('.trevixal-diagram svg')
+      // The seeded document holds a diagram and a chart, which are drawn
+      // asynchronously. Auditing before they land measures the placeholders
+      // instead, and the suite would pass or fail on how fast the machine is.
+      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(2, {
+        timeout: 30_000,
+      })
       const violations = await audit(page)
       expect(describe_(violations), 'axe violations').toBe('')
     } finally {

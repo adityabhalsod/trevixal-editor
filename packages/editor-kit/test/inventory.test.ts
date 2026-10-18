@@ -95,8 +95,9 @@ test('renders the whole chrome, not just the menus', () => {
     // macro and Play macro. Then five for the file formats: the one-file web
     // page, OpenDocument, EPUB and LaTeX downloads, and the folder download.
     // Then five for the advanced blocks: Margin note, Poll..., Map..., Show
-    // only when... and Template variables....
-    everythingNamed: 503,
+    // only when... and Template variables.... Then one for View > Fullscreen >
+    // Screen width, beside Page width.
+    everythingNamed: 504,
   })
 })
 

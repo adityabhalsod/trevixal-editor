@@ -86,6 +86,17 @@ const PULL_QUOTE = {
 }
 
 /**
+ * The launch budget drawn as Table ▸ Insert chart ▸ Bar chart draws it, held
+ * to that by tour.test.ts.
+ */
+const BUDGET_CHART = [
+  'xychart-beta horizontal',
+  '    x-axis ["Hall hire, two days", "Catering, 120 guests", "Stage lighting, delivered the day before", "Banners and programmes", "Photographer", "Insurance"]',
+  '    y-axis "Cost (£)"',
+  '    bar [1200, 2640, 780, 483, 600, 140]',
+].join('\n')
+
+/**
  * The fields' results as the field updater works them out, written in, so a
  * page rendered without the kit (a server, as `examples/ssr` does) shows
  * them too; the updater finds them current and leaves them be.
@@ -920,8 +931,15 @@ export const initialContent = {
       'The total is a formula: change a cost and it adds up again (Table ▸ Formula). Table ▸ Column type lines numbers, money and dates up on the right.',
     ),
     paragraph(
-      'Table ▸ Filter rows hides the rows you do not need without deleting them, and Table ▸ Insert chart draws the table as a chart.',
+      'Table ▸ Filter rows hides the rows you do not need without deleting them. Table ▸ Insert chart drew the budget above as this chart:',
     ),
+    {
+      // What Table ▸ Insert chart ▸ Bar chart makes of the budget: its names
+      // are too long to sit side by side, so the bars lie on their side.
+      type: 'codeBlock',
+      attrs: { language: 'mermaid', wrap: true },
+      content: [{ type: 'text', text: BUDGET_CHART }],
+    },
     paragraph(
       'Cells merge down a column as well as along a row, from Table ▸ Merge cells. Table ▸ Split cells cuts one into rows or columns:',
     ),

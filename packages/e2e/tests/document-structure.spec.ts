@@ -307,10 +307,12 @@ test.describe('the document-structure features of the built demo', () => {
       ).toBeVisible()
 
       // The letter is three lines tall, and each line beside it is a line.
-      // Asked until it holds: the diagram further up draws late, from a CDN,
+      // Asked until it holds: the diagrams further up draw late, from a CDN,
       // and the numbers follow the text down a frame after it moves.
       const surface = page.locator('#editor .trevixal-content')
-      await expect(surface.locator('.trevixal-diagram svg')).toHaveCount(1)
+      await expect(surface.locator('.trevixal-diagram svg')).toHaveCount(2, {
+        timeout: 30_000,
+      })
       await expect
         .poll(async () => {
           const onScreen = await surface.evaluate(dropCapLines)
