@@ -3,6 +3,7 @@ export { type Attrs, attrsEq } from './model/attrs'
 export { Mark, type MarkJSON, marksEq, noMarks } from './model/mark'
 export { Fragment } from './model/fragment'
 export { EditorNode, EditorNode as Node, TextNode, type NodeJSON } from './model/node'
+export { exportTextOf } from './model/export-text'
 export {
   type HTMLSpec,
   type MarkSpec,
@@ -227,6 +228,7 @@ export {
   type HTMLSerializeOptions,
   serializeToHTML,
   serializeToText,
+  serializeToTextFile,
 } from './serialize/html'
 export {
   type HTMLDocumentOptions,

@@ -118,6 +118,10 @@ export function createTrackChangesBar(
     element.type = 'button'
     element.className = `trevixal-trackchanges__button ${className}`
     element.textContent = label
+    // A press keeps focus and the caret in the document, as the toolbar's do.
+    // Chrome focuses a pressed button, so after Suggesting or Accept the next
+    // keys typed into the bar instead of the text.
+    element.addEventListener('mousedown', (event) => event.preventDefault())
     element.addEventListener('click', () => {
       action()
       refresh()

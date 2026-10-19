@@ -9,6 +9,7 @@ import type { Editor } from '@trevixal/core'
 import {
   type FontManager,
   MOTION_ATTRIBUTE,
+  type SelectOption,
   type ThemeController,
   ThemeFileError,
   type ThemePreset,
@@ -60,16 +61,18 @@ export async function importTheme(theme: ThemeController): Promise<ThemePreset |
   return preset
 }
 
+/** Every font on offer: the stock ones, then each the font manager holds, once each. */
+export function fontChoices(fonts: FontManager): SelectOption[] {
+  return [...defaultFontFamilies(), ...fonts.options()].filter(
+    (option, index, all) =>
+      option.value !== '' && all.findIndex((other) => other.value === option.value) === index,
+  )
+}
+
 /** Format ▸ Document fonts…: the body and heading fonts, kept in the document's styles. */
 export async function askDocumentFonts(editor: Editor, fonts: FontManager): Promise<void> {
   const current = documentFonts(editor.state.doc)
-  const choices = [
-    { value: '', label: 'Default' },
-    ...[...defaultFontFamilies(), ...fonts.options()].filter(
-      (option, index, all) =>
-        option.value !== '' && all.findIndex((other) => other.value === option.value) === index,
-    ),
-  ]
+  const choices = [{ value: '', label: 'Default' }, ...fontChoices(fonts)]
   const values = await openDialog({
     document,
     title: 'Document fonts',

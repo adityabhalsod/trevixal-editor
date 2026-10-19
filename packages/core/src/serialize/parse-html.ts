@@ -40,6 +40,48 @@ const DANGEROUS_TAGS = new Set([
 ])
 
 /**
+ * The elements HTML lays out as blocks. One the schema has no rule for (a
+ * `div`, a `section`) still ends the line before it and starts one after:
+ * its text is a paragraph of its own, not run into its neighbours'.
+ */
+const BLOCK_LEVEL_TAGS = new Set([
+  'address',
+  'article',
+  'aside',
+  'blockquote',
+  'center',
+  'dd',
+  'details',
+  'dialog',
+  'div',
+  'dl',
+  'dt',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hgroup',
+  'hr',
+  'li',
+  'main',
+  'nav',
+  'ol',
+  'p',
+  'pre',
+  'section',
+  'summary',
+  'table',
+  'ul',
+])
+
+/**
  * The marks an element's own `style` says its text has, as Google Docs and
  * many web pages write them: `font-weight: 700` rather than `<b>`. Each is
  * a mark only a schema that has it gets; `font-weight: normal` takes a bold
@@ -138,13 +180,28 @@ class HTMLParser {
   }
 
   parse(root: globalThis.Node): EditorNode {
-    const children = this.parseChildren(root, [], false)
+    const children = this.parseBlockContainer(root, [])
     // The wrapper carrying the document's settings is an unknown element to
     // the rules above, so its blocks were kept; its attributes are the doc's.
     const carrier = 'querySelector' in root ? documentSettingsElement(root as ParentNode) : null
     const attrs = carrier ? parseDocumentSettings(carrier) : undefined
     const doc = this.schema.topType.create(attrs, Fragment.from(children))
     return normalizeDoc(doc)
+  }
+
+  /**
+   * Children laid out as blocks, as a page's body or a `div` lays them out:
+   * each block-level child a block, and each run of text and inline elements
+   * between them a paragraph. The text keeps its spaces, which in a block
+   * context would be dropped as layout noise: `<b>A</b> <i>B</i>` read `AB`.
+   */
+  private parseBlockContainer(parent: globalThis.Node, marks: readonly Mark[]): EditorNode[] {
+    const children = [...parent.childNodes].flatMap((child) => {
+      const block =
+        child.nodeType === 1 && BLOCK_LEVEL_TAGS.has((child as Element).tagName.toLowerCase())
+      return this.parseNode(child, marks, !block)
+    })
+    return liftedBlocks(this.schema.firstTextblockType(), undefined, children)
   }
 
   /** Parse element children into a mixed node list; normalization sorts strays. */
@@ -223,7 +280,10 @@ class HTMLParser {
     if (dangerous) return []
 
     // Unknown element (div, span, font, o:p, …): keep content, drop formatting
-    // but what its style says of its text.
+    // but what its style says of its text. A block-level one still lays its
+    // content out as blocks.
+    if (!inlineContext && BLOCK_LEVEL_TAGS.has(tag))
+      return this.parseBlockContainer(element, inherited)
     return this.parseChildren(element, inherited, inlineContext)
   }
 }
@@ -259,6 +319,42 @@ function liftedBlocks(
   return out
 }
 
+/** An item's depth, as Google Docs writes it: `aria-level`, 1 at the top. */
+function itemLevel(item: Element): number {
+  const level = Number(item.getAttribute('aria-level'))
+  return Number.isInteger(level) && level > 0 ? level : 1
+}
+
+/**
+ * Google Docs writes a nested list flat: every item in one list, its depth in
+ * `aria-level`. Each deeper item goes into a list of its own inside the item
+ * before it, so the nesting survives the paste instead of every item landing
+ * on one level.
+ */
+function nestLeveledItems(root: ParentNode): void {
+  for (const list of root.querySelectorAll('ul, ol')) {
+    const items = [...list.children].filter((child) => child.tagName === 'LI')
+    if (!items.some((item) => item.hasAttribute('aria-level'))) continue
+    // The lists open at each depth, and the item each last took: the one a
+    // deeper item nests under.
+    type Open = { level: number; list: Element; last: Element | null }
+    const lists: Open[] = [{ level: Math.min(...items.map(itemLevel)), list, last: null }]
+    for (const item of items) {
+      const level = itemLevel(item)
+      while (lists.length > 1 && (lists[lists.length - 1] as Open).level > level) lists.pop()
+      let current = lists[lists.length - 1] as Open
+      if (level > current.level && current.last) {
+        const nested = list.ownerDocument.createElement(list.tagName)
+        current.last.appendChild(nested)
+        current = { level, list: nested, last: null }
+        lists.push(current)
+      }
+      if (current.list !== list) current.list.appendChild(item)
+      current.last = item
+    }
+  }
+}
+
 const parserCache = new WeakMap<Schema, HTMLParser>()
 
 /**
@@ -274,6 +370,7 @@ export function parseHTML(schema: Schema, html: string, document?: Document): Ed
   // and embedded resources (iframes, images) never load while we walk it.
   const template = dom.createElement('template') as HTMLTemplateElement
   template.innerHTML = html
+  nestLeveledItems(template.content)
   let parser = parserCache.get(schema)
   if (!parser) {
     parser = new HTMLParser(schema)

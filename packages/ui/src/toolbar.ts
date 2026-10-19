@@ -101,7 +101,8 @@ export interface ToolbarOptions {
   readonly ariaLabel?: string
   /** Block formats offered by the format select. */
   readonly blockFormats?: readonly SelectOption[]
-  readonly fontFamilies?: readonly SelectOption[]
+  /** A function is asked each time the list opens, so a font added later shows up. */
+  readonly fontFamilies?: readonly SelectOption[] | (() => readonly SelectOption[])
   readonly fontSizes?: readonly SelectOption[]
   readonly lineHeights?: readonly SelectOption[]
   readonly paragraphSpacings?: readonly SelectOption[]

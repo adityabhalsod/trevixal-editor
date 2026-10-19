@@ -78,18 +78,44 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   margin-bottom: 0;
 }
 
-// Each pane takes an equal share of the row, and asks for 20rem before it
-// would rather wrap. 20rem is what lets the editor, the preview and the
-// mirror all three sit on one line at this page's widest, 15rem of sidebar
-// and three gaps out of 84rem leaves just over 21rem each, and still wrap
-// one pane per line by the time the window is a phone's. `min-width: 0`
-// because a flex item otherwise refuses to shrink below its content: one long
-// word would push the row wider than the page.
+// The editor and the panes' column take an equal share of the row, and each
+// asks for 20rem before it would rather wrap onto a line of its own, as it
+// does by the time the window is a phone's. `min-width: 0` because a flex
+// item otherwise refuses to shrink below its content: one long word would
+// push the row wider than the page.
+//
+// The preview and the mirrored editor share the one column. As two columns of
+// their own, three panes and the sidebar did not fit a laptop's row, and the
+// last one wrapped under a document thousands of pixels tall, out of sight:
+// only one of the two ever seemed to open.
 #editor,
-.editor-shell > #split:not([hidden]),
-.editor-shell > #mirror:not([hidden]) {
+.editor-shell > #panes {
   flex: 1 1 20rem;
   min-width: 0;
+}
+
+.editor-shell > #panes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+// Neither pane open, so no column either.
+.editor-shell > #panes:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+// One pane open fills the column; two halve it.
+#panes > #split:not([hidden]),
+#panes > #mirror:not([hidden]) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+// The column gives the preview its height, so the frame's own floor, for a
+// host that gives none, would only push it past its half into the mirror.
+#panes .trevixal-split__preview {
+  min-height: 0;
 }
 
 #sidebar:not([hidden]) {
@@ -203,8 +229,7 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
 // content while the editor scrolls the page. On a line of their own, a
 // narrow window. There is no travel to have and they simply sit there, which
 // is the right answer too.
-.editor-shell > #split:not([hidden]),
-.editor-shell > #mirror:not([hidden]) {
+.editor-shell > #panes {
   position: sticky;
   top: 1rem;
   height: calc(100vh - 2rem);
@@ -219,8 +244,7 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
 
   > #sidebar,
   > .trevixal-banner,
-  > #split,
-  > #mirror {
+  > #panes {
     display: none;
   }
 
@@ -330,8 +354,10 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
 .tvx-tok-string {
   color: #3c783b;
 }
+// Numbers and a JSON key's name: #986801 came to 4.3:1 on the code
+// background, which the tour's JSON example showed.
 .tvx-tok-number {
-  color: #986801;
+  color: #936501;
 }
 .tvx-tok-comment {
   color: #696983;
@@ -348,7 +374,7 @@ html[data-trevixal-theme='dark']:has(.trevixal-full-editor) {
   color: #e45649;
 }
 .tvx-tok-attribute {
-  color: #986801;
+  color: #936501;
 }
 .tvx-tok-selector {
   color: #a626a4;

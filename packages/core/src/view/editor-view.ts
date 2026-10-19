@@ -41,7 +41,7 @@ import { safeHref } from '../schema/basic'
 import type { SearchMatch } from '../search/find-replace'
 import { serializeToHTML } from '../serialize/html'
 import { parseHTML } from '../serialize/parse-html'
-import { cleanPastedHTML } from '../serialize/paste-source'
+import { cleanPastedHTML, isCodeEditorHTML } from '../serialize/paste-source'
 import type { EditorState } from '../state/editor-state'
 import { TextSelection } from '../state/selection'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
@@ -781,6 +781,13 @@ export class EditorView {
         }
       }
       const html = data.getData('text/html')
+      const code = schema.nodes.codeBlock
+      const source = data.getData('text/plain')
+      if (html && code && source && isCodeEditorHTML(html)) {
+        const lines = source.replace(/\r\n?/g, '\n')
+        this.editor.exec(insertContent([code.create(undefined, Fragment.of(schema.text(lines)))]))
+        return
+      }
       if (html) {
         // Word and Google Docs write markup for themselves, not for a
         // document that has to live with it. Cleaned before parsing, never

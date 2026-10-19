@@ -764,6 +764,9 @@
   // See `export-script.ts`. It keeps the frame's footprint, so the page does
   // not reflow around a missing video.
   a.trevixal-embed--offsite {
+    // The frame's full width includes this padding and border, or the card
+    // runs past the column and the page scrolls sideways.
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1903,16 +1906,78 @@ pre > .trevixal-diagram {
 // ---------------------------------------------- emoji picker & split editor
 
 // The emoji grid reuses the character picker; emoji are wider and there are
-// more of them, so it gets more columns and a larger glyph.
+// more of them, so it gets more columns and a larger glyph. Filed in groups,
+// the box scrolling is the one holding every group's grid.
 .trevixal-charpicker--emoji {
-  grid-template-columns: repeat(10, 1fr);
   max-height: 50vh;
   overflow-y: auto;
   @include t.slim-scrollbar;
 
+  &.trevixal-charpicker,
+  .trevixal-charpicker {
+    grid-template-columns: repeat(10, 1fr);
+  }
+
   .trevixal-charpicker__item {
     font-size: 1.25rem;
   }
+}
+
+.trevixal-charpicker__search {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: t.token('space-2');
+  padding: t.token('space-1') t.token('space-2');
+  background: t.token('color-bg');
+  color: t.token('color-text');
+  border: 1px solid t.token('color-border');
+  border-radius: t.token('radius-sm');
+  font: inherit;
+}
+
+.trevixal-charpicker__groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: t.token('space-2');
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.trevixal-charpicker__group {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: t.token('radius-sm');
+  font-size: 1.1rem;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: t.token('color-selection');
+    outline: none;
+  }
+}
+
+// A group's name stays at the top of the box while its grid scrolls under it.
+.trevixal-charpicker__heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: t.token('space-2') 0 t.token('space-1');
+  padding: 2px 0;
+  background: t.token('color-bg');
+  color: t.token('color-text-muted');
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trevixal-charpicker__empty {
+  color: t.token('color-text-muted');
 }
 
 .trevixal-dialog--chars:has(.trevixal-charpicker--emoji) {
@@ -2457,12 +2522,15 @@ pre > .trevixal-diagram {
 }
 
 // Reduce motion, asked for in the editor rather than in the operating
-// system: no transitions, and animations end at once. Not a near-zero
+// system: no transitions, animations end at once, and the caret stops
+// blinking where the browser lets a page say so. Not a near-zero
 // transition: `transition-property` is `all` by default, so that would give
-// every element a transition it never had. The dialogs sit outside the
-// editor, at the end of the page, so they are reached through :has().
+// every element a transition it never had. The dialogs and the command
+// palette sit outside the editor, at the end of the page, so they are
+// reached through :has().
 [data-trevixal-motion='reduced'],
-body:has([data-trevixal-motion='reduced']) .trevixal-dialog-overlay {
+body:has([data-trevixal-motion='reduced'])
+  :is(.trevixal-dialog-overlay, .trevixal-palette-overlay, .trevixal-popup) {
   &,
   *,
   *::before,
@@ -2471,6 +2539,12 @@ body:has([data-trevixal-motion='reduced']) .trevixal-dialog-overlay {
     animation-iteration-count: 1 !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@supports (caret-animation: manual) {
+  [data-trevixal-motion='reduced'] .trevixal-content {
+    caret-animation: manual;
   }
 }
 

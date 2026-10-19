@@ -79,6 +79,11 @@ export function mathNodes(options: MathNodeOptions = {}): Record<string, NodeSpe
       group: 'inline',
       atom: true,
       attrs: { latex: { default: '' } },
+      // Where a format cannot set it, the equation is written as its LaTeX.
+      exportText: (node) => {
+        const latex = latexOf(node.attrs.latex)
+        return latex ? `$${latex}$` : ''
+      },
       /*
        * A <span>, not a bare <math>: core's HTML parser drops `math` subtrees
        * unless a rule claims the tag, and keeping the source on the wrapper
@@ -128,6 +133,11 @@ export function mathNodes(options: MathNodeOptions = {}): Record<string, NodeSpe
         numbered: { default: false },
         number: { default: null },
         id: { default: null },
+      },
+      exportText: (node) => {
+        const latex = latexOf(node.attrs.latex)
+        const number = typeof node.attrs.number === 'string' ? ` (${node.attrs.number})` : ''
+        return latex ? `$$${latex}$$${node.attrs.numbered === true ? number : ''}` : ''
       },
       toHTML: (node) => {
         const latex = latexOf(node.attrs.latex)

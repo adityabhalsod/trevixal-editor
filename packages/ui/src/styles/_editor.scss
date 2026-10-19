@@ -147,6 +147,25 @@ $list-depth: 9;
     margin-bottom: 0.25em;
   }
 
+  // ---- container direction ----------------------------------------------------
+  // Format ▸ Text direction sets `dir` on paragraphs, not on what holds them,
+  // so the numbers, bullets, task boxes, timeline rail and a quote's or a
+  // callout's bar all stayed on the left of right-to-left text. An item takes
+  // its first block's direction, and a list, a quote or a callout whose
+  // blocks all agree takes it too: each of those is drawn on the start side,
+  // which then is the right.
+  @each $dir in (rtl, ltr) {
+    li:has(> [dir='#{$dir}']:first-child),
+    :is(ul, ol):has(> li > [dir='#{$dir}']:first-child):not(
+        :has(> li > :first-child:not([dir='#{$dir}']))
+      ),
+    :is(blockquote, .trevixal-callout):has(> [dir='#{$dir}']):not(
+        :has(> :not([dir='#{$dir}']))
+      ) {
+      direction: $dir;
+    }
+  }
+
   // ---- list levels ------------------------------------------------------------
   // A nested list changes marker with its depth, the way Word numbers a
   // multilevel list: 1. a. i. and round again, bullets disc, circle, square.
@@ -261,10 +280,12 @@ $list-depth: 9;
 
     // The chevron that folds an item: before its first block, out past its
     // marker, where the view looks for a press on it. On an item that can
-    // fold it shows while the pointer is over the item's own text; on a
-    // folded one it stays.
+    // fold it shows while the pointer is over the item; on a folded one it
+    // stays. Hidden, it is transparent rather than absent: the pointer
+    // crossing the gap from the text to it left the item, so an absent
+    // chevron vanished on the way and could not be pressed.
     li[data-folded] > :first-child::before,
-    li:has(> :nth-child(2)):hover:not(:has(li:hover)) > :first-child::before {
+    li:has(> :nth-child(2)) > :first-child::before {
       content: '';
       position: absolute;
       inset-inline-end: calc(100% + var(--tvx-fold-gutter));
@@ -273,6 +294,12 @@ $list-depth: 9;
       border-inline-start: 0.45em solid var(--tvx-fold-ink);
       cursor: pointer;
       transform: var(--tvx-fold-turn);
+      opacity: 0;
+    }
+
+    li[data-folded] > :first-child::before,
+    li:has(> :nth-child(2)):hover:not(:has(li:hover)) > :first-child::before {
+      opacity: 1;
     }
   }
 

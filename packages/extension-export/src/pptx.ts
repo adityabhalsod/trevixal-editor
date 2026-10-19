@@ -1,4 +1,4 @@
-import type { EditorNode, TextNode } from '@trevixal/core'
+import { type EditorNode, type TextNode, exportTextOf } from '@trevixal/core'
 import { type Slide, documentSlides } from './slides'
 import { escapeXML } from './xml'
 import { type ZipEntry, createZip } from './zip'
@@ -54,8 +54,8 @@ function runs(block: EditorNode): string {
     .map((child) =>
       child.isText
         ? run(child as TextNode)
-        : child.textContent
-          ? `<a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXML(child.textContent)}</a:t></a:r>`
+        : exportTextOf(child)
+          ? `<a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXML(exportTextOf(child))}</a:t></a:r>`
           : '',
     )
     .join('')
@@ -80,11 +80,18 @@ function paragraph(content: string, level: number | null, bold = false): string 
 function bodyParagraphs(block: EditorNode, depth = 0): string[] {
   const name = block.type.name
   if (name === 'bulletList' || name === 'orderedList' || name === 'taskList') {
-    return block.content.children.flatMap((item) =>
-      item.content.children.flatMap((child) =>
-        child.isTextblock ? [paragraph(runs(child), depth)] : bodyParagraphs(child, depth + 1),
-      ),
-    )
+    return block.content.children.flatMap((item) => {
+      // A task keeps its box, ticked or not, as the page shows it.
+      const box =
+        item.type.name === 'taskItem'
+          ? `<a:r><a:rPr lang="en-US" dirty="0"/><a:t>${item.attrs.checked === true ? '☑ ' : '☐ '}</a:t></a:r>`
+          : ''
+      return item.content.children.flatMap((child, index) =>
+        child.isTextblock
+          ? [paragraph((index === 0 ? box : '') + runs(child), depth)]
+          : bodyParagraphs(child, depth + 1),
+      )
+    })
   }
   if (name === 'codeBlock') {
     return block.textContent
@@ -109,6 +116,18 @@ function bodyParagraphs(block: EditorNode, depth = 0): string[] {
   if (block.isTextblock) {
     if (block.textContent.trim() === '') return []
     return [paragraph(runs(block), null, name === 'heading')]
+  }
+  if (block.childCount === 0) {
+    // An atom with no text of its own, an equation or a video: its words.
+    const words = exportTextOf(block)
+    return words
+      ? [
+          paragraph(
+            `<a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXML(words)}</a:t></a:r>`,
+            null,
+          ),
+        ]
+      : []
   }
   return block.content.children.flatMap((child) => bodyParagraphs(child, depth))
 }

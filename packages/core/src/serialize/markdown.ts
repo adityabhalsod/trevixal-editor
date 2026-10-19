@@ -1,3 +1,4 @@
+import { exportTextOf } from '../model/export-text'
 import { Fragment } from '../model/fragment'
 import type { Mark } from '../model/mark'
 import type { EditorNode, TextNode } from '../model/node'
@@ -38,12 +39,25 @@ interface Resolved {
 /** The code block language MDX's own syntax is kept in. */
 export const MDX_LANGUAGE = 'mdx'
 
+/** The equation nodes `@trevixal/extension-math` adds, written as `$…$` and `$$…$$`. */
+const MATH_INLINE = 'math'
+const MATH_BLOCK = 'mathBlock'
+
+/** An equation's LaTeX source, or null for a node that is not one. */
+function latexOf(node: EditorNode): string | null {
+  return typeof node.attrs.latex === 'string' && node.attrs.latex.trim() !== ''
+    ? node.attrs.latex.trim()
+    : null
+}
+
 /**
  * Markdown (GFM) export. Covers everything the default schema can hold, plus
- * tables and images from the bundled extensions when those nodes are present.
+ * tables, images and equations from the bundled extensions when those nodes
+ * are present.
  *
  * Unknown block types degrade to their text content rather than being
- * dropped, so a schema with custom nodes still round-trips its prose.
+ * dropped, so a schema with custom nodes still round-trips its prose; an
+ * atom gives the words it stands for (`exportTextOf`).
  */
 export function serializeToMarkdown(
   doc: EditorNode,
@@ -134,13 +148,26 @@ function serializeBlock(node: EditorNode, config: Resolved, indent: string): str
       const start = typeof node.attrs.start === 'number' ? node.attrs.start : 1
       return serializeList(node, config, indent, start)
     }
-    default:
+    default: {
       if (node.type.name === config.table) return serializeTable(node, config, indent)
       if (node.isTextblock) return indent + serializeInline(node.content, config)
+      const latex = node.type.name === MATH_BLOCK ? latexOf(node) : null
+      if (latex)
+        return [
+          `${indent}$$`,
+          ...latex.split('\n').map((line) => indent + line),
+          `${indent}$$`,
+        ].join('\n')
+      // An atom with no text of its own, a video or a poll: the words it stands for.
+      if (node.childCount === 0) {
+        const words = exportTextOf(node)
+        return words ? indent + escapeMarkdown(words) : ''
+      }
       // Unknown container: emit its blocks so nothing is silently lost.
       return node.content.children
         .map((child) => serializeBlock(child, config, indent))
         .join('\n\n')
+    }
   }
 }
 
@@ -259,8 +286,13 @@ function serializeInline(content: Fragment, config: Resolved): string {
       out += serializeImage(child)
       continue
     }
-    // Unknown inline node: fall back to its text, or its own toHTML text spec.
-    out += escapeMarkdown(child.textContent || String(child.type.spec.toHTML?.(child)?.text ?? ''))
+    const latex = child.type.name === MATH_INLINE ? latexOf(child) : null
+    if (latex) {
+      out += `$${latex}$`
+      continue
+    }
+    // Unknown inline node: the words it stands for.
+    out += escapeMarkdown(exportTextOf(child))
   }
   return out
 }

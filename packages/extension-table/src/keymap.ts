@@ -22,7 +22,8 @@ export function tableKeymap(): Keymap {
       editor.exec(goToNextCell(1)) ||
       editor.exec(indentInPreformatted) ||
       editor.commands.sinkListItem() ||
-      editor.exec(insertTabAtStop),
+      editor.exec(insertTabAtStop) ||
+      editor.getSnapshot().listType !== null,
     'Shift-Tab': (editor) =>
       editor.exec(goToNextCell(-1)) ||
       editor.exec(outdentInPreformatted) ||

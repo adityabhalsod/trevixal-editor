@@ -509,6 +509,9 @@ $on-accent: #fff;
         font-weight: 400;
         line-height: 1.5;
         white-space: nowrap;
+        // Laid out by its own words: in a right-to-left item `@Priya` read
+        // `Priya@`, the `@` taken for the line's punctuation.
+        unicode-bidi: plaintext;
       }
 
       // Past its date and not done: the editor marks it (see list-tools.ts).
@@ -539,6 +542,9 @@ $on-accent: #fff;
       color: t.token('color-text-muted');
       font-size: 0.8em;
       font-variant-numeric: tabular-nums;
+      // Read in its own words' direction: `2 of 3 done` in a right-to-left
+      // list read `of 3 done 2`.
+      unicode-bidi: plaintext;
     }
   }
 

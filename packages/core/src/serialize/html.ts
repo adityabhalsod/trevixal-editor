@@ -1,3 +1,4 @@
+import { exportTextOf } from '../model/export-text'
 import type { EditorNode, TextNode } from '../model/node'
 import type { HTMLSpec } from '../model/schema'
 import { documentSettingsAttrs } from '../schema/document-settings'
@@ -83,4 +84,75 @@ export function serializeToText(doc: EditorNode): string {
   }
   walk(doc)
   return lines.join('\n')
+}
+
+/**
+ * A plain-text file of the document: a line per textblock, as the page shows
+ * it. A list item keeps its bullet, number or tick box and its depth, a table
+ * row its cells on one line, and an equation, a video or a badge the words it
+ * stands for, where {@link serializeToText} leaves each of them out.
+ */
+export function serializeToTextFile(doc: EditorNode): string {
+  const lines: string[] = []
+  const walk = (node: EditorNode, indent: string, marker: string): void => {
+    if (node.isTextblock) {
+      lines.push(indent + marker + inlineText(node))
+      return
+    }
+    if (node.childCount === 0) {
+      const words = exportTextOf(node)
+      if (words) lines.push(indent + marker + words)
+      return
+    }
+    if (isTextList(node)) {
+      const start = typeof node.attrs.start === 'number' ? node.attrs.start : 1
+      node.content.children.forEach((item, index) => {
+        const ordered = node.type.name === 'orderedList'
+        const own = taskBox(item) ?? (ordered ? `${start + index}. ` : '• ')
+        item.content.children.forEach((child, at) =>
+          walk(child, indent + (at === 0 ? '' : '  '), at === 0 ? own : ''),
+        )
+      })
+      return
+    }
+    if (isTextRow(node)) {
+      lines.push(indent + node.content.children.map((cell) => cellText(cell)).join('\t'))
+      return
+    }
+    node.content.children.forEach((child, index) => walk(child, indent, index === 0 ? marker : ''))
+  }
+  walk(doc, '', '')
+  return lines.join('\n')
+}
+
+/** A textblock's words, its atoms (an equation, a chip) included. */
+function inlineText(block: EditorNode): string {
+  return block.content.children
+    .map((child) => (child.type.name === 'hardBreak' ? '\n' : exportTextOf(child)))
+    .join('')
+}
+
+function isTextList(node: EditorNode): boolean {
+  return ['bulletList', 'orderedList', 'taskList'].includes(node.type.name)
+}
+
+function isTextRow(node: EditorNode): boolean {
+  return node.type.name === 'tableRow'
+}
+
+/** A task's box, ticked or not; null for an ordinary item. */
+function taskBox(item: EditorNode): string | null {
+  if (item.type.name !== 'taskItem') return null
+  return item.attrs.checked === true ? '☑ ' : '☐ '
+}
+
+/** A cell's text on one line. */
+function cellText(cell: EditorNode): string {
+  const words: string[] = []
+  const collect = (node: EditorNode): void => {
+    if (node.isTextblock) words.push(inlineText(node))
+    else node.content.children.forEach(collect)
+  }
+  collect(cell)
+  return words.join(' ')
 }

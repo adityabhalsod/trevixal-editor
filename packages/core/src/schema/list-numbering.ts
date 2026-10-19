@@ -437,7 +437,7 @@ export function listSchemesCSS(doc: EditorNode, scope: string): string {
       // A list given a marker style of its own keeps it, as under a built-in scheme.
       const marked = `${list}:not([style*="list-style-type"])`
       rules.push(
-        `${list} { padding-inline-start: ${level.indent}em; --tvx-fold-gutter: calc(${level.indent}em + 0.1em); counter-reset: ${counter} ${level.start - 1} }`,
+        `${list} { padding-inline-start: ${level.indent}em; --tvx-fold-gutter: calc(${level.indent}em + 0.3em); counter-reset: ${counter} ${level.start - 1} }`,
         `${list} > li { position: relative; counter-increment: ${counter} }`,
         `${marked} { list-style-type: none }`,
         `${marked} > li::before { content: ${markerContent(levels, index)}; position: absolute; inset-inline-end: 100%; margin-inline-end: 0.3em; white-space: nowrap; font-variant-numeric: tabular-nums }`,

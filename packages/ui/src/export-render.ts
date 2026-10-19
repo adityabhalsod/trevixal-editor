@@ -58,6 +58,14 @@ const DIAGRAM = '.trevixal-diagram'
 const RASTER_SCALE = 2
 
 /**
+ * What a code block's own markup says of how it is shown that a saved page
+ * can still show: its language, its link target, its long lines wrapped and
+ * its title. Line numbers and picked-out lines are drawn by the editor's
+ * markers, which a page does not have, and a fold has no bar there to open it.
+ */
+const KEPT_CODE_ATTRIBUTES = ['data-language', 'id', 'data-wrap', 'data-title'] as const
+
+/**
  * Read back what the editor drew for every code block in the document.
  *
  * Synchronous, so the print path, which has to build a page inside a click
@@ -125,8 +133,12 @@ export function renderedNodeHTML(rendered: RenderedDocument): (node: EditorNode)
         block.image.alt,
       )}">${block.image.markup}</figure>`
     }
-    const language = typeof node.attrs.language === 'string' ? node.attrs.language : null
-    const attrs = language ? ` data-language="${escapeHTML(language)}"` : ''
+    // The schema's own attributes, not the language alone: the wrap was lost,
+    // and an exported block ran off the side of the page it fitted in the editor.
+    const own = node.type.spec.toHTML?.(node).attrs ?? {}
+    const attrs = KEPT_CODE_ATTRIBUTES.filter((name) => own[name] !== undefined)
+      .map((name) => ` ${name}="${escapeHTML(String(own[name]))}"`)
+      .join('')
     return `<pre${attrs}><code>${
       block.runs ? block.runs.map(runHTML).join('') : escapeHTML(node.textContent)
     }</code></pre>`

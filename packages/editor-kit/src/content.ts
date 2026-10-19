@@ -271,14 +271,39 @@ export const initialContent = {
     paragraph(
       'The options on a code block’s bar number its lines, pick lines out, wrap, fold and title it. Insert ▸ Code adds a terminal, a diff, or code to run.',
     ),
-    paragraph('Copy a terminal session and only its commands go, without the prompts:'),
+    paragraph(
+      'In a terminal session Enter starts the next command with its prompt, and Shift+Enter writes a line of output. Copy it and only the commands go, without the prompts:',
+    ),
     {
       type: 'codeBlock',
       attrs: { language: 'console' },
       content: [
         {
           type: 'text',
-          text: '$ pnpm add @trevixal/editor-kit\nPackages: +1\n$ pnpm dev',
+          text: [
+            '$ pnpm add @trevixal/editor-kit',
+            'Packages: +1',
+            'Done in 1.8s',
+            '$ pnpm dev',
+            '  VITE v6.0.0  ready in 312 ms',
+            '  ➜  Local:   http://localhost:5173/',
+            '$ pnpm build',
+            '✓ built in 4.2s',
+          ].join('\n'),
+        },
+      ],
+    },
+    paragraph(
+      'Tools ▸ Format JSON lays out the JSON in a block, and Minify packs it back onto one line. JSON pasted as lines of text formats too: select the lines first.',
+    ),
+    {
+      type: 'codeBlock',
+      // Wrapped: one long line would scroll sideways, a region a keyboard cannot reach.
+      attrs: { language: 'json', wrap: true },
+      content: [
+        {
+          type: 'text',
+          text: '{"name":"Trevixal","version":"1.1.0","features":["tables","diagrams","export"],"export":{"formats":["docx","pdf","md"],"offline":true}}',
         },
       ],
     },
@@ -392,6 +417,21 @@ export const initialContent = {
       type: 'orderedList',
       attrs: { start: 1, listStyle: 'upper-roman' },
       content: [listItem('Roman numerals.'), listItem('Also from the Format menu.')],
+    },
+    {
+      // Reduce motion, shown where it can be tried: the jump below scrolls
+      // smoothly, or arrives at once with View ▸ Reduce motion on.
+      type: 'paragraph',
+      content: [
+        text(
+          'View ▸ Reduce motion holds the page still. The caret stops blinking, a toggle’s arrow snaps open, and a jump arrives at once. Ctrl+click this one to see: ',
+        ),
+        {
+          type: 'crossReference',
+          attrs: { target: 'lists-and-tables', format: 'text', text: 'Lists and tables' },
+        },
+        text('.'),
+      ],
     },
 
     {
@@ -813,7 +853,12 @@ export const initialContent = {
       'As you type, straight quotes curl, two hyphens make a dash, and 1/2 becomes ½. A word on the AutoCorrect list puts itself right (Tools ▸ AutoCorrect options). Text columns, hyphenation, and widow and orphan control belong to the whole document, under Format.',
     ),
 
-    heading(2, 'Lists and tables'),
+    // An id, for the cross-reference under Typography to jump to.
+    {
+      type: 'heading',
+      attrs: { level: 2, id: 'lists-and-tables' },
+      content: [text('Lists and tables')],
+    },
     paragraph(
       'Each task above has an assignee or a due date, from Format ▸ Lists ▸ Task due date and assignee. The list counts the tasks you have ticked off. Click the arrow beside an item to fold what is under it, and sort a list from Format ▸ Lists ▸ Sort A to Z:',
     ),

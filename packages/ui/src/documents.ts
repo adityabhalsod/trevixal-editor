@@ -15,7 +15,7 @@ import {
   parseMarkdown,
   serializeToHTMLDocument,
   serializeToMarkdown,
-  serializeToText,
+  serializeToTextFile,
   sliceInline,
   textblocks,
 } from '@trevixal/core'
@@ -200,7 +200,7 @@ export function builtinExporters(options: BuiltinExporterOptions = {}): Document
       label: 'Plain text (.txt)',
       extension: 'txt',
       mime: 'text/plain',
-      serialize: (doc) => serializeToText(doc),
+      serialize: (doc) => serializeToTextFile(doc),
     },
     {
       name: 'json',

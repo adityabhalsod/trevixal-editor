@@ -8,7 +8,7 @@ import {
   listMarker,
   listNumberingAt,
 } from '@trevixal/core'
-import { bindListNavigation, createDropdown } from './dropdown'
+import { type Dropdown, bindListNavigation, createDropdown } from './dropdown'
 import { ARIA_SUFFIX, type Translator } from './i18n'
 import { createIcon } from './icons'
 
@@ -22,7 +22,11 @@ export interface SelectOption {
 
 export interface SelectControlOptions {
   readonly document: Document
-  readonly options: readonly SelectOption[]
+  /**
+   * The choices. A function is asked again each time the list opens, for a
+   * list that grows while the editor is up: a font added to the font select.
+   */
+  readonly options: readonly SelectOption[] | (() => readonly SelectOption[])
   /** Current value from the snapshot; `null` shows the placeholder. */
   readonly valueOf: (snapshot: EditorSnapshot) => string | null
   readonly onSelect: (value: string) => void
@@ -50,8 +54,10 @@ export function createSelectControl(options: SelectControlOptions): Control {
   const { document } = options
   let placeholder = options.placeholder
   let ariaLabel = options.ariaLabel
+  const offered = (): readonly SelectOption[] =>
+    typeof options.options === 'function' ? options.options() : options.options
   /** Each choice's label, in the language the chrome is in. */
-  const optionLabels = new Map(options.options.map((option) => [option.value, option.label]))
+  const optionLabels = new Map(offered().map((option) => [option.value, option.label]))
   let value: string | null = null
   const label = document.createElement('span')
   label.className = 'trevixal-select__label'
@@ -60,6 +66,31 @@ export function createSelectControl(options: SelectControlOptions): Control {
   const buttons = new Map<string, HTMLButtonElement>()
   let listbox: HTMLElement | null = null
   let releaseNavigation: (() => void) | null = null
+
+  const fill = (panel: HTMLElement, self: Dropdown): void => {
+    releaseNavigation?.()
+    panel.replaceChildren()
+    buttons.clear()
+    for (const option of offered()) {
+      if (!optionLabels.has(option.value)) optionLabels.set(option.value, option.label)
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'trevixal-select__option'
+      button.setAttribute('role', 'option')
+      button.dataset.value = option.value
+      button.setAttribute('aria-selected', String(option.value === value))
+      button.textContent = optionLabels.get(option.value) ?? option.label
+      if (option.previewStyle) button.setAttribute('style', option.previewStyle)
+      button.addEventListener('click', () => {
+        self.close()
+        options.onSelect(option.value)
+      })
+      panel.appendChild(button)
+      buttons.set(option.value, button)
+    }
+    releaseNavigation = bindListNavigation(panel)
+  }
+
   const dropdown = createDropdown({
     document,
     className: 'trevixal-select',
@@ -67,22 +98,10 @@ export function createSelectControl(options: SelectControlOptions): Control {
       listbox = panel
       panel.setAttribute('role', 'listbox')
       panel.setAttribute('aria-label', ariaLabel)
-      for (const option of options.options) {
-        const button = document.createElement('button')
-        button.type = 'button'
-        button.className = 'trevixal-select__option'
-        button.setAttribute('role', 'option')
-        button.dataset.value = option.value
-        button.textContent = optionLabels.get(option.value) ?? option.label
-        if (option.previewStyle) button.setAttribute('style', option.previewStyle)
-        button.addEventListener('click', () => {
-          self.close()
-          options.onSelect(option.value)
-        })
-        panel.appendChild(button)
-        buttons.set(option.value, button)
-      }
-      releaseNavigation = bindListNavigation(panel)
+      fill(panel, self)
+    },
+    onOpen: (panel) => {
+      if (typeof options.options === 'function') fill(panel, dropdown)
     },
   })
 
@@ -114,7 +133,7 @@ export function createSelectControl(options: SelectControlOptions): Control {
       ariaLabel = translate(`${key}${ARIA_SUFFIX}`, spoken)
       dropdown.trigger.setAttribute('aria-label', ariaLabel)
       listbox?.setAttribute('aria-label', ariaLabel)
-      for (const option of options.options) {
+      for (const option of offered()) {
         const text = options.optionKey
           ? translate(options.optionKey(option.value), option.label)
           : option.label

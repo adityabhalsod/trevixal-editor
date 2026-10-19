@@ -9,6 +9,7 @@ import {
   pos,
   suggestionList,
 } from '@trevixal/core'
+import { EMOJI_GROUPS } from './data'
 
 export interface EmojiItem {
   /** Shortcode without colons, e.g. `"smile"`. */
@@ -16,14 +17,26 @@ export interface EmojiItem {
   /** The emoji character itself. */
   readonly char: string
   readonly keywords?: readonly string[]
+  /** Unicode's group for it, `"Smileys & Emotion"`: where a picker files it. */
+  readonly group?: string
+  /** Unicode's name for it, `"grinning face"`: what a picker shows on hover. */
+  readonly description?: string
 }
 
-/** A compact built-in set covering the common shortcodes. Extendable. */
+/**
+ * Every emoji, in Unicode's groups and order (see `data.ts`). The familiar
+ * ones keep their short codes, `:smile:` and `:thumbsup:`, with Unicode's
+ * name as a keyword; the rest go by Unicode's name, `:grinning_face:`.
+ */
 export function defaultEmoji(): readonly EmojiItem[] {
   return EMOJI
 }
 
-const EMOJI: readonly EmojiItem[] = [
+/** The most matches the `:` trigger lists: the popup is for picking, not browsing. */
+const MAX_SUGGESTIONS = 50
+
+/** The short codes people type, and words they look for them by. */
+const COMMON: readonly EmojiItem[] = [
   { name: 'smile', char: '😄', keywords: ['happy', 'joy'] },
   { name: 'grin', char: '😁' },
   { name: 'laughing', char: '😆', keywords: ['lol'] },
@@ -140,6 +153,38 @@ const EMOJI: readonly EmojiItem[] = [
   { name: 'raised_hands', char: '🙌', keywords: ['hooray', 'praise'] },
 ]
 
+const EMOJI: readonly EmojiItem[] = everyEmoji()
+
+/** The familiar ones' characters, which a search offers first, in their own order. */
+const FAMILIAR: ReadonlyMap<string, number> = new Map(
+  COMMON.map((item, index) => [item.char, index]),
+)
+
+function everyEmoji(): EmojiItem[] {
+  const common = new Map(COMMON.map((item) => [item.char, item]))
+  // A familiar code keeps its emoji: Unicode's 🐕 "dog" is `dog2`, as on
+  // GitHub, since `:dog:` is the 🐶 people already type it for.
+  const familiar = new Set(COMMON.map((item) => item.name))
+  const items: EmojiItem[] = []
+  for (const group of EMOJI_GROUPS) {
+    for (const pair of group.emoji.split(';')) {
+      const space = pair.indexOf(' ')
+      const char = pair.slice(0, space)
+      const code = pair.slice(space + 1)
+      const known = common.get(char)
+      common.delete(char)
+      const unicode = { group: group.name, description: code.replace(/_/g, ' ') }
+      items.push(
+        known
+          ? { ...known, keywords: [...(known.keywords ?? []), code], ...unicode }
+          : { name: familiar.has(code) ? `${code}2` : code, char, ...unicode },
+      )
+    }
+  }
+  // A familiar one Unicode lists under another spelling still answers its code.
+  return [...items, ...common.values()]
+}
+
 /**
  * Search the emoji set, best match first.
  *
@@ -150,22 +195,34 @@ const EMOJI: readonly EmojiItem[] = [
  *
  * Ranking collects into per-tier buckets rather than sorting by score, so
  * equally-ranked items keep the source order of the set instead of depending
- * on the sort's tiebreak.
+ * on the sort's tiebreak. Within a tier the familiar ones come first, in
+ * their own order: `:fi` offers 🔥 before Unicode's firefighter, which its
+ * order files earlier.
  */
 export function searchEmoji(query: string, items: readonly EmojiItem[] = EMOJI): EmojiItem[] {
   const needle = query.toLowerCase()
   if (!needle) return [...items]
-  const exact: EmojiItem[] = []
-  const prefix: EmojiItem[] = []
-  const substring: EmojiItem[] = []
-  const keyword: EmojiItem[] = []
+  const rank = (item: EmojiItem): number => FAMILIAR.get(item.char) ?? -1
+  const tiers: EmojiItem[][] = [[], [], [], []]
   for (const item of items) {
-    if (item.name === needle) exact.push(item)
-    else if (item.name.startsWith(needle)) prefix.push(item)
-    else if (item.name.includes(needle)) substring.push(item)
-    else if (item.keywords?.some((word) => word.startsWith(needle))) keyword.push(item)
+    const keyword = item.keywords?.some((word) => word.startsWith(needle)) === true
+    // A familiar one's words are as good as a short code: `:lol` is 😆, not 🍭.
+    const tier =
+      item.name === needle
+        ? 0
+        : item.name.startsWith(needle) || (keyword && rank(item) >= 0)
+          ? 1
+          : item.name.includes(needle)
+            ? 2
+            : keyword
+              ? 3
+              : -1
+    if (tier >= 0) tiers[tier]?.push(item)
   }
-  return [...exact, ...prefix, ...substring, ...keyword]
+  return tiers.flatMap((tier) => [
+    ...tier.filter((item) => rank(item) >= 0).sort((a, b) => rank(a) - rank(b)),
+    ...tier.filter((item) => rank(item) < 0),
+  ])
 }
 
 /** Replace the `:query` trigger with the emoji character. */
@@ -213,7 +270,8 @@ export function emoji(editor: Editor, options: EmojiOptions): SuggestionListHand
   const min = options.minQueryLength ?? 1
   return suggestionList<EmojiItem>(editor, {
     char: ':',
-    items: (query) => (query.length < min ? [] : searchEmoji(query, items)),
+    items: (query) =>
+      query.length < min ? [] : searchEmoji(query, items).slice(0, MAX_SUGGESTIONS),
     onState: closeOnce(options.onState),
     onSelect: (item, match) => insertEmoji(editor, item, match),
   })

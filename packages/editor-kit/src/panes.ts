@@ -9,7 +9,12 @@
  */
 import type { Editor } from '@trevixal/core'
 import { blockBindings, installFieldUpdater } from '@trevixal/extension-blocks'
-import { type Highlighter, codeBlockLines, codeHighlight } from '@trevixal/extension-code-highlight'
+import {
+  type Highlighter,
+  codeBlockLines,
+  codeHighlight,
+  terminalPrompts,
+} from '@trevixal/extension-code-highlight'
 import { EVERY_DIAGRAM_LANGUAGE, diagram } from '@trevixal/extension-diagram'
 import { installFormulaUpdater } from '@trevixal/extension-table'
 import { createSplitView } from '@trevixal/extension-workspace'
@@ -68,6 +73,7 @@ export function createSplitPanes(context: SplitPanesContext): SplitPanes {
   function dressPane(pane: Editor): () => void {
     const offHighlight = codeHighlight(pane, highlighter)
     const offLines = codeBlockLines(pane)
+    const offPrompts = terminalPrompts(pane)
     const offBindings = blockBindings(pane)
     const diagrams = diagram(pane, { render, languages: EVERY_DIAGRAM_LANGUAGE })
     const offFields = installFieldUpdater(pane)
@@ -77,6 +83,7 @@ export function createSplitPanes(context: SplitPanesContext): SplitPanes {
     return () => {
       offHighlight()
       offLines()
+      offPrompts()
       offBindings()
       diagrams.destroy()
       offFields()

@@ -1,4 +1,4 @@
-import type { EditorNode, Mark } from '@trevixal/core'
+import { type EditorNode, type Mark, exportTextOf } from '@trevixal/core'
 
 /**
  * A document as LaTeX source: an `article` with the packages its content
@@ -122,7 +122,7 @@ function inline(block: EditorNode): string {
         case 'image':
           return imageOf(child)
         default:
-          return escapeLaTeX(child.textContent)
+          return escapeLaTeX(exportTextOf(child))
       }
     })
     .join('')
@@ -203,7 +203,7 @@ function block(node: EditorNode, context: Context): string {
     default:
       // Anything else keeps its words: a callout, a card, a column.
       if (node.isTextblock) return inline(node)
-      if (node.content.childCount === 0) return ''
+      if (node.content.childCount === 0) return escapeLaTeX(exportTextOf(node))
       return children()
   }
 }

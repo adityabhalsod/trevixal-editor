@@ -12,6 +12,7 @@ import {
   columnCount,
   documentStyles,
   dropCapOf,
+  exportTextOf,
   headingNumberingOf,
   inlineLength,
   levelMarker,
@@ -957,7 +958,7 @@ function writeBlock(
     default:
       if (node.isTextblock) return [paragraph(node, context, run, props)]
       if (node.isAtom || node.childCount === 0) {
-        const text = node.textContent
+        const text = exportTextOf(node)
         return text ? [`<w:p>${pPr(props, null, context)}${textRun(text, '')}</w:p>`] : []
       }
       return node.content.children.flatMap((child) => writeBlock(child, context, run, props))
@@ -1631,7 +1632,7 @@ function inlineNode(node: EditorNode, context: Context, run: RunContext, inLink:
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return textRun(`[${alt}]`, runProperties([], context, run, inLink))
   }
-  const text = node.textContent || String(node.type.spec.toHTML?.(node)?.text ?? '')
+  const text = exportTextOf(node)
   return text ? textRun(text, runProperties(node.marks, context, run, inLink)) : ''
 }
 

@@ -179,11 +179,15 @@ export function createLayout(host: HTMLElement, options: LayoutOptions = {}): Fu
   })
 
   const editor = make('div', 'editor')
+  // The preview and the second editor share one column beside the editor,
+  // one above the other when both are open (see editor-kit.scss).
+  const panes = make('div', 'panes')
   const split = make('div', 'split')
   split.hidden = true
   const mirror = make('div', 'mirror')
   mirror.hidden = true
-  shell.append(sidebar, editor, split, mirror)
+  panes.append(split, mirror)
+  shell.append(sidebar, editor, panes)
   host.append(shell)
 
   const statusline = make('div', undefined, 'statusline')

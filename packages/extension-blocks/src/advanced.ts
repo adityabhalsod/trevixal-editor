@@ -197,6 +197,16 @@ export function advancedBlockNodes(options: MapNodeOptions = {}): Record<string,
       group: 'block',
       atom: true,
       attrs: { question: { default: '' }, options: { default: '[]' } },
+      // Where a format cannot draw the vote: its question, and each choice with its count.
+      exportText: (node) =>
+        [
+          String(node.attrs.question ?? ''),
+          ...pollOptions(node.attrs.options).map(
+            (option) => `${option.label}: ${option.votes} ${option.votes === 1 ? 'vote' : 'votes'}`,
+          ),
+        ]
+          .filter((line) => line.trim() !== '')
+          .join('\n'),
       toHTML: (node) => ({
         tag: 'div',
         attrs: {

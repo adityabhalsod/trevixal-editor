@@ -41,12 +41,19 @@ function scriptText(code: string): string {
 /**
  * What the frame's console says goes to the page as messages carrying
  * `token`, so the page can tell a run's messages from anything else's.
+ *
+ * An error is shown by its name and message: its fields are not enumerable,
+ * so as JSON every rejected fetch and thrown `Error` read `{}`. A map and a
+ * set, which JSON also writes as `{}`, list what they hold, as a console does.
  */
 function consoleBridge(token: string): string {
   return `(() => {
   const token = ${JSON.stringify(token)}
   const show = (value) => {
     if (typeof value === 'string') return value
+    if (value instanceof Error) return value.name + ': ' + value.message
+    if (value instanceof Map) return 'Map(' + value.size + ') {' + [...value].map(([k, v]) => show(k) + ' => ' + show(v)).join(', ') + '}'
+    if (value instanceof Set) return 'Set(' + value.size + ') {' + [...value].map(show).join(', ') + '}'
     try { return JSON.stringify(value) ?? String(value) } catch { return String(value) }
   }
   const send = (kind, values) =>

@@ -1,4 +1,12 @@
-import { ADD_TO_HISTORY, type Editor, SetNodeAttrsStep, pathOfElement } from '@trevixal/core'
+import {
+  ADD_TO_HISTORY,
+  type Editor,
+  SetNodeAttrsStep,
+  TextSelection,
+  firstTextblockPath,
+  pathOfElement,
+  pos,
+} from '@trevixal/core'
 import { setAccordionItemOpenAt } from './accordion'
 import { activateTabAt } from './tabs'
 
@@ -36,7 +44,14 @@ export function blockBindings(editor: Editor): () => void {
     // the title and the user can rename it.
     if (!tr) return
     event.preventDefault()
+    // Into the tab just shown, where typing should go. The press is kept off
+    // the title, so the caret stayed where it was: in the panel that just
+    // hid, typing into text nobody could see, or nowhere at all.
+    const content = nodeAt(editor, [...path, 1])
+    const inner = content ? firstTextblockPath(content) : null
+    if (inner) tr.setSelection(new TextSelection(pos([...path, 1, ...inner], 0)))
     editor.dispatch(tr.setMeta(ADD_TO_HISTORY, false))
+    editor.view?.focus()
   }
 
   /**

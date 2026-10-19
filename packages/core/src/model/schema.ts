@@ -58,6 +58,13 @@ export interface NodeSpec {
    * equation) is content, and stays.
    */
   readonly plainText?: (node: EditorNode) => string
+  /**
+   * For an atom a format cannot draw, an equation or a video: the words it
+   * is written as there instead. Plain text, Markdown, Word and the other
+   * writers read it through `exportTextOf`, which otherwise drop an atom
+   * that has no text of its own.
+   */
+  readonly exportText?: (node: EditorNode) => string
   readonly toHTML?: (node: EditorNode) => HTMLSpec
   readonly parseHTML?: readonly ParseRule[]
 }

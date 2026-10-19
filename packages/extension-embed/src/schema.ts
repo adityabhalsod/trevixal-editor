@@ -107,6 +107,18 @@ export function embedProvider(value: unknown, src?: string): EmbedProvider {
  * target rather than as nodes; `video`, `audio` and `iframeEmbed` round-trip
  * in every schema.
  */
+/**
+ * A media block or a link where a format cannot show it: its title and its
+ * address, which a reader can still follow. Not an address the file itself
+ * carries as data, which is no use written out.
+ */
+function linkWords(title: unknown, href: unknown): string {
+  const name = typeof title === 'string' ? title.trim() : ''
+  const address = typeof href === 'string' && !href.startsWith('data:') ? href.trim() : ''
+  if (name && address) return `${name} (${address})`
+  return name || address
+}
+
 export function embedNodes(options: EmbedNodesOptions = {}): Record<string, NodeSpec> {
   return {
     video: {
@@ -122,6 +134,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         // Chapters, one a line (`1:30 Setting up`), listed under the player.
         chapters: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         const attrs: Record<string, string> = { class: 'trevixal-video' }
         if (node.attrs.controls !== false) attrs.controls = ''
@@ -196,6 +209,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         // A recording's shape, bar heights 0-100, drawn above its player.
         waveform: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         const attrs: Record<string, string> = { class: 'trevixal-audio' }
         if (node.attrs.controls !== false) attrs.controls = ''
@@ -257,6 +271,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         height: { default: null },
         provider: { default: 'generic' },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         // The render path re-vets the source: a document that arrived by
         // JSON, with no parser in between, gets the same allowlist.
@@ -309,6 +324,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         /** Set while an upload is running; cleared when it resolves. */
         uploadId: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.name, node.attrs.href),
       toHTML: (node) => {
         const name = typeof node.attrs.name === 'string' ? node.attrs.name : ''
         const uploading = typeof node.attrs.uploadId === 'string'
@@ -361,6 +377,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         image: { default: null },
         siteName: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.href),
       toHTML: (node) => {
         const href = safeWebURL(node.attrs.href) ?? safeHref(node.attrs.href)
         const attrs: Record<string, string> = {

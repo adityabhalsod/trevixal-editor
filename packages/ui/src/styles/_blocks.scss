@@ -59,11 +59,12 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
     background: t.token('color-bg');
 
     &__summary {
-      display: flex;
-      align-items: center;
-      // The chevron needs air on both sides of it: at space-2 against an
-      // 8px glyph the title crowded the arrow.
-      gap: t.token('space-3');
+      // A block, not a flex row: the title is a line of text, and as flex
+      // items each bold word or link became a box of its own, the boxes
+      // spread across the row and the words after them pushed to its end.
+      // The summary fills the row as a block, so the whole header is still
+      // the hit target.
+      display: block;
       // Roomier than the old space-2/space-3: the header is a band of its
       // own, so it needs vertical presence to read as one.
       padding: 0.55rem t.token('space-3');
@@ -75,12 +76,6 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
       // A bare em-height line box crops descenders, and the title sits too
       // close to the chevron without it.
       line-height: 1.5;
-      // The title fills the row, so the whole header is the hit target rather
-      // than just the words.
-      > * {
-        flex: 1 1 auto;
-        min-width: 0;
-      }
 
       // The native marker is inconsistent between browsers and sits at an
       // offset we cannot control, so the chevron below replaces it.
@@ -100,7 +95,9 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
       // and printout. See `collect-css.ts`.
       &::before {
         content: '';
-        flex: none;
+        // Inline-block: an inline box cannot be sized or rotated.
+        display: inline-block;
+        vertical-align: middle;
         // Slightly larger, so it holds its own beside a bold title.
         width: 0.56em;
         height: 0.56em;
@@ -112,6 +109,9 @@ $tones: 'info', 'success', 'warning', 'danger', 'note';
         // A rotated square's ink sits low-left of its box, so it needs
         // nudging back onto the text's optical centre.
         margin: 0 0.1em 0.12em 0.1em;
+        // The chevron needs air on both sides of it: at space-2 against an
+        // 8px glyph the title crowded the arrow.
+        margin-inline-end: calc(#{t.token('space-3')} + 0.1em);
       }
 
       &:hover {

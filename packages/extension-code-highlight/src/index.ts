@@ -35,7 +35,13 @@ export {
   runnableLanguage,
   runnerDocument,
 } from './run'
-export { copyableCode, insertTerminal, isTerminalLanguage } from './terminal'
+export {
+  copyableCode,
+  insertTerminal,
+  isTerminalLanguage,
+  newTerminalLine,
+  terminalPrompts,
+} from './terminal'
 export type { Highlighter, HighlightToken } from './types'
 
 export interface CodeHighlightOptions {

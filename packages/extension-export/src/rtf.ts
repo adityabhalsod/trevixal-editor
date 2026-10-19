@@ -12,6 +12,7 @@ import {
   columnCount,
   documentStyles,
   dropCapOf,
+  exportTextOf,
   formatListCounter,
   headingNumbers,
   inlineLength,
@@ -360,7 +361,7 @@ function writeBlock(
     default:
       if (node.isTextblock) return [textblock(node, context, state, `\\f0\\fs${context.sizeHp}`)]
       if (node.isAtom || node.childCount === 0) {
-        const text = node.textContent
+        const text = exportTextOf(node)
         return text
           ? [
               `${paragraphStart(context, state, null)}\\f0\\fs${context.sizeHp} ${escapeRTF(
@@ -977,8 +978,7 @@ function inlineNode(node: EditorNode, context: Context): string {
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return escapeRTF(`[${alt}]`)
   }
-  const text = node.textContent || String(node.type.spec.toHTML?.(node)?.text ?? '')
-  return escapeRTF(text)
+  return escapeRTF(exportTextOf(node))
 }
 
 function run(node: TextNode, context: Context): string {

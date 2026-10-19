@@ -38,6 +38,7 @@ import {
   insertCodeDiff,
   insertRunnableCode,
   insertTerminal,
+  terminalPrompts,
 } from '@trevixal/extension-code-highlight'
 import { createCommentsPanel } from '@trevixal/extension-comments'
 import {
@@ -137,12 +138,13 @@ import {
   paletteCommandsFromMenus,
   quickInsertItemsFromMenus,
   reachableURL,
+  scrollBehavior,
   serializeTheme,
   setDocumentTheme,
   setEditorWidth,
   toolbarPresetGroups,
 } from '@trevixal/ui'
-import { applyReading, askDocumentFonts, exportTheme, importTheme } from './appearance'
+import { applyReading, askDocumentFonts, exportTheme, fontChoices, importTheme } from './appearance'
 import { autocorrectLines, parseAutocorrectLines } from './autocorrect'
 import { initialContent } from './content'
 import {
@@ -283,6 +285,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   disposers.push(codeHighlight(editor, highlighter))
   // Numbered, picked-out and changed lines, and the bar that unfolds a folded block.
   disposers.push(codeBlockLines(editor))
+  // Enter in a terminal session starts the next command with its prompt.
+  disposers.push(terminalPrompts(editor))
   // Tabs and accordions write their folded state back into the document, so a
   // section left open is still open after a reload.
   disposers.push(blockBindings(editor))
@@ -566,6 +570,29 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
   function togglePanel(panel: HTMLElement): void {
     panel.hidden = !panel.hidden
     fitSidebar()
+    revealPanel(panel)
+  }
+
+  /**
+   * Scroll the sidebar to a panel just shown. The panels keep a fixed order
+   * under a long Contents and Outline, so History or Comments opened out of
+   * sight and the View menu seemed to do nothing.
+   */
+  function revealPanel(panel: HTMLElement): void {
+    if (panel.hidden) return
+    const sidebar = layout.sidebar
+    // The sidebar first, the panel to its top: `scrollIntoView` alone would
+    // move the page as well, and leave the panel at the sidebar's bottom.
+    sidebar.scrollTop +=
+      panel.getBoundingClientRect().top -
+      sidebar.getBoundingClientRect().top -
+      Number.parseFloat(getComputedStyle(sidebar).paddingTop)
+    // The page only when the panel is still below the window, the sidebar
+    // reaching past it until the page scrolls and the sidebar sticks.
+    const heading = panel.firstElementChild ?? panel
+    if (heading.getBoundingClientRect().bottom > window.innerHeight) {
+      heading.scrollIntoView({ block: 'center', behavior: scrollBehavior(heading) })
+    }
   }
 
   /** The sidebar shows while any of its panels does. */
@@ -903,7 +930,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   // Dictation and read-aloud, where the browser has the Web Speech API. Each
   // start and stop refreshes the menus, so their ticks follow.
-  const speech = createSpeech(editor, { onChange: () => ui.toolbar.refresh() })
+  const speech = createSpeech(editor, {
+    onChange: () => ui.toolbar.refresh(),
+    onError: (message) => void openInfoDialog({ document, title: 'Speech', body: message }),
+  })
   disposers.push(() => speech.destroy())
 
   // The writing assistant's provider: the host's, the in-page rules, or none.
@@ -982,6 +1012,8 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       onReorder: (order) => remember({ toolbarOrder: order }),
       blockCommands: blockUICommands(),
       codeFormatCommands: codeFormatUICommands(),
+      // Asked as the list opens, so a font from Format ▸ Add font… is there.
+      fontFamilies: () => fontChoices(chrome.fonts),
       onFormatPainter: (_editor, event) => {
         if (event.detail > 1) return
         if (painter.state.armed) painter.apply()
@@ -1148,6 +1180,7 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
       toggleHistoryPanel: () => {
         toggleHistory()
         fitSidebar()
+        revealPanel(historyPanel)
       },
       toggleWorkspace: () => {
         togglePanel(workspacePanel)
@@ -1343,8 +1376,10 @@ export function mountFullEditor(options: FullEditorOptions): FullEditor {
 
   renderOutput()
   refreshStatus()
-  togglePanel(tocPanel)
-  togglePanel(outlinePanel)
+  // Shown without `togglePanel`, which would scroll the sidebar to the outline.
+  tocPanel.hidden = false
+  outlinePanel.hidden = false
+  fitSidebar()
   disposers.push(createOfflineIndicator(layout.offline))
 
   // The tab strip is otherwise invisible until someone finds View ▸ Documents,

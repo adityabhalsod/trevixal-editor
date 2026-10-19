@@ -29,6 +29,13 @@ import { createIcon } from './icons'
 /** How far past the grip, in px, a pointer may overshoot on its way to it. */
 const MARGIN_SLACK = 12
 
+/**
+ * How far, in em, a list's fold chevrons reach out past the list's own edge
+ * (`--tvx-fold-gutter` in the stylesheet): the grip goes beyond them, or it
+ * covers the chevron of the list's first item and takes its clicks.
+ */
+const FOLD_CHEVRON_REACH_EM = 0.8
+
 export interface BlockDragHandleOptions {
   /**
    * Where the grip and the drop indicator are appended. Must be a positioned
@@ -108,8 +115,12 @@ export function createBlockDragHandle(
     const hostBox = host.getBoundingClientRect()
     grip.hidden = false
     // Beside where the block's lines start: its right edge in right-to-left text.
-    const rtl = doc.defaultView?.getComputedStyle(element).direction === 'rtl'
-    const x = rtl ? box.right + gap : box.left - grip.offsetWidth - gap
+    const style = doc.defaultView?.getComputedStyle(element)
+    const rtl = style?.direction === 'rtl'
+    const clearance = element.matches('ul, ol')
+      ? FOLD_CHEVRON_REACH_EM * Number.parseFloat(style?.fontSize ?? '16')
+      : 0
+    const x = rtl ? box.right + gap + clearance : box.left - grip.offsetWidth - gap - clearance
     grip.style.left = `${x - hostBox.left - host.clientLeft + host.scrollLeft}px`
     grip.style.top = `${box.top - hostBox.top - host.clientTop + host.scrollTop}px`
   }

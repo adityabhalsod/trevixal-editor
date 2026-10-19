@@ -4,6 +4,7 @@ import {
   type Mark,
   type Schema,
   TableMap,
+  exportTextOf,
   normalizeDoc,
 } from '@trevixal/core'
 import { NODE, base64Encode, mimeForExtension } from './shared'
@@ -122,7 +123,7 @@ function inlineODF(block: EditorNode, writer: Writer): string {
     .map((child) => {
       if (child.type.name === NODE.hardBreak) return '<text:line-break/>'
       if (child.type.name === NODE.image) return picture(child, writer)
-      const text = child.isText ? spaced(child.textContent) : escapeXML(child.textContent)
+      const text = child.isText ? spaced(child.textContent) : escapeXML(exportTextOf(child))
       const style = child.isText ? textStyle(writer, child.marks) : null
       const span = style ? `<text:span text:style-name="${style}">${text}</text:span>` : text
       const link = child.marks.find((mark) => mark.type.name === 'link')
@@ -184,10 +185,14 @@ function blockODF(node: EditorNode, writer: Writer): string {
       return tableODF(node, writer)
     case 'mathBlock':
       return `<text:p text:style-name="Standard">${escapeXML(String(node.attrs.latex ?? ''))}</text:p>`
-    default:
+    default: {
       if (node.isTextblock)
         return `<text:p text:style-name="Standard">${inlineODF(node, writer)}</text:p>`
-      return node.content.childCount === 0 ? '' : children()
+      if (node.content.childCount > 0) return children()
+      // An atom with no text of its own, an equation or a video: its words.
+      const words = exportTextOf(node)
+      return words ? `<text:p text:style-name="Standard">${escapeXML(words)}</text:p>` : ''
+    }
   }
 }
 
