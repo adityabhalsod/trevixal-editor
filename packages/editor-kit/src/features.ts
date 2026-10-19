@@ -42,6 +42,7 @@ import {
   openDialog,
   openInfoDialog,
   parseTheme,
+  polyfillFlagEmoji,
 } from '@trevixal/ui'
 
 /** Where this demo keeps its preferences, so a reload finds them again. */
@@ -185,6 +186,8 @@ export function createChrome(
       },
     ],
   })
+  // Windows draws a country flag as two letters; this gives it the flags.
+  polyfillFlagEmoji(document)
 
   const styles = createCustomStyles(document)
   if (preferences.customCSS) styles.set(preferences.customCSS)

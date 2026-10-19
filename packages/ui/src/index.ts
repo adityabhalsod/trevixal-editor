@@ -436,6 +436,9 @@ export {
 // Reduced motion
 export { MOTION_ATTRIBUTE, scrollBehavior } from './motion'
 
+// Country flags where the system draws none
+export { FLAG_EMOJI_FAMILY, polyfillFlagEmoji } from './flag-emoji'
+
 // Long documents
 export {
   enableLongDocumentMode,

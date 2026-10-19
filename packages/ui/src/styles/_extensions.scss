@@ -535,16 +535,17 @@ $on-accent: #fff;
 
     &:has(> li + li)::after {
       // The words are properties, so a page in another language can say them its way.
-      content: counter(tvx-tasks-done) var(--trevixal-tasks-of, ' of ') counter(tvx-tasks)
-        var(--trevixal-tasks-done, ' done');
+      // Between a first-strong isolate and its end (U+2068, U+2069) they read
+      // in their own direction: `2 of 3 done` in a right-to-left list read
+      // `of 3 done 2`. The line itself keeps the list's, so it starts on the
+      // right there, as the list does.
+      content: '\2068' counter(tvx-tasks-done) var(--trevixal-tasks-of, ' of ')
+        counter(tvx-tasks) var(--trevixal-tasks-done, ' done') '\2069';
       display: block;
       margin-top: 0.15em;
       color: t.token('color-text-muted');
       font-size: 0.8em;
       font-variant-numeric: tabular-nums;
-      // Read in its own words' direction: `2 of 3 done` in a right-to-left
-      // list read `of 3 done 2`.
-      unicode-bidi: plaintext;
     }
   }
 

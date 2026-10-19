@@ -1137,6 +1137,8 @@
     color: t.token('color-text');
     border: 1px solid t.token('color-border');
     border-radius: t.token('radius-sm');
+    // The dialog's, flag font included: a button takes the system's own.
+    font-family: inherit;
     font-size: 1rem;
     cursor: pointer;
 

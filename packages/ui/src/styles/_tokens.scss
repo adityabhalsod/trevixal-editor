@@ -85,7 +85,10 @@ $dark: (
 
 // Non-color tokens (shared by both themes)
 $static: (
-  'font-family': (-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif),
+  // The flag font first: declared only where the system draws no flags, and
+  // then only for their code points (see flag-emoji.ts).
+  'font-family':
+    ('Twemoji Country Flags', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif),
   'font-family-mono': (ui-monospace, SFMono-Regular, Menlo, Consolas, monospace),
   'font-size': 1rem,
   'line-height': 1.6,
