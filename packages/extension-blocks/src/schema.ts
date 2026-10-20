@@ -622,6 +622,11 @@ export function blockNodes(): Record<string, NodeSpec> {
       group: 'inline',
       atom: true,
       attrs: { id: {}, label: { default: '?' } },
+      // A number bracketed, IEEE's [1]; an author-date label as it reads.
+      exportText: (node) => {
+        const label = stringAttr(node.attrs.label) || '?'
+        return /^(?:\d+|\?)$/.test(label) ? `[${label}]` : label
+      },
       /*
        * A <span>, not the <sup> the DOM would suggest: core's `superscript`
        * mark claims every <sup> on import, and marks are matched before

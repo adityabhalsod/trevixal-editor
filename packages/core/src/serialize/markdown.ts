@@ -43,6 +43,42 @@ export const MDX_LANGUAGE = 'mdx'
 const MATH_INLINE = 'math'
 const MATH_BLOCK = 'mathBlock'
 
+/**
+ * GitHub's alert for each of `@trevixal/extension-blocks`' callout variants,
+ * the one drawn in the same colour: a note blue, a tip green, and so on.
+ */
+const ALERTS: Readonly<Record<string, string>> = {
+  info: 'NOTE',
+  success: 'TIP',
+  warning: 'WARNING',
+  danger: 'CAUTION',
+  note: 'IMPORTANT',
+}
+
+/**
+ * Footnotes and endnotes as GFM footnotes: a marker where the note is cited,
+ * its text under the same label at the end. Endnotes are labelled apart, so
+ * a footnote and an endnote with the same id stay two notes.
+ */
+const NOTE_LABELS: Readonly<Record<string, string>> = {
+  footnoteRef: '',
+  footnoteList: '',
+  endnoteRef: 'e',
+  endnoteList: 'e',
+}
+
+/** A web address an embedded thing lives at: a video, a page's card. */
+function webAddress(node: EditorNode): string | null {
+  const href = node.attrs.href ?? node.attrs.src
+  return typeof href === 'string' && /^https?:\/\//i.test(href) ? href : null
+}
+
+/** The SVG an atom draws itself as, a drawing's, as a picture's source; null for any other atom. */
+function drawnPicture(node: EditorNode): string | null {
+  const markup = node.type.spec.toHTML?.(node).innerHTML?.trim() ?? ''
+  return markup.startsWith('<svg') ? `data:image/svg+xml,${encodeURIComponent(markup)}` : null
+}
+
 /** An equation's LaTeX source, or null for a node that is not one. */
 function latexOf(node: EditorNode): string | null {
   return typeof node.attrs.latex === 'string' && node.attrs.latex.trim() !== ''
@@ -139,6 +175,30 @@ function serializeBlock(node: EditorNode, config: Resolved, indent: string): str
     }
     case 'horizontalRule':
       return `${indent}---`
+    case 'image':
+      return indent + serializeImage(node)
+    case 'callout': {
+      const alert = ALERTS[String(node.attrs.variant)] ?? 'NOTE'
+      const inner = node.content.children
+        .map((child) => serializeBlock(child, config, ''))
+        .join('\n\n')
+      return prefixLines(`[!${alert}]\n${inner}`, `${indent}> `)
+    }
+    case 'footnoteList':
+    case 'endnoteList':
+      // Each note under its label: its first paragraph on the line, the rest
+      // indented under it, as GFM continues a footnote.
+      return node.content.children
+        .map((item) => {
+          const label = `[^${NOTE_LABELS[node.type.name]}${String(item.attrs.id)}]: `
+          const body = item.content.children
+            .map((child, index) =>
+              serializeBlock(child, config, index === 0 ? '' : `${indent}    `),
+            )
+            .join('\n\n')
+          return indent + label + body
+        })
+        .join('\n\n')
     case 'bulletList':
     // A task list is a bullet list whose items each carry a checkbox; the
     // `taskMarker` below turns each item's `checked` attr into `[ ]`/`[x]`.
@@ -158,10 +218,24 @@ function serializeBlock(node: EditorNode, config: Resolved, indent: string): str
           ...latex.split('\n').map((line) => indent + line),
           `${indent}$$`,
         ].join('\n')
-      // An atom with no text of its own, a video or a poll: the words it stands for.
+      // An atom with no text of its own: a drawing's picture, a video's link,
+      // or the words it stands for, a line each, as a poll's choices.
       if (node.childCount === 0) {
+        const picture = drawnPicture(node)
+        if (picture) return `${indent}![Drawing](${encodeDestination(picture)})`
+        const href = webAddress(node)
+        if (href) {
+          const title =
+            typeof node.attrs.title === 'string' && node.attrs.title ? node.attrs.title : href
+          return `${indent}[${escapeLinkText(title)}](${encodeDestination(href)})`
+        }
         const words = exportTextOf(node)
-        return words ? indent + escapeMarkdown(words) : ''
+        return words
+          ? words
+              .split('\n')
+              .map((line) => indent + escapeMarkdown(line))
+              .join('  \n')
+          : ''
       }
       // Unknown container: emit its blocks so nothing is silently lost.
       return node.content.children
@@ -289,6 +363,11 @@ function serializeInline(content: Fragment, config: Resolved): string {
     const latex = child.type.name === MATH_INLINE ? latexOf(child) : null
     if (latex) {
       out += `$${latex}$`
+      continue
+    }
+    const note = NOTE_LABELS[child.type.name]
+    if (note !== undefined) {
+      out += `[^${note}${String(child.attrs.id)}]`
       continue
     }
     // Unknown inline node: the words it stands for.

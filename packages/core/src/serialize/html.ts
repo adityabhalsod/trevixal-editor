@@ -1,7 +1,16 @@
 import { exportTextOf } from '../model/export-text'
 import type { EditorNode, TextNode } from '../model/node'
 import type { HTMLSpec } from '../model/schema'
+import { TableMap } from '../model/table-map'
+import { listStylesFor } from '../schema/basic'
 import { documentSettingsAttrs } from '../schema/document-settings'
+import {
+  DEFAULT_LIST_NUMBERING,
+  type ListNumberingScheme,
+  formatListCounter,
+  listMarker,
+  listNumberingOf,
+} from '../schema/list-numbering'
 
 export interface HTMLSerializeOptions {
   /**
@@ -86,58 +95,134 @@ export function serializeToText(doc: EditorNode): string {
   return lines.join('\n')
 }
 
+/** The bullet each level of a bulleted list draws, and each list style's. */
+const TEXT_BULLETS = ['•', '◦', '▪']
+const TEXT_BULLET_STYLES: Readonly<Record<string, string>> = { disc: '•', circle: '◦', square: '▪' }
+
+/**
+ * How the editor numbers the notes and references it collects at the end:
+ * footnotes 1, 2, endnotes i, ii, and an IEEE reference list's [1], [2].
+ */
+const NOTE_COUNTERS: Readonly<Record<string, string>> = {
+  footnoteList: 'decimal',
+  endnoteList: 'lower-roman',
+  referenceList: 'decimal',
+}
+
 /**
  * A plain-text file of the document: a line per textblock, as the page shows
- * it. A list item keeps its bullet, number or tick box and its depth, a table
- * row its cells on one line, and an equation, a video or a badge the words it
- * stands for, where {@link serializeToText} leaves each of them out.
+ * it. A list item keeps its marker as the editor draws it (a bullet, `II.`, a
+ * scheme's `Step 1:`, a tick box) and its depth, a note its number, a table
+ * row its cells on one line, a merged cell's place kept empty, and an
+ * equation, a video or a badge the words it stands for, where
+ * {@link serializeToText} leaves each of them out.
  */
 export function serializeToTextFile(doc: EditorNode): string {
   const lines: string[] = []
-  const walk = (node: EditorNode, indent: string, marker: string): void => {
+  /** `numbers`: each enclosing item's number; `tree`: the scheme a list tree numbers with, and its depth. */
+  const walk = (
+    node: EditorNode,
+    indent: string,
+    marker: string,
+    numbers: readonly number[] = [],
+    tree: { scheme: ListNumberingScheme; from: number } | null = null,
+  ): void => {
     if (node.isTextblock) {
       lines.push(indent + marker + inlineText(node))
       return
     }
     if (node.childCount === 0) {
       const words = exportTextOf(node)
-      if (words) lines.push(indent + marker + words)
+      if (words) lines.push(...words.split('\n').map((line) => indent + marker + line))
       return
     }
     if (isTextList(node)) {
+      const scheme = listNumberingOf(node, doc)
+      const ownTree =
+        scheme && scheme !== DEFAULT_LIST_NUMBERING ? { scheme, from: numbers.length } : tree
+      const inTree = ownTree?.scheme.listType === node.type.name
+      const style = typeof node.attrs.listStyle === 'string' ? node.attrs.listStyle : ''
+      const own = listStylesFor(node.type.name).has(style) ? style : null
       const start = typeof node.attrs.start === 'number' ? node.attrs.start : 1
       node.content.children.forEach((item, index) => {
-        const ordered = node.type.name === 'orderedList'
-        const own = taskBox(item) ?? (ordered ? `${start + index}. ` : '• ')
+        const path = [...numbers, start + index]
+        let text = taskBox(item)
+        if (text === null) {
+          if (node.type.name === 'orderedList') {
+            text = own
+              ? `${formatListCounter(start + index, own)}.`
+              : listMarker(
+                  inTree && ownTree ? ownTree.scheme : DEFAULT_LIST_NUMBERING,
+                  inTree && ownTree ? path.slice(ownTree.from) : [start + index],
+                )
+          } else {
+            text =
+              (own && TEXT_BULLET_STYLES[own]) ||
+              (inTree && ownTree
+                ? listMarker(ownTree.scheme, path.slice(ownTree.from))
+                : TEXT_BULLETS[numbers.length % 3]) ||
+              '•'
+          }
+          text += ' '
+        }
         item.content.children.forEach((child, at) =>
-          walk(child, indent + (at === 0 ? '' : '  '), at === 0 ? own : ''),
+          walk(child, indent + (at === 0 ? '' : '  '), at === 0 ? text : '', path, ownTree),
         )
       })
       return
     }
-    if (isTextRow(node)) {
-      lines.push(indent + node.content.children.map((cell) => cellText(cell)).join('\t'))
+    const counter = NOTE_COUNTERS[node.type.name]
+    if (
+      counter &&
+      (node.type.name !== 'referenceList' || (node.attrs.style ?? 'ieee') === 'ieee')
+    ) {
+      node.content.children.forEach((item, index) => {
+        const number = formatListCounter(index + 1, counter)
+        const own = node.type.name === 'referenceList' ? `[${number}] ` : `${number}. `
+        if (item.isTextblock) walk(item, indent, own)
+        else item.content.children.forEach((child, at) => walk(child, indent, at === 0 ? own : ''))
+      })
       return
     }
-    node.content.children.forEach((child, index) => walk(child, indent, index === 0 ? marker : ''))
+    if (node.type.name === 'table') {
+      // A merged cell's text once, at its top left, and its other places
+      // empty: every row keeps its columns, as the Markdown table does.
+      const map = TableMap.of(node)
+      for (let row = 0; row < map.height; row++) {
+        const cells: string[] = []
+        for (let column = 0; column < map.width; column++) {
+          const placed = map.at(row, column)
+          cells.push(
+            placed && placed.top === row && placed.left === column ? cellText(placed.node) : '',
+          )
+        }
+        lines.push(indent + cells.join('\t'))
+      }
+      return
+    }
+    node.content.children.forEach((child, index) =>
+      walk(child, indent, index === 0 ? marker : '', numbers, tree),
+    )
   }
   walk(doc, '', '')
   return lines.join('\n')
 }
 
-/** A textblock's words, its atoms (an equation, a chip) included. */
+/** A textblock's words, its atoms (an equation, a chip) included, a note's marker bracketed. */
 function inlineText(block: EditorNode): string {
   return block.content.children
-    .map((child) => (child.type.name === 'hardBreak' ? '\n' : exportTextOf(child)))
+    .map((child) =>
+      child.type.name === 'hardBreak'
+        ? '\n'
+        : /^(?:footnote|endnote)Ref$/.test(child.type.name)
+          ? `[${exportTextOf(child)}]`
+          : exportTextOf(child),
+    )
     .join('')
 }
 
 function isTextList(node: EditorNode): boolean {
   return ['bulletList', 'orderedList', 'taskList'].includes(node.type.name)
-}
-
-function isTextRow(node: EditorNode): boolean {
-  return node.type.name === 'tableRow'
 }
 
 /** A task's box, ticked or not; null for an ordinary item. */

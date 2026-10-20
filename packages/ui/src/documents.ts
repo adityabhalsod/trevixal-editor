@@ -411,7 +411,7 @@ export async function exportDocument(
   const theme = options.theme ?? editorTheme(editor)
   // Rasterized here rather than in the capture: turning an SVG into a bitmap
   // is asynchronous, and the print path below has to stay synchronous.
-  const rendered = await rasterizeDiagrams(captureRenderedBlocks(editor), document)
+  const rendered = await rasterizeDiagrams(captureRenderedBlocks(editor, { looks: true }), document)
   const context: ExportContext = { schema: editor.schema, title, theme, rendered }
   const data = await (options.serialize?.(exporter, doc, context) ??
     exporter.serialize(doc, context))

@@ -41,7 +41,8 @@ import { safeHref } from '../schema/basic'
 import type { SearchMatch } from '../search/find-replace'
 import { serializeToHTML } from '../serialize/html'
 import { parseHTML } from '../serialize/parse-html'
-import { cleanPastedHTML, isCodeEditorHTML } from '../serialize/paste-source'
+import { parseMarkdown } from '../serialize/parse-markdown'
+import { cleanPastedHTML, isCodeEditorHTML, looksLikeMarkdown } from '../serialize/paste-source'
 import type { EditorState } from '../state/editor-state'
 import { TextSelection } from '../state/selection'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
@@ -800,6 +801,13 @@ export class EditorView {
 
     const text = data.getData('text/plain')
     if (!text) return
+    // Markdown, as a chat app's copy button or a `.md` file gives it, comes in
+    // as the headings, lists and code it marks up; pasted as plain text
+    // (Ctrl+Shift+V) it stays the characters it is.
+    if (!plainOnly && looksLikeMarkdown(text)) {
+      const parsed = parseMarkdown(text.replace(/\r\n?/g, '\n'), schema)
+      if (this.editor.exec(insertContent(parsed.content.children))) return
+    }
     const lines = text.split(/\r?\n/)
     const linkable = this.linksAllowedAtSelection()
     if (lines.length === 1) {

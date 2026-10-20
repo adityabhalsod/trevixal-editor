@@ -159,4 +159,13 @@ describe('conditional content', () => {
     expect(resolved.content.children.map((block) => block.textContent)).toEqual(['Everyone', 'Pro'])
     expect(resolved.child(1).type.name).toBe('paragraph')
   })
+
+  it('keeps a block it leaves alone the very node it was, which the export finds drawn by', () => {
+    const kept = schema.node('blockquote', undefined, [p('Kept')])
+    const doc = schema.node('doc', { variables: '{}' }, [
+      kept,
+      schema.node('conditional', { variable: 'plan', equals: 'pro' }, [p('Pro')]),
+    ])
+    expect(resolveConditionals(doc).child(0)).toBe(kept)
+  })
 })

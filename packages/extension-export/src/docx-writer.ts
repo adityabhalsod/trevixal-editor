@@ -9,6 +9,7 @@ import {
   PAPER_SIZES,
   type PageSection,
   type TextNode,
+  codeBlockTitle,
   columnCount,
   documentStyles,
   dropCapOf,
@@ -39,14 +40,26 @@ import {
   commentsPart,
   docxComments,
 } from './docx-comments'
-import type { RenderedDocument, RenderedImage, RenderedRun } from './rendered'
+import { OMML_NAMESPACE, mathMLToOMML } from './omml'
+import type {
+  RenderedBlock,
+  RenderedBox,
+  RenderedDocument,
+  RenderedImage,
+  RenderedLook,
+  RenderedRun,
+  RenderedSide,
+} from './rendered'
 import {
   type CellSide,
   NODE,
+  NOTES,
+  attrNumber,
   attrString,
   blockLayout,
   cellSpan,
   decodeDataURL,
+  embedLink,
   extensionForMime,
   formulaInstruction,
   headingLevel,
@@ -55,9 +68,11 @@ import {
   listKind,
   listStart,
   markNamed,
+  notesNumbering,
   primaryFont,
   tableColumns,
   taskGlyph,
+  taskTally,
   withCheckbox,
   wordRows,
 } from './shared'
@@ -115,6 +130,7 @@ const NS = {
   a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
   pic: 'http://schemas.openxmlformats.org/drawingml/2006/picture',
   mc: 'http://schemas.openxmlformats.org/markup-compatibility/2006',
+  m: OMML_NAMESPACE,
   rel: 'http://schemas.openxmlformats.org/package/2006/relationships',
   ct: 'http://schemas.openxmlformats.org/package/2006/content-types',
 }
@@ -156,6 +172,12 @@ interface Context {
   /** The document being written: its settings resolve what its lists name. */
   readonly doc: EditorNode
   readonly basePt: number
+  /** The body font, which a code block's title is set in. */
+  readonly font: string
+  /** The theme's colours, for what the writer draws itself: line numbers, a list's tally. */
+  readonly palette: DocumentPalette
+  /** How wide the text is between the margins, in twips. */
+  readonly textWidth: number
   readonly rendered: RenderedDocument
   readonly relationships: string[]
   readonly media: { name: string; data: Uint8Array }[]
@@ -201,13 +223,44 @@ interface NumberingInstance {
   readonly overrides: Map<number, { start?: number; lvl?: string }>
 }
 
+/**
+ * What the text of a block takes from the blocks around it: its type, from a
+ * styled table's header or from how the editor draws the block (a finished
+ * task, a toggle's summary), and the box a paragraph sits in.
+ */
 interface RunContext {
   readonly bold?: boolean
   readonly italic?: boolean
+  readonly strike?: boolean
+  readonly underline?: boolean
+  /** Raised, as a superscript is: a footnote's marker. */
+  readonly raised?: boolean
   /** Ink for runs without a colour of their own, as `RRGGBB`: a styled table's header. */
   readonly color?: string
+  /** A fill behind the run, as `RRGGBB`: a badge's pill. */
+  readonly fill?: string
+  /** The size against the body's: 0.9 for a footnote. */
+  readonly scale?: number
+  /** The side a paragraph without an alignment of its own lines up on. */
+  readonly align?: 'left' | 'center' | 'right'
+  /** The box the editor draws round the block a paragraph is in. */
+  readonly frame?: Frame
   /** The run sits in a right-to-left paragraph. */
   readonly rtl?: boolean
+}
+
+/** A paragraph's share of the box round it: the ground, and a line on each side drawn. */
+interface Frame {
+  /** `RRGGBB`. */
+  readonly fill?: string
+  readonly sides: Readonly<Partial<Record<RenderedSide, FrameLine>>>
+}
+
+interface FrameLine {
+  /** `RRGGBB`. */
+  readonly color: string
+  /** Eighths of a point, as `w:sz` weighs a line. */
+  readonly size: number
 }
 
 /**
@@ -221,9 +274,13 @@ export async function serializeToDOCX(
 ): Promise<Uint8Array> {
   const basePt = options.fontSize && options.fontSize > 0 ? options.fontSize : 11
   const palette = documentPalette(options.theme)
+  const font = primaryFont(options.fontFamily ?? 'Calibri')
   const context: Context = {
     doc,
     basePt,
+    font,
+    palette,
+    textWidth: textWidthOf(doc),
     rendered: options.rendered ?? new Map(),
     // Settings is related unconditionally, theme or not, so that the ids the
     // media below take never shift with the palette.
@@ -275,7 +332,7 @@ export async function serializeToDOCX(
     { name: 'word/document.xml', data: documentPart(body, palette, referenced(lastSection)) },
     {
       name: 'word/styles.xml',
-      data: stylesPart(primaryFont(options.fontFamily ?? 'Calibri'), basePt, palette, {
+      data: stylesPart(font, basePt, palette, {
         widowControl: doc.attrs.widowControl !== false,
         styles: context.styles,
       }),
@@ -462,6 +519,15 @@ function sectionXML(doc: EditorNode, context: Context): string {
   return `<w:sectPr>${references}<w:pgSz w:w="${twips(width)}" w:h="${twips(height)}"${orient}/><w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${header}" w:footer="${footer}" w:gutter="0"/>${lines}${cols}${bidi}</w:sectPr>`
 }
 
+/** The width between the margins, in twips: the document's page, or US Letter's at 1in. */
+function textWidthOf(doc: EditorNode): number {
+  if (pageSetupAttr(doc.attrs.pageSetup) === null) return TABLE_WIDTH
+  const setup = pageSetupOf(doc.attrs.pageSetup)
+  const paper = PAPER_SIZES[setup.size]
+  const width = setup.orientation === 'landscape' ? paper.height : paper.width
+  return twips(width - setup.margins.left - setup.margins.right)
+}
+
 /** A header's or footer's part: its text centred, its page fields Word's own PAGE and NUMPAGES. */
 function bandPart(kind: 'hdr' | 'ftr', template: string): string {
   const runs = pageTemplateParts(template)
@@ -475,7 +541,7 @@ function bandPart(kind: 'hdr' | 'ftr', template: string): string {
 }
 
 function documentPart(body: string, palette: DocumentPalette, section: string): string {
-  const xmlns = `xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:mc="${NS.mc}"`
+  const xmlns = `xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}" xmlns:a="${NS.a}" xmlns:pic="${NS.pic}" xmlns:mc="${NS.mc}" xmlns:m="${NS.m}"`
   // `w:background` is the page's own colour, and it belongs between the
   // document element and the body. On its own it does nothing: Word only
   // paints it when `w:displayBackgroundShape` is set, which is why this
@@ -512,7 +578,8 @@ function settingsPart(context: Context): string {
 function styleQuote(palette: DocumentPalette): string {
   const rule = palette.border ?? 'BFBFBF'
   const ink = palette.muted ?? '404040'
-  return `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:pBdr><w:left w:val="single" w:sz="18" w:space="12" w:color="${rule}"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="720"/></w:pPr><w:rPr><w:i/><w:iCs/><w:color w:val="${ink}"/></w:rPr></w:style>`
+  // Upright, as the editor sets a quote: a muted colour beside a rule.
+  return `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:pBdr><w:left w:val="single" w:sz="18" w:space="12" w:color="${rule}"/></w:pBdr><w:spacing w:before="160" w:after="160"/><w:ind w:left="720"/></w:pPr><w:rPr><w:color w:val="${ink}"/></w:rPr></w:style>`
 }
 
 function styleCode(palette: DocumentPalette): string {
@@ -531,7 +598,9 @@ const STYLE_LIST_PARAGRAPH =
   '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>'
 function styleCaption(palette: DocumentPalette): string {
   const ink = palette.muted ?? '44546A'
-  return `<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="200"/><w:jc w:val="center"/></w:pPr><w:rPr><w:i/><w:iCs/><w:color w:val="${ink}"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>`
+  // Set at the start of the line, as the editor sets a table's caption; a
+  // figure's is centred where it is written.
+  return `<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="200"/></w:pPr><w:rPr><w:i/><w:iCs/><w:color w:val="${ink}"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>`
 }
 
 function styleHyperlink(palette: DocumentPalette): string {
@@ -863,6 +932,75 @@ interface ParagraphProps {
   jc?: string
   /** Right to left: `w:bidi`. */
   bidi?: boolean
+  /** The box the paragraph is drawn in, where its own attributes draw none. */
+  frame?: Frame
+  /** Space after it, in twips, where its block sets none: a code block's last line. */
+  spaceAfter?: number
+  /** Word's no space between paragraphs of one style, turned off: the gap after a code block. */
+  spaced?: boolean
+}
+
+/** `RRGGBB` for a `#rrggbb` the editor drew, or null for one Word cannot take. */
+function wordColor(value: string | undefined): string | null {
+  const rgb = parseColor(value)
+  return rgb ? toHex(rgb) : null
+}
+
+/** A run context with how the editor draws a node on it, where it does differ. */
+function withLook(run: RunContext, look: RenderedLook | undefined): RunContext {
+  if (!look) return run
+  const color = wordColor(look.color)
+  const fill = wordColor(look.fill)
+  return {
+    ...run,
+    ...(color ? { color } : {}),
+    ...(fill ? { fill } : {}),
+    ...(look.bold ? { bold: true } : {}),
+    ...(look.italic ? { italic: true } : {}),
+    ...(look.strike ? { strike: true } : {}),
+    ...(look.underline ? { underline: true } : {}),
+    ...(look.raised ? { raised: true } : {}),
+    // A raised atom is a superscript, which Word already sets smaller.
+    ...(look.scale && !look.raised ? { scale: (run.scale ?? 1) * look.scale } : {}),
+    ...(look.align ? { align: look.align } : {}),
+  }
+}
+
+/**
+ * A run context inside a block's box: its ground over the one round it, and
+ * its lines over theirs, side by side, so a toggle's frame stays round the
+ * summary's band. Word draws one box round the paragraphs that share a frame.
+ */
+function withBox(run: RunContext, box: RenderedBox | undefined): RunContext {
+  if (!box) return run
+  const sides: Partial<Record<RenderedSide, FrameLine>> = { ...run.frame?.sides }
+  const color = wordColor(box.border?.color)
+  if (box.border && color) {
+    // Eighths of a point, as `paragraphBorderXML` weighs a pixel.
+    const size = Math.min(96, Math.max(2, Math.round(box.border.width * 6)))
+    for (const side of box.border.sides) sides[side] = { color, size }
+  }
+  const fill = wordColor(box.fill) ?? run.frame?.fill
+  return { ...run, frame: { ...(fill ? { fill } : {}), sides } }
+}
+
+/** The run context a block's text takes: the one round it, with the block's own look and box. */
+function styled(node: EditorNode, context: Context, run: RunContext): RunContext {
+  const drawn: RenderedBlock | undefined = context.rendered.get(node)
+  return drawn ? withBox(withLook(run, drawn.look), drawn.box) : run
+}
+
+/** A frame's lines as `w:pBdr`, a little apart from the text as Word sets a border. */
+function frameBorderXML(frame: Frame): string {
+  const edges = (['top', 'left', 'bottom', 'right'] as const).flatMap((side) => {
+    const line = frame.sides[side]
+    if (!line) return []
+    const space = side === 'top' || side === 'bottom' ? 1 : 4
+    return [
+      `<w:${side} w:val="single" w:sz="${line.size}" w:space="${space}" w:color="${line.color}"/>`,
+    ]
+  })
+  return edges.length > 0 ? `<w:pBdr>${edges.join('')}</w:pBdr>` : ''
 }
 
 /**
@@ -876,6 +1014,7 @@ function writeBlocks(
   topLevel = false,
 ): string[] {
   const out: string[] = []
+  let previous: EditorNode | null = null
   for (const node of nodes) {
     if (topLevel && node.type.name === 'sectionBreak') {
       // A section ends in a paragraph holding its properties; what follows takes the break's.
@@ -887,7 +1026,51 @@ function writeBlocks(
       topLevel && node.type.name === NODE.heading
         ? headingNumbering(context, headingLevel(node))
         : null
+    if (previous && boxedAlike(previous, node, context)) out.push(boxGap(run))
     out.push(...writeBlock(node, context, run, numbering ? { numbering } : {}))
+    previous = node
+  }
+  return out
+}
+
+/**
+ * Whether two blocks are boxes of their own that Word would join into one:
+ * each drawn with a line on a side the other has too. A tab's title and its
+ * content, ruled below and above, are one box and stay joined.
+ */
+function boxedAlike(first: EditorNode, second: EditorNode, context: Context): boolean {
+  const one = context.rendered.get(first)?.box?.border?.sides ?? []
+  const other = context.rendered.get(second)?.box?.border?.sides ?? []
+  return one.some((side) => other.includes(side))
+}
+
+/**
+ * Word draws one box round a run of paragraphs boxed alike, so a card and the
+ * toggle after it came out as one box. A sliver of a paragraph between two
+ * boxed blocks keeps them apart, as the space between them does in the editor.
+ */
+function boxGap(run: RunContext): string {
+  // Inside a box of its own, the sliver keeps that box's lines and ground.
+  const lines = run.frame ? frameBorderXML(run.frame) : ''
+  const fill = run.frame?.fill
+    ? `<w:shd w:val="clear" w:color="auto" w:fill="${run.frame.fill}"/>`
+    : ''
+  return `<w:p><w:pPr>${lines}${fill}<w:spacing w:before="0" w:after="0" w:line="120" w:lineRule="exact"/></w:pPr></w:p>`
+}
+
+/** Sibling blocks, with a gap between two boxed ones. */
+function writeSiblings(
+  nodes: readonly EditorNode[],
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string[] {
+  const out: string[] = []
+  let previous: EditorNode | null = null
+  for (const node of nodes) {
+    if (previous && boxedAlike(previous, node, context)) out.push(boxGap(run))
+    out.push(...writeBlock(node, context, run, props))
+    previous = node
   }
   return out
 }
@@ -895,9 +1078,17 @@ function writeBlocks(
 function writeBlock(
   node: EditorNode,
   context: Context,
-  run: RunContext,
+  inherited: RunContext,
   props: ParagraphProps,
 ): string[] {
+  const run = styled(node, context, inherited)
+  const drawn = context.rendered.get(node)
+  // A block the editor shows as a picture it drew, a drawing, is that
+  // picture; an equation is Word's own instead (see `equationParagraph`).
+  if (drawn?.image && !node.isTextblock && node.type.name !== NODE.image && !mathOf(node)) {
+    const picture = diagramParagraph(drawn.image, context, props)
+    if (picture) return [picture]
+  }
   switch (node.type.name) {
     case NODE.paragraph: {
       // A caption paragraph (one holding a caption number) takes Word's Caption style.
@@ -914,19 +1105,13 @@ function writeBlock(
           : writeBlock(child, context, run, props),
       )
     case NODE.codeBlock: {
-      const block = context.rendered.get(node)
       // The drawing replaces the source it was drawn from: the source is the
       // instruction, not a second way of reading the document. Only when
       // there is a drawing, though, otherwise the block would be dropped in
       // favour of nothing at all.
-      const drawn = block?.image ? diagramParagraph(block.image, context, props) : null
-      if (drawn) return [drawn]
-      return codeLines(node.textContent, block?.runs).map(
-        (line) =>
-          `<w:p>${pPr({ ...props, style: 'Code' }, null, context)}${line
-            .map((run) => textRun(run.text, codeRunProperties(run)))
-            .join('')}</w:p>`,
-      )
+      const picture = drawn?.image ? diagramParagraph(drawn.image, context, props) : null
+      if (picture) return [picture]
+      return codeParagraphs(node, drawn, context, run, props)
     }
     case NODE.horizontalRule:
       return [`<w:p>${pPr({ ...props, border: true }, null, context)}</w:p>`]
@@ -937,7 +1122,7 @@ function writeBlock(
     case NODE.table:
       return [writeTable(node, context, run)]
     case NODE.image:
-      return [imageParagraph(node, context, props)]
+      return [imageParagraph(node, context, { ...props, frame: props.frame ?? run.frame })]
     case NODE.figure:
       return node.content.children.flatMap((child) => writeBlock(child, context, run, props))
     case NODE.caption:
@@ -955,14 +1140,45 @@ function writeBlock(
       return captionListParagraphs(node, context)
     case 'documentIndex':
       return indexParagraphs(node, context)
-    default:
-      if (node.isTextblock) return [paragraph(node, context, run, props)]
-      if (node.isAtom || node.childCount === 0) {
-        const text = exportTextOf(node)
-        return text ? [`<w:p>${pPr(props, null, context)}${textRun(text, '')}</w:p>`] : []
-      }
-      return node.content.children.flatMap((child) => writeBlock(child, context, run, props))
+    case NOTES.footnotes:
+    case NOTES.endnotes:
+    case NOTES.references:
+      return writeNotes(node, context, run, props)
+    case 'columnBlock':
+      return [columnsTable(node, context, run)]
+    case 'gallery':
+      return [galleryParagraph(node, context, run, props)]
+    case 'mathBlock': {
+      const equation = equationParagraph(node, context, run, props)
+      if (equation) return [equation]
+      break
+    }
+    case 'linkCard':
+      return linkCardParagraphs(node, context, run, props)
   }
+  const framed: ParagraphProps = { ...props, frame: props.frame ?? run.frame }
+  if (node.isTextblock) {
+    // What the stylesheet writes beside a heading of its own: an accordion's arrow.
+    const look = drawn?.look
+    const before = look?.before
+      ? textRun(`${look.before} `, runProperties([], context, run, false))
+      : ''
+    const after = look?.after
+      ? textRun(` ${look.after}`, runProperties([], context, run, false))
+      : ''
+    return [paragraph(node, context, run, props, before, after)]
+  }
+  if (node.isAtom || node.childCount === 0) {
+    const link = embedLink(node)
+    if (link) return [`<w:p>${pPr(framed, null, context)}${hyperlink(link, context, run)}</w:p>`]
+    const text = exportTextOf(node)
+    return text
+      ? [
+          `<w:p>${pPr(framed, null, context)}${textRun(text, runProperties([], context, run, false))}</w:p>`,
+        ]
+      : []
+  }
+  return writeSiblings(node.content.children, context, run, props)
 }
 
 /** The Word style a paragraph's named style is, when the document has that style. */
@@ -985,7 +1201,9 @@ function paragraph(
     return `${dropped.frame}${paragraph(dropped.rest, context, run, props, prefix, suffix)}`
   }
   const rtl = (textDirection(node.attrs.dir) ?? context.direction) === 'rtl'
-  const properties = pPr(rtl ? { ...props, bidi: true } : props, node, context)
+  // The box the block sits in, and the side it lines up on, from around it.
+  const own = { ...props, frame: props.frame ?? run.frame, jc: props.jc ?? run.align }
+  const properties = pPr(rtl ? { ...own, bidi: true } : own, node, context)
   const body = paragraphBody(node, context, rtl ? { ...run, rtl: true } : run)
   return `<w:p>${properties}${prefix}${body}${suffix}</w:p>`
 }
@@ -1189,15 +1407,28 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   if (props.numbering) {
     out += `<w:numPr><w:ilvl w:val="${props.numbering.level}"/><w:numId w:val="${props.numbering.id}"/></w:numPr>`
   }
+  // The paragraph's own border and shading, else the box it sits in.
+  const ownBorder = node ? paragraphBorderXML(node) : ''
   if (props.border) {
     out += '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr>'
-  } else if (node) {
-    out += paragraphBorderXML(node)
+  } else if (ownBorder) {
+    out += ownBorder
+  } else if (props.frame) {
+    out += frameBorderXML(props.frame)
   }
-  if (node) out += shadingXML(node)
+  const ownShading = node ? shadingXML(node) : ''
+  if (ownShading) out += ownShading
+  else if (props.frame?.fill) {
+    out += `<w:shd w:val="clear" w:color="auto" w:fill="${props.frame.fill}"/>`
+  }
   if (node) out += tabsXML(node)
   if (props.bidi) out += '<w:bidi/>'
-  if (layout && (layout.spaceBefore !== null || layout.spaceAfter !== null || layout.lineHeight)) {
+  const ownSpacing =
+    layout && (layout.spaceBefore !== null || layout.spaceAfter !== null || layout.lineHeight)
+  if (!ownSpacing && props.spaceAfter !== undefined) {
+    out += `<w:spacing w:after="${props.spaceAfter}"/>`
+  }
+  if (layout && ownSpacing) {
     let spacing = '<w:spacing'
     if (layout.spaceBefore !== null) spacing += ` w:before="${layout.spaceBefore}"`
     if (layout.spaceAfter !== null) spacing += ` w:after="${layout.spaceAfter}"`
@@ -1211,6 +1442,7 @@ function pPr(props: ParagraphProps, node: EditorNode | null, context: Context): 
   }
   const indent = (props.indentLeft ?? 0) + (layout?.indent ?? 0) * INDENT
   if (indent > 0 && !props.numbering) out += `<w:ind w:left="${indent}"/>`
+  if (props.spaced) out += '<w:contextualSpacing w:val="0"/>'
   const align = layout?.align ?? props.jc
   // Word reads left and right in a right-to-left paragraph as its start and
   // end; the editor's alignment is the side of the page, so the two swap.
@@ -1236,24 +1468,39 @@ function writeList(
   const below = numbered ? numbered.tree : tree
   for (const item of list.content.children) {
     const isTask = kind === 'task' || item.type.name === NODE.taskItem
+    // A finished task is struck through and greyed, as the editor draws it.
+    const itemRun = styled(item, context, run)
     item.content.children.forEach((block, index) => {
       if (listKind(block)) {
-        out.push(...writeList(block, context, run, depth + 1, below))
+        out.push(...writeList(block, context, itemRun, depth + 1, below))
         return
       }
       const props: ParagraphProps = { style: 'ListParagraph', indentLeft: INDENT * (depth + 1) }
       if (index === 0 && block.isTextblock) {
+        const blockRun = styled(block, context, itemRun)
         if (numbering) {
-          out.push(paragraph(block, context, run, { ...props, numbering }))
+          out.push(paragraph(block, context, blockRun, { ...props, numbering }))
         } else {
           const prefix = textRun(`${isTask ? taskGlyph(item) : '•'} `, '')
           const suffix = isTask ? taskMetaRun(item, context) : ''
-          out.push(paragraph(block, context, run, props, prefix, suffix))
+          out.push(paragraph(block, context, blockRun, props, prefix, suffix))
         }
         return
       }
-      out.push(...writeBlock(block, context, run, block.isTextblock ? props : {}))
+      out.push(...writeBlock(block, context, itemRun, block.isTextblock ? props : {}))
     })
+  }
+  // Under a task list, how much of it is done, small and grey.
+  const tally = kind === 'task' ? taskTally(list) : null
+  if (tally) {
+    const muted = context.palette.muted ?? '767676'
+    const size = Math.max(2, Math.round(context.basePt * 0.8 * 2))
+    out.push(
+      `<w:p>${pPr({ indentLeft: INDENT * depth }, null, context)}${textRun(
+        tally,
+        `<w:color w:val="${muted}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/>`,
+      )}</w:p>`,
+    )
   }
   return out
 }
@@ -1328,8 +1575,10 @@ function writeCell(
     return rule ? [border(side, rule, context)] : []
   })
   if (sides.length > 0) tcPr += `<w:tcBorders>${sides.join('')}</w:tcBorders>`
-  // The cell's own shading wins over its style's, as a direct format does in Word.
-  const fill = parseColor(cell.attrs.background) ?? look.fill
+  // The cell's own shading wins over its style's, as a direct format does in
+  // Word; between them, what the editor drew: a header row's ground.
+  const drawn = context.rendered.get(cell)
+  const fill = parseColor(cell.attrs.background) ?? parseColor(drawn?.box?.fill) ?? look.fill
   if (fill) tcPr += `<w:shd w:val="clear" w:color="auto" w:fill="${toHex(fill)}"/>`
   const vAlign = attrString(cell.attrs, 'verticalAlign')
   if (vAlign === 'middle' || vAlign === 'bottom') {
@@ -1337,11 +1586,16 @@ function writeCell(
   }
   const align = attrString(cell.attrs, 'align')
   const jc = align === 'center' || align === 'right' || align === 'left' ? align : undefined
-  const cellRun: RunContext = {
-    ...run,
-    ...(look.bold ? { bold: true } : {}),
-    ...(look.ink ? { color: toHex(look.ink) } : {}),
-  }
+  // A cell draws its own lines: the box round the table is not its paragraphs'.
+  const cellRun: RunContext = withLook(
+    {
+      ...run,
+      frame: undefined,
+      ...(look.bold ? { bold: true } : {}),
+      ...(look.ink ? { color: toHex(look.ink) } : {}),
+    },
+    drawn?.look,
+  )
   const blocks =
     merge === 'continue'
       ? []
@@ -1424,9 +1678,72 @@ function codeLines(text: string, runs: readonly RenderedRun[] | undefined): Rend
   return lines
 }
 
+/**
+ * A code block as Word paragraphs, a line each, as the editor shows it: its
+ * title above it, its lines numbered and banded where it marks them, on its
+ * own ground and in its own ink (a terminal is dark whatever the theme), and
+ * the space after it the editor leaves, which Word's Code style would close.
+ */
+function codeParagraphs(
+  node: EditorNode,
+  drawn: RenderedBlock | undefined,
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string[] {
+  const outer = props.frame ?? run.frame
+  const ground = wordColor(drawn?.box?.fill)
+  // The block's own ground, where it is not the Code style's already; inside
+  // a box it has to be said, or the box's ground would take its place.
+  const own = ground && (ground !== context.palette.code || outer) ? ground : null
+  const frameFor = (fill: string | null): Frame | undefined =>
+    fill || outer ? { ...(fill ? { fill } : {}), sides: outer?.sides ?? {} } : undefined
+  const ink = wordColor(drawn?.look?.color) ?? undefined
+  const muted = context.palette.muted ?? '767676'
+  const bands = new Map((drawn?.lines ?? []).map((line) => [line.line, wordColor(line.band)]))
+  const lines = codeLines(node.textContent, drawn?.runs)
+  const digits = String(lines.length).length
+  const out: string[] = []
+  const title = codeBlockTitle(node.attrs.title)
+  if (title) {
+    const font = escapeXML(context.font)
+    const frame = frameFor(own)
+    const rule = { color: context.palette.border ?? 'BFBFBF', size: 4 }
+    out.push(
+      `<w:p>${pPr(
+        { ...props, style: 'Code', frame: { ...frame, sides: { ...frame?.sides, bottom: rule } } },
+        null,
+        context,
+      )}${textRun(
+        title,
+        `<w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}"/><w:b/><w:bCs/><w:color w:val="${muted}"/><w:sz w:val="16"/><w:szCs w:val="16"/>`,
+      )}</w:p>`,
+    )
+  }
+  lines.forEach((line, index) => {
+    const number =
+      node.attrs.lineNumbers === true
+        ? textRun(`${String(index + 1).padStart(digits)}  `, `<w:color w:val="${muted}"/>`)
+        : ''
+    const last = index === lines.length - 1
+    const properties: ParagraphProps = {
+      ...props,
+      style: 'Code',
+      frame: frameFor(bands.get(index + 1) ?? own),
+      ...(last ? { spaceAfter: 160, spaced: true } : {}),
+    }
+    out.push(
+      `<w:p>${pPr(properties, null, context)}${number}${line
+        .map((piece) => textRun(piece.text, codeRunProperties(piece, ink)))
+        .join('')}</w:p>`,
+    )
+  })
+  return out
+}
+
 /** `w:color`/`w:b`/`w:i` for one highlighted run; the Code style supplies the rest. */
-function codeRunProperties(run: RenderedRun): string {
-  const color = parseColor(run.color)
+function codeRunProperties(run: RenderedRun, ink?: string): string {
+  const color = parseColor(run.color) ?? parseColor(ink ? `#${ink}` : null)
   return [
     color ? `<w:color w:val="${toHex(color)}"/>` : '',
     run.bold ? '<w:b/><w:bCs/>' : '',
@@ -1456,17 +1773,47 @@ function diagramParagraph(
 function imageParagraph(node: EditorNode, context: Context, props: ParagraphProps): string {
   const alignRaw = attrString(node.attrs, 'align')
   const jc = alignRaw === 'center' || alignRaw === 'right' ? alignRaw : props.jc
-  return picture(
-    {
-      src: attrString(node.attrs, 'src') ?? '',
-      alt: attrString(node.attrs, 'alt') ?? '',
-      width: lengthToPx(node.attrs.width, context.basePt),
-      height: lengthToPx(node.attrs.height, context.basePt),
-    },
-    context,
-    { ...props, jc },
-  )
+  return picture(pictureOf(node, context), context, { ...props, jc })
 }
+
+/**
+ * An image node's picture: its own source, or the bitmap the editor drew of
+ * it where the source is SVG, which Word and RTF readers cannot all show.
+ */
+function pictureOf(node: EditorNode, context: Context, width?: number): Picture {
+  return {
+    src: context.rendered.get(node)?.image?.src ?? attrString(node.attrs, 'src') ?? '',
+    alt: attrString(node.attrs, 'alt') ?? '',
+    width: width ?? lengthToPx(node.attrs.width, context.basePt),
+    height: width === undefined ? lengthToPx(node.attrs.height, context.basePt) : null,
+  }
+}
+
+/**
+ * A gallery as the editor lays it out: its pictures side by side, as many to
+ * a row as it has columns. A picture is a character to Word, so a paragraph
+ * of them wraps into rows by itself.
+ */
+function galleryParagraph(
+  node: EditorNode,
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string {
+  const columns = Math.min(6, Math.max(1, Math.round(attrNumber(node.attrs, 'columns') ?? 3)))
+  // Twips are fifteen to a pixel; a few pixels go to the space between two.
+  const width = Math.floor((context.textWidth / 15 - GALLERY_GAP_PX * (columns - 1)) / columns)
+  const pictures = node.content.children
+    .filter((child) => child.type.name === NODE.image)
+    .map((image) => drawingRun(pictureOf(image, context, width), context) ?? '')
+    .filter(Boolean)
+  return `<w:p>${pPr({ ...props, frame: props.frame ?? run.frame }, null, context)}${pictures.join(
+    textRun(' ', ''),
+  )}</w:p>`
+}
+
+/** The room left between two pictures of a gallery, in pixels. */
+const GALLERY_GAP_PX = 8
 
 /** Everything a picture needs, whether it came from the document or was drawn for it. */
 interface Picture {
@@ -1477,19 +1824,25 @@ interface Picture {
 }
 
 function picture(image: Picture, context: Context, paragraphProps: ParagraphProps): string {
+  const drawing = drawingRun(image, context)
+  if (drawing) return `<w:p>${pPr(paragraphProps, null, context)}${drawing}</w:p>`
+  // A remote image cannot be embedded without fetching it; leave a link so
+  // the reader can still reach it.
+  const { src, alt } = image
+  const label = alt || src || 'image'
+  if (!src) return `<w:p>${pPr(paragraphProps, null, context)}${textRun(`[${label}]`, '')}</w:p>`
+  const id = addRelationship(context, 'hyperlink', encodeTarget(src), true)
+  return `<w:p>${pPr(paragraphProps, null, context)}<w:hyperlink r:id="${id}">${textRun(
+    label,
+    '<w:rStyle w:val="Hyperlink"/>',
+  )}</w:hyperlink></w:p>`
+}
+
+/** A picture as the run that draws it in the line, or null for one the file cannot hold. */
+function drawingRun(image: Picture, context: Context): string | null {
   const { src, alt } = image
   const decoded = decodeDataURL(src)
-  if (!decoded || !decoded.mime.startsWith('image/')) {
-    // A remote image cannot be embedded without fetching it; leave a link so
-    // the reader can still reach it.
-    const label = alt || src || 'image'
-    if (!src) return `<w:p>${pPr(paragraphProps, null, context)}${textRun(`[${label}]`, '')}</w:p>`
-    const id = addRelationship(context, 'hyperlink', encodeTarget(src), true)
-    return `<w:p>${pPr(paragraphProps, null, context)}<w:hyperlink r:id="${id}">${textRun(
-      label,
-      '<w:rStyle w:val="Hyperlink"/>',
-    )}</w:hyperlink></w:p>`
-  }
+  if (!decoded || !decoded.mime.startsWith('image/')) return null
 
   const extension = extensionForMime(decoded.mime)
   const name = `image${context.media.length + 1}.${extension}`
@@ -1519,7 +1872,7 @@ function picture(image: Picture, context: Context, paragraphProps: ParagraphProp
     `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`,
     '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>',
   ].join('')
-  return `<w:p>${pPr(paragraphProps, null, context)}${drawing}</w:p>`
+  return drawing
 }
 
 /**
@@ -1618,7 +1971,10 @@ function inlineNode(node: EditorNode, context: Context, run: RunContext, inLink:
     return textRun((node as TextNode).text, runProperties(node.marks, context, run, inLink))
   }
   if (node.type.name === NODE.hardBreak) return '<w:r><w:br/></w:r>'
-  if (node.type.name === 'crossReference') return crossReference(node, context, run, inLink)
+  // How the editor draws the atom: a badge's pill, a marker raised and bracketed.
+  const look = context.rendered.get(node)?.look
+  const atomRun = withLook(run, look)
+  if (node.type.name === 'crossReference') return crossReference(node, context, atomRun, inLink)
   // A table formula as Word's own `=` field, showing its result until Word
   // works it out again.
   if (node.type.name === 'tableFormula') {
@@ -1629,12 +1985,171 @@ function inlineNode(node: EditorNode, context: Context, run: RunContext, inLink:
     )
   }
   if (node.type.name === NODE.image) {
+    const drawing = drawingRun(pictureOf(node, context), context)
+    if (drawing) return drawing
     const alt = attrString(node.attrs, 'alt') ?? 'image'
     return textRun(`[${alt}]`, runProperties([], context, run, inLink))
   }
-  const text = exportTextOf(node)
-  return text ? textRun(text, runProperties(node.marks, context, run, inLink)) : ''
+  const equation = mathOf(node)
+  if (equation) return equation
+  const words = exportTextOf(node)
+  if (!words) return ''
+  const text = textRun(
+    `${look?.before ?? ''}${words}${look?.after ?? ''}`,
+    runProperties(node.marks, context, atomRun, inLink),
+  )
+  // A button goes where it points, as it does in the editor.
+  const link = inLink ? null : embedLink(node)
+  if (!link) return text
+  const id = addRelationship(context, 'hyperlink', encodeTarget(link.href), true)
+  return `<w:hyperlink r:id="${id}">${text}</w:hyperlink>`
 }
+
+/** An equation as Word's own, from the MathML its spec draws it with; null for any other node. */
+function mathOf(node: EditorNode): string | null {
+  const markup = node.type.spec.toHTML?.(node).innerHTML
+  return markup?.includes('<math') ? mathMLToOMML(markup) : null
+}
+
+/**
+ * A display equation, centred as the editor sets it. A numbered one is laid
+ * out as Word users number theirs by hand: the equation on a centre tab, its
+ * number on a right one at the margin.
+ */
+function equationParagraph(
+  node: EditorNode,
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string | null {
+  const equation = mathOf(node)
+  if (!equation) return null
+  const number = node.attrs.numbered === true ? attrString(node.attrs, 'number') : null
+  if (!number) {
+    const centred = pPr({ ...props, frame: props.frame ?? run.frame, jc: 'center' }, null, context)
+    return `<w:p>${centred}<m:oMathPara>${equation}</m:oMathPara></w:p>`
+  }
+  const width = context.textWidth
+  const tabs = `<w:tabs><w:tab w:val="center" w:pos="${Math.round(width / 2)}"/><w:tab w:val="right" w:pos="${width}"/></w:tabs>`
+  return `<w:p><w:pPr>${tabs}</w:pPr><w:r><w:tab/></w:r>${equation}<w:r><w:tab/></w:r>${textRun(
+    `(${number})`,
+    runProperties([], context, run, false),
+  )}</w:p>`
+}
+
+/** A link to `href` reading `text`, in the run's own type. */
+function hyperlink(
+  link: { readonly text: string; readonly href: string },
+  context: Context,
+  run: RunContext,
+  styledAsLink = true,
+): string {
+  const id = addRelationship(context, 'hyperlink', encodeTarget(link.href), true)
+  return `<w:hyperlink r:id="${id}">${textRun(link.text, runProperties([], context, run, styledAsLink))}</w:hyperlink>`
+}
+
+/**
+ * A link card as the editor shows it, in its box: the page's title, bold and
+ * a link to it, then its description and the site's name, smaller and grey.
+ */
+function linkCardParagraphs(
+  node: EditorNode,
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string[] {
+  const link = embedLink(node)
+  const framed: ParagraphProps = { ...props, frame: props.frame ?? run.frame, spaceAfter: 40 }
+  const title = attrString(node.attrs, 'title') ?? link?.href ?? ''
+  const bold: RunContext = { ...run, bold: true }
+  const quiet: RunContext = {
+    ...run,
+    color: context.palette.muted ?? '767676',
+    scale: (run.scale ?? 1) * 0.85,
+  }
+  const lines = [
+    link
+      ? hyperlink({ text: title, href: link.href }, context, bold, false)
+      : textRun(title, runProperties([], context, bold, false)),
+    ...['description', 'siteName']
+      .map((key) => attrString(node.attrs, key))
+      .filter((text): text is string => text !== null)
+      .map((text) => textRun(text, runProperties([], context, quiet, false))),
+  ].filter(Boolean)
+  return lines.map(
+    (line, index) =>
+      `<w:p>${pPr(index === lines.length - 1 ? { ...framed, spaceAfter: undefined } : framed, null, context)}${line}</w:p>`,
+  )
+}
+
+/**
+ * Footnotes, endnotes and a reference list as the editor sets them at the
+ * end of the document: numbered, the endnotes in roman numerals, and an
+ * author-date style's references not numbered at all.
+ */
+function writeNotes(
+  list: EditorNode,
+  context: Context,
+  run: RunContext,
+  props: ParagraphProps,
+): string[] {
+  const style = notesNumbering(list)
+  const instance =
+    style === 'decimal' || style === 'lower-roman'
+      ? addNumbering(context, ABSTRACT_NUMBERED, 0, 1)
+      : null
+  if (instance && style === 'lower-roman') {
+    instance.overrides.set(0, { start: 1, lvl: levelXML(0, 'lowerRoman', '%1.') })
+  }
+  const numbered: ParagraphProps = {
+    ...props,
+    style: 'ListParagraph',
+    ...(instance ? { numbering: { id: instance.id, level: 0 } } : {}),
+  }
+  return list.content.children.flatMap((item) => {
+    const itemRun = styled(item, context, run)
+    // A reference is a line of text; a note holds paragraphs, the first numbered.
+    if (item.isTextblock) return [paragraph(item, context, itemRun, numbered)]
+    return item.content.children.flatMap((block, index) =>
+      index === 0 && block.isTextblock
+        ? [paragraph(block, context, styled(block, context, itemRun), numbered)]
+        : writeBlock(block, context, itemRun, props),
+    )
+  })
+}
+
+/**
+ * Columns side by side, as the editor lays them out: a table without lines,
+ * a cell a column, the space between them on the right of each.
+ */
+function columnsTable(node: EditorNode, context: Context, run: RunContext): string {
+  const columns = node.content.children
+  const width = Math.floor(context.textWidth / Math.max(1, columns.length))
+  const cells = columns.map((column) => {
+    // A cell draws no box of the one round the columns.
+    const columnRun = { ...styled(column, context, run), frame: undefined }
+    const blocks = column.content.children.flatMap((block) =>
+      writeBlock(block, context, columnRun, {}),
+    )
+    const last = blocks[blocks.length - 1]
+    if (!last || !last.endsWith('</w:p>')) blocks.push('<w:p/>')
+    return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr>${blocks.join('')}</w:tc>`
+  })
+  const none = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
+    .map((side) => `<w:${side} w:val="nil"/>`)
+    .join('')
+  const grid = columns.map(() => `<w:gridCol w:w="${width}"/>`).join('')
+  return [
+    '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>',
+    `<w:tblBorders>${none}</w:tblBorders><w:tblLayout w:type="fixed"/>`,
+    `<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="${COLUMN_GAP}" w:type="dxa"/></w:tblCellMar>`,
+    '<w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="1" w:noVBand="1"/>',
+    `</w:tblPr><w:tblGrid>${grid}</w:tblGrid><w:tr>${cells.join('')}</w:tr></w:tbl>`,
+  ].join('')
+}
+
+/** The space between two columns, in twips: the editor's gap. */
+const COLUMN_GAP = 240
 
 /**
  * A cross-reference as a REF field to the bookmark its format reads, showing
@@ -1710,16 +2225,18 @@ function runProperties(
 ): string {
   let bold = run.bold === true
   let italic = run.italic === true
-  let underline = false
-  let strike = false
+  let underline = run.underline === true
+  let strike = run.strike === true
   let smallCaps = false
   let font: string | null = null
-  let color: string | null = run.color ?? null
-  let size: number | null = null
+  // A link keeps its own colour, in a grey paragraph as in a header row.
+  let color: string | null = inLink ? null : (run.color ?? null)
+  let size: number | null =
+    run.scale && run.scale !== 1 ? Math.max(2, Math.round(context.basePt * run.scale * 2)) : null
   let spacing: number | null = null
   let highlight: string | null = null
-  let shading: string | null = null
-  let vertical: string | null = null
+  let shading: string | null = run.fill ?? null
+  let vertical: string | null = run.raised ? 'superscript' : null
 
   for (const mark of marks) {
     switch (mark.type.name) {

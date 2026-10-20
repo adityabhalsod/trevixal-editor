@@ -148,8 +148,12 @@ test('formats the paragraph from keys AltGr cannot take, and the menus print the
   // Google Docs' key still works where the keyboard lets it through…
   press({ key: '0', code: 'Digit0', ctrlKey: true, altKey: true })
   expect(block()?.type.name).toBe('paragraph')
-  // …and where Ctrl+Alt+2 is AltGr and types `@`, it goes on typing it.
+  // …and where Ctrl+Alt+2 is AltGr (the right Alt) and types `@`, it goes on typing it.
+  const altGraph = (type: string): boolean =>
+    document.dispatchEvent(new KeyboardEvent(type, { key: 'AltGraph', code: 'AltRight' }))
+  altGraph('keydown')
   press({ key: '@', code: 'Digit2', ctrlKey: true, altKey: true })
+  altGraph('keyup')
   expect(block()?.type.name).toBe('paragraph')
   press({ key: '*', code: 'Digit8', ctrlKey: true, shiftKey: true })
   expect(block()?.type.name).toBe('bulletList')

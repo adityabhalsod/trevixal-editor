@@ -225,9 +225,9 @@ describe('the tour', () => {
 
   test('keeps what the browser suite counts on', () => {
     const count = (pattern: RegExp): number => html.match(pattern)?.length ?? 0
-    // Three tasks, the third undone; six code blocks; one tab strip of two.
+    // Three tasks, the third undone; seven code blocks; one tab strip of two.
     expect(count(/data-type="taskItem"/g)).toBe(3)
-    expect(count(/<pre[ >]/g)).toBe(6)
+    expect(count(/<pre[ >]/g)).toBe(7)
     expect(count(/data-checked="false"/g)).toBe(1)
     expect(html).toContain('<h1>Trevixal</h1>')
   })

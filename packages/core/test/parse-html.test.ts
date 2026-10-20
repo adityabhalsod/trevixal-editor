@@ -40,9 +40,39 @@ describe('HTML import', () => {
     expect(result.child(0).textContent).toBe('line 1\n  line 2')
   })
 
-  it('keeps content of unknown wrappers, dropping their formatting', () => {
+  it('keeps content of unknown wrappers, and the look a span gives its words', () => {
     const result = parse('<div><span style="color:red">styled</span> text</div>')
-    expect(result.eq(doc(p('styled text')))).toBe(true)
+    expect(result.childCount).toBe(1)
+    expect(result.child(0).textContent).toBe('styled text')
+    expect(
+      result
+        .child(0)
+        .child(0)
+        .marks.map((mark) => mark.type.name),
+    ).toEqual(['textColor'])
+    expect(result.child(0).child(1).marks).toEqual([])
+  })
+
+  it('reads every mark a span styles its words with, as Word writes one', () => {
+    const result = parse(
+      '<p><span style="font-size:14pt; font-family:Georgia, serif; color:#c00000">big red</span></p>',
+    )
+    const marks = result
+      .child(0)
+      .child(0)
+      .marks.map((mark) => mark.type.name)
+    expect(marks.sort()).toEqual(['fontFamily', 'fontSize', 'textColor'])
+  })
+
+  it('reads a tag as the one mark its first rule makes of it', () => {
+    // Only a span is several marks at once: a styled `<s>` is a strikethrough.
+    const result = parse('<p><s style="color:red">gone</s></p>')
+    expect(
+      result
+        .child(0)
+        .child(0)
+        .marks.map((mark) => mark.type.name),
+    ).toEqual(['strikethrough'])
   })
 
   it('drops whitespace between blocks', () => {

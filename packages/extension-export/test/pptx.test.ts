@@ -4,7 +4,7 @@ import { serializeToPPTX } from '../src/pptx'
 import { documentSlides } from '../src/slides'
 import { parseXML } from '../src/xml'
 import { readZip } from '../src/zip'
-import { partText } from './helpers'
+import { extraNodes, partText, pngDataURL } from './helpers'
 
 // A note callout, as extension-blocks makes it: speaker's notes on a slide.
 const schema = new Schema({
@@ -97,5 +97,47 @@ describe('the PowerPoint file', () => {
       '<a:pPr lvl="1"/><a:r><a:rPr lang="en-US" dirty="0"></a:rPr><a:t>A detail</a:t>',
     )
     expect(partText(parts, 'ppt/presentation.xml').match(/<p:sldId /g)).toHaveLength(3)
+  })
+})
+
+describe('lists and pictures on a slide', () => {
+  const pictured = new Schema({
+    nodes: { ...defaultNodes(), ...extraNodes() },
+    marks: defaultMarks(),
+  })
+  const line = (value: string): EditorNode =>
+    pictured.node('paragraph', undefined, [pictured.text(value)])
+  const deck = pictured.node('doc', undefined, [
+    pictured.node('heading', { level: 2 }, [pictured.text('Steps')]),
+    pictured.node('orderedList', { start: 3, listStyle: 'lower-alpha' }, [
+      pictured.node('listItem', undefined, [line('Third')]),
+    ]),
+    pictured.node('taskList', undefined, [
+      pictured.node('taskItem', { checked: true }, [line('Done')]),
+    ]),
+    pictured.node('image', { src: pngDataURL(40, 20), alt: 'Chart' }),
+  ])
+
+  it('numbers a list in its own style from its own start, and gives a task its box, not a bullet', async () => {
+    const parts = await readZip(serializeToPPTX(deck, { modified: new Date(0) }))
+    const slide = partText(parts, 'ppt/slides/slide1.xml')
+    expect(slide).toContain('<a:buAutoNum type="alphaLcPeriod" startAt="3"/>')
+    expect(slide).toContain(
+      '<a:pPr><a:buNone/></a:pPr><a:r><a:rPr lang="en-US" dirty="0"/><a:t>☑ </a:t>',
+    )
+  })
+
+  it('puts a picture on its slide beside the text, packed in with its type', async () => {
+    const parts = await readZip(serializeToPPTX(deck, { modified: new Date(0) }))
+    const slide = partText(parts, 'ppt/slides/slide1.xml')
+    expect(slide).toMatch(/<p:pic><p:nvPicPr><p:cNvPr id="\d+" name="Picture 1" descr="Chart"\/>/)
+    expect(slide).toContain('<a:blip r:embed="rId3"/>')
+    expect(partText(parts, 'ppt/slides/_rels/slide1.xml.rels')).toContain(
+      'Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"',
+    )
+    expect(parts.has('ppt/media/image1.png')).toBe(true)
+    expect(partText(parts, '[Content_Types].xml')).toContain(
+      '<Default Extension="png" ContentType="image/png"/>',
+    )
   })
 })

@@ -409,7 +409,12 @@ export function resolveConditionals(doc: EditorNode): EditorNode {
     const children = node.content.children.flatMap(resolve)
     if (children.length === 0)
       return node.type.name === doc.type.name ? [node.withContent(Fragment.empty)] : []
-    return [node.withContent(Fragment.from(children))]
+    // Untouched, a block stays the same object: what the editor drew for it
+    // (a callout's box, a finished task's line) is found by the node itself.
+    const untouched =
+      children.length === node.childCount &&
+      children.every((child, index) => child === node.content.children[index])
+    return [untouched ? node : node.withContent(Fragment.from(children))]
   }
   const [resolved] = resolve(doc)
   if (!resolved || resolved.childCount === 0) {

@@ -208,10 +208,16 @@ export { languageItemName, type UILanguage, UI_LANGUAGES } from './languages'
 // CSS collection, for exporting a self-contained document
 export { type CollectCSSOptions, collectDocumentCSS } from './collect-css'
 export {
+  type CaptureOptions,
   type RenderedBlock,
+  type RenderedBorder,
+  type RenderedBox,
   type RenderedDocument,
   type RenderedImage,
+  type RenderedLine,
+  type RenderedLook,
   type RenderedRun,
+  type RenderedSide,
   captureRenderedBlocks,
   rasterizeDiagrams,
   renderedNodeHTML,

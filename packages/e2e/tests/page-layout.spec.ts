@@ -120,13 +120,20 @@ test('prints as pages, each numbered, none running over', async ({ page }) => {
     )
     expect(pages.some((each) => each.overflows)).toBe(false)
     // Every paragraph is there, once, in order, split or whole.
-    const text = pages.map((each) => each.text).join(' ')
+    const text = pages
+      .map((each) => each.text)
+      .join(' ')
+      .replace(/\s+/g, ' ')
     const order = Array.from({ length: 24 }, (_, index) =>
       text.indexOf(`Paragraph ${index + 1} sets`),
     )
     expect(
       order.every((at, index) => at >= 0 && (index === 0 || at > (order[index - 1] ?? 0))),
     ).toBe(true)
+    // All of it: a split paragraph's rest goes over to the next page, though
+    // the preview's frame builds it from another window's elements.
+    const said = (index: number): number => text.split(`Paragraph ${index + 1} sets`).length - 1
+    expect(Array.from({ length: 24 }, (_, index) => said(index))).toEqual(Array(24).fill(9))
     // A heading never ends a page.
     const endsWithHeading = await frame.$$eval('.trevixal-page__body', (bodies) =>
       bodies.some((body) => /^H[1-6]$/.test(body.lastElementChild?.tagName ?? '')),

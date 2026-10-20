@@ -138,16 +138,29 @@ class RuleSet<T> {
 
   /** First matching rule for an element, with resolved attributes. */
   match(element: HTMLElement): { owner: T; attrs: Record<string, unknown> | null } | null {
+    return this.matchAll(element, true)[0] ?? null
+  }
+
+  /**
+   * Every owner a rule matches the element for, each once, in rule order:
+   * a span styled `font-size: 14pt; font-family: Georgia` is both a size and
+   * a font, as Word writes one, and the first match alone lost the second.
+   */
+  matchAll(
+    element: HTMLElement,
+    first = false,
+  ): { owner: T; attrs: Record<string, unknown> | null }[] {
     const list = this.byTag.get(element.tagName.toLowerCase())
-    if (!list) return null
-    for (const { owner, rule } of list) {
+    const found: { owner: T; attrs: Record<string, unknown> | null }[] = []
+    for (const { owner, rule } of list ?? []) {
+      if (found.some((match) => match.owner === owner)) continue
       if (rule.attribute && !element.hasAttribute(rule.attribute)) continue
-      if (!rule.getAttrs) return { owner, attrs: null }
-      const attrs = rule.getAttrs(element)
+      const attrs = rule.getAttrs ? rule.getAttrs(element) : null
       if (attrs === false) continue
-      return { owner, attrs: (attrs as Record<string, unknown>) ?? null }
+      found.push({ owner, attrs: (attrs as Record<string, unknown> | null | undefined) ?? null })
+      if (first) break
     }
-    return null
+    return found
   }
 }
 
@@ -240,10 +253,16 @@ class HTMLParser {
     const dangerous = DANGEROUS_TAGS.has(tag)
     if (dangerous && !this.nodeRules.hasTag(tag)) return []
 
-    const markMatch = this.markRules.match(element)
-    if (markMatch) {
-      const mark = markMatch.owner.create(markMatch.attrs ?? undefined)
-      return this.parseChildren(element, this.styled(element, mark.addToSet(marks)), inlineContext)
+    // A span is every mark its style names (Word's size and font on one);
+    // any other tag is the one mark its first rule makes of it, as a `<del>`
+    // is a suggested deletion or a strikethrough, never both.
+    const markMatches = this.markRules.matchAll(element, tag !== 'span' && tag !== 'font')
+    if (markMatches.length > 0) {
+      const set = markMatches.reduce(
+        (each, match) => match.owner.create(match.attrs ?? undefined).addToSet(each),
+        marks,
+      )
+      return this.parseChildren(element, this.styled(element, set), inlineContext)
     }
     const inherited = this.styled(element, marks)
 

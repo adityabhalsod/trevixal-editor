@@ -140,6 +140,16 @@ function locationsHTML(locations: readonly IndexLocation[]): string {
   return locations.map((location) => linkHTML(location.id, location.label)).join(', ')
 }
 
+/** An index as lines of text: `term, 1, 4`, and each subentry indented under its term. */
+function indexLines(entries: readonly IndexEntry[]): string[] {
+  const labels = (locations: readonly IndexLocation[]): string =>
+    locations.map((location) => `, ${location.label}`).join('')
+  return entries.flatMap((entry) => [
+    `${entry.term}${labels(entry.locations)}`,
+    ...entry.subentries.map((sub) => `  ${sub.term}${labels(sub.locations)}`),
+  ])
+}
+
 /** The markup an index shows: its entries under their initial letters. Everything in it is escaped. */
 export function indexHTML(entries: readonly IndexEntry[]): string {
   if (entries.length === 0) {
@@ -240,6 +250,11 @@ export function referenceNodes(): Record<string, NodeSpec> {
       group: 'block',
       atom: true,
       attrs: { kind: { default: 'figure' }, entries: { default: '[]' } },
+      // Where a format has no table of figures of its own: its entries, a line each.
+      exportText: (node) =>
+        readJSONList(node.attrs.entries, isCaptionListEntry)
+          .map((entry) => entry.text)
+          .join('\n'),
       toHTML: (node) => {
         const kind = captionKind(node.attrs.kind)
         return {
@@ -263,6 +278,9 @@ export function referenceNodes(): Record<string, NodeSpec> {
       group: 'block',
       atom: true,
       attrs: { entries: { default: '[]' } },
+      // Where a format has no index of its own: an entry a line, its
+      // subentries indented under it, as the index reads.
+      exportText: (node) => indexLines(readJSONList(node.attrs.entries, isIndexEntry)).join('\n'),
       toHTML: (node) => ({
         tag: 'div',
         attrs: { class: 'trevixal-index', 'data-document-index': 'true' },

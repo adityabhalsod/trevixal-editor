@@ -138,6 +138,14 @@ export const layoutMeasure: PageMeasure = {
 /** The first part fits and the rest went on to the next page; or all of it stays. */
 type Split = HTMLElement | 'keep' | null
 
+/**
+ * Whether a split left a rest to carry over. Not `instanceof HTMLElement`:
+ * a print frame's elements are its own window's, which the page's
+ * constructor does not count as elements at all, so every rest was dropped
+ * and the rows and lines after a page break went missing from the print.
+ */
+const isRest = (split: Split): split is HTMLElement => split !== null && split !== 'keep'
+
 /** One page as it is being filled. */
 interface Page {
   readonly box: HTMLElement
@@ -302,12 +310,11 @@ export function paginate(content: HTMLElement, options: PaginateOptions): number
     const index = children.findIndex((child) => !measure.endsInside(child, body))
     if (index === -1) return 'keep'
     const inner = splitToFit(children[index] as HTMLElement, body)
-    const moved =
-      inner instanceof HTMLElement
-        ? [inner, ...children.slice(index + 1)]
-        : children.slice(inner === 'keep' ? index + 1 : index)
+    const moved = isRest(inner)
+      ? [inner, ...children.slice(index + 1)]
+      : children.slice(inner === 'keep' ? index + 1 : index)
     if (moved.length === 0) return 'keep'
-    if (moved.length === children.length && !(inner instanceof HTMLElement)) return null
+    if (moved.length === children.length && !isRest(inner)) return null
     const rest = container.cloneNode(false) as HTMLElement
     rest.append(...moved)
     markSplit(container, rest)
@@ -422,7 +429,7 @@ export function paginate(content: HTMLElement, options: PaginateOptions): number
       page.body.appendChild(block)
       if (measure.fits(page.body)) continue
       const split = splitToFit(block, page.body)
-      const carried: HTMLElement[] = split instanceof HTMLElement ? [split] : []
+      const carried: HTMLElement[] = isRest(split) ? [split] : []
       // Nothing of it fits here: it goes over, unless it is too big for any
       // page, when it stays, cut off.
       if (split === null && page.body.childElementCount > 1) {

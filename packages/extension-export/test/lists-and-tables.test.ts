@@ -122,7 +122,8 @@ describe('task due dates and assignees', () => {
 
   it('follow the task in RTF', () => {
     const rtf = serializeToRTF(plan())
-    expect(rtf).toMatch(/Draft\{\\cf\d+\\fs\d+ {2}@Priya \\u183\? 2026-10-01\}\\par/)
+    // Upright even in a done task, which strikes only the task's own words.
+    expect(rtf).toMatch(/Draft\{\\strike0\\cf\d+\\fs\d+ {2}@Priya \\u183\? 2026-10-01\}\\par/)
   })
 })
 

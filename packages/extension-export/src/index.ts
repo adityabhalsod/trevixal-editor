@@ -34,9 +34,14 @@ export {
 } from './pdf'
 export type {
   RenderedBlock,
+  RenderedBorder,
+  RenderedBox,
   RenderedDocument,
   RenderedImage,
+  RenderedLine,
+  RenderedLook,
   RenderedRun,
+  RenderedSide,
 } from './rendered'
 export { type DocumentPalette, type ThemeTokens, documentPalette } from './theme'
 export { type DOCXOptions, serializeToDOCX } from './docx-writer'
@@ -59,7 +64,9 @@ export {
   pdfImporter,
   type DocumentExporter,
   type DocumentImporter,
+  type EPUBExporterOptions,
   type ExportContext,
+  type ExportFormatsOptions,
   exportFormats,
   type ImportContext,
   importFormats,

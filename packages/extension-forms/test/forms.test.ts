@@ -190,4 +190,47 @@ describe('the PDF form', () => {
       })
     expect(pdfString('a (b) \\ ’')).toBe('(a \\(b\\) \\\\ \\222)')
   })
+
+  /** Each run of text the page sets: its font, where it starts, and what it says. */
+  function shown(html: string): { font: string; x: number; text: string }[] {
+    const file = String.fromCharCode(...serializeToPDFForm(parseHTML(schema, html, document)))
+    return [
+      ...file.matchAll(/BT \/(F\d) [\d.]+ Tf ([\d.]+) [\d.]+ Td \(((?:\\.|[^\\)])*)\) Tj ET/g),
+    ].map(([, font, x, text]) => ({ font: font ?? '', x: Number(x), text: text ?? '' }))
+  }
+
+  it('numbers a list from its start, its items in from the text, and bullets a bulleted one', () => {
+    const runs = shown(
+      '<ol start="3"><li><p>Third</p></li><li><p>Fourth</p></li></ol><ul><li><p>Dot</p></li></ul>',
+    )
+    expect(runs.map((run) => run.text)).toEqual(['3.', 'Third', '4.', 'Fourth', '\\225', 'Dot'])
+    // Marker and text both sit a level in from the margin.
+    expect(runs[0]?.x).toBeGreaterThan(72)
+    expect(runs[1]?.x).toBeGreaterThan(runs[0]?.x ?? 0)
+  })
+
+  it('sets code in Courier and italic in Helvetica’s oblique, each in the page’s fonts', () => {
+    const html = '<pre><code>let x</code></pre><p><em>Slanted</em></p>'
+    const runs = shown(html)
+    expect(runs.filter((run) => run.font === 'F4').map((run) => run.text)).toEqual(['let', 'x'])
+    expect(runs.find((run) => run.text === 'Slanted')?.font).toBe('F3')
+    const file = String.fromCharCode(...serializeToPDFForm(parseHTML(schema, html, document)))
+    expect(file).toContain('/BaseFont /Courier ')
+    expect(file).toContain('/BaseFont /Helvetica-Oblique ')
+    expect(file).toContain('/F3 6 0 R /F4 7 0 R')
+  })
+
+  it('stands in for a symbol WinAnsi lacks, and leaves the room the stand-in takes', () => {
+    const runs = shown('<pre><code>a → c ✓</code></pre>')
+    expect(runs.map((run) => run.text)).toEqual(['a', '->', 'c', 'v'])
+    // Courier at 10pt is 6pt a character: `->` and the space after it take 18.
+    expect((runs[2]?.x ?? 0) - (runs[1]?.x ?? 0)).toBe(18)
+  })
+
+  it('breaks a word too long for the line where the margin cuts it', () => {
+    const word = 'Supercalifragilisticexpialidocious'.repeat(4)
+    const runs = shown(`<p>${word}</p>`)
+    expect(runs.length).toBeGreaterThan(1)
+    expect(runs.map((run) => run.text).join('')).toBe(word)
+  })
 })

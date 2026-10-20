@@ -1,10 +1,12 @@
-import { type EditorNode, type Mark, exportTextOf } from '@trevixal/core'
+import { type EditorNode, type Mark, TableMap, exportTextOf } from '@trevixal/core'
 
 /**
  * A document as LaTeX source: an `article` with the packages its content
  * needs, headings as sections, lists, tables, code, equations and links,
- * every character LaTeX treats specially escaped. What LaTeX has no way to
- * say (a callout, an embed) keeps its text.
+ * footnotes, endnotes and citations as LaTeX's own, every character LaTeX
+ * treats specially escaped. What LaTeX has no way to say (a callout, an
+ * embed) keeps its text. It compiles with pdfLaTeX, the symbols the editor
+ * uses mapped for it, and with XeLaTeX or LuaLaTeX, which take any script.
  */
 
 export interface LaTeXOptions {
@@ -67,6 +69,20 @@ const LISTINGS: Readonly<Record<string, string>> = {
   cpp: 'C++',
 }
 
+/**
+ * Symbols pdfLaTeX has no glyph for out of the box, as the commands that draw
+ * them: the menu arrows the editor's text uses, ticks and boxes, bullets.
+ */
+const SYMBOLS: Readonly<Record<string, string>> = {
+  '▸': '\\ensuremath{\\blacktriangleright}',
+  '▾': '\\ensuremath{\\blacktriangledown}',
+  '✓': '\\checkmark',
+  '☐': '\\ensuremath{\\square}',
+  '☑': '\\ensuremath{\\boxtimes}',
+  '➜': '\\ensuremath{\\rightarrow}',
+  '●': '\\textbullet{}',
+}
+
 /** Wrap text in the commands its marks stand for, innermost first. */
 function marked(text: string, marks: readonly Mark[]): string {
   let out = text
@@ -110,7 +126,7 @@ function marked(text: string, marks: readonly Mark[]): string {
 }
 
 /** A textblock's inline content as LaTeX. */
-function inline(block: EditorNode): string {
+function inline(block: EditorNode, context: Context): string {
   return block.content.children
     .map((child) => {
       if (child.isText) return marked(escapeLaTeX(child.textContent), child.marks)
@@ -118,14 +134,49 @@ function inline(block: EditorNode): string {
         case 'hardBreak':
           return '\\\\\n'
         case 'math':
-          return `$${String(child.attrs.latex ?? '')}$`
+          return `$${equation(child, context)}$`
         case 'image':
           return imageOf(child)
+        case 'footnoteRef':
+        case 'endnoteRef': {
+          // The note's words go where it is cited, as LaTeX numbers and sets them.
+          const note = context.notes.get(`${child.type.name}:${String(child.attrs.id)}`)
+          if (!note) return escapeLaTeX(exportTextOf(child))
+          if (child.type.name === 'endnoteRef') context.packages.add('endnotes')
+          const command = child.type.name === 'endnoteRef' ? 'endnote' : 'footnote'
+          return `\\${command}{${noteText(note, context)}}`
+        }
+        case 'citation':
+          return `\\cite{${citeKey(child.attrs.id)}}`
+        case 'crossReference': {
+          const target = typeof child.attrs.target === 'string' ? child.attrs.target : ''
+          const words = escapeLaTeX(exportTextOf(child))
+          return context.labels.has(target) ? `\\hyperref[${citeKey(target)}]{${words}}` : words
+        }
         default:
           return escapeLaTeX(exportTextOf(child))
       }
     })
     .join('')
+}
+
+/** An equation's LaTeX, noting the package a chemical formula needs. */
+function equation(node: EditorNode, context: Context): string {
+  const latex = String(node.attrs.latex ?? '')
+  if (latex.includes('\\ce{')) context.packages.add('mhchem')
+  return latex
+}
+
+/** A note's paragraphs as one footnote's text. */
+function noteText(item: EditorNode, context: Context): string {
+  return item.content.children
+    .map((child) => (child.isTextblock ? inline(child, context) : block(child, context)))
+    .join(' ')
+}
+
+/** An id as a `\\cite` key or `\\label`: what LaTeX's commands take in one. */
+function citeKey(id: unknown): string {
+  return String(id ?? '').replace(/[^A-Za-z0-9:._-]/g, '-')
 }
 
 /** A picture: `\\includegraphics` for one kept as a file or at an address; a data one has neither. */
@@ -140,6 +191,10 @@ function imageOf(node: EditorNode): string {
 interface Context {
   /** Packages the output uses, gathered while writing so the preamble names only those. */
   readonly packages: Set<string>
+  /** Each footnote's and endnote's body, by `footnoteRef:id`, set where it is cited. */
+  readonly notes: ReadonlyMap<string, EditorNode>
+  /** The ids a cross-reference can point at: headings with an `id`. */
+  readonly labels: ReadonlySet<string>
 }
 
 /** One block, and the blocks in it, as LaTeX. */
@@ -150,11 +205,31 @@ function block(node: EditorNode, context: Context): string {
       .filter(Boolean)
       .join('\n\n')
   switch (node.type.name) {
-    case 'paragraph':
-      return inline(node)
+    case 'paragraph': {
+      // Centred and right-aligned text as LaTeX's environments set it.
+      const text = inline(node, context)
+      if (node.attrs.align === 'center') return `\\begin{center}\n${text}\n\\end{center}`
+      if (node.attrs.align === 'right') return `\\begin{flushright}\n${text}\n\\end{flushright}`
+      return text
+    }
     case 'heading': {
       const level = Math.min(6, Math.max(1, Number(node.attrs.level) || 1))
-      return `\\${SECTIONS[level - 1]}{${inline(node)}}`
+      const id =
+        typeof node.attrs.id === 'string' && node.attrs.id
+          ? `\\label{${citeKey(node.attrs.id)}}`
+          : ''
+      return `\\${SECTIONS[level - 1]}{${inline(node, context)}}${id}`
+    }
+    // Notes go where they are cited; endnotes are gathered here, at their list.
+    case 'footnoteList':
+      return ''
+    case 'endnoteList':
+      return context.packages.has('endnotes') ? '\\theendnotes' : ''
+    case 'referenceList': {
+      const items = node.content.children.map(
+        (item) => `\\bibitem{${citeKey(item.attrs.id)}} ${inline(item, context)}`,
+      )
+      return `\\begin{thebibliography}{${items.length}}\n${items.join('\n')}\n\\end{thebibliography}`
     }
     case 'blockquote':
       return `\\begin{quote}\n${children()}\n\\end{quote}`
@@ -185,7 +260,7 @@ function block(node: EditorNode, context: Context): string {
       return '\\noindent\\rule{\\linewidth}{0.4pt}'
     case 'mathBlock': {
       context.packages.add('amsmath')
-      const latex = String(node.attrs.latex ?? '')
+      const latex = equation(node, context)
       return node.attrs.numbered === true
         ? `\\begin{equation}\n${latex}\n\\end{equation}`
         : `\\[\n${latex}\n\\]`
@@ -197,37 +272,57 @@ function block(node: EditorNode, context: Context): string {
       context.packages.add('graphicx')
       return `\\begin{figure}[h]\n\\centering\n${children()}\n\\end{figure}`
     case 'caption':
-      return `\\caption{${inline(node)}}`
+      return `\\caption{${inline(node, context)}}`
     case 'table':
       return table(node, context)
     default:
       // Anything else keeps its words: a callout, a card, a column.
-      if (node.isTextblock) return inline(node)
+      if (node.isTextblock) return inline(node, context)
       if (node.content.childCount === 0) return escapeLaTeX(exportTextOf(node))
       return children()
   }
 }
 
-/** A table as `tabular`, a column per cell of its widest row, each cell's text on one line. */
+/**
+ * A table as `tabular`, a column per column of its grid, each cell's text on
+ * one line. A merged cell's text is at its top left and its other places are
+ * empty, so every row keeps its columns.
+ */
 function table(node: EditorNode, context: Context): string {
-  const rows = node.content.children
-  const width = Math.max(1, ...rows.map((row) => row.childCount))
-  const lines = rows.map((row) => {
-    const cells = row.content.children.map((cell) =>
-      cell.content.children
-        .map((child) => (child.isTextblock ? inline(child) : block(child, context)))
-        .join(' '),
-    )
-    while (cells.length < width) cells.push('')
-    return `${cells.join(' & ')} \\\\ \\hline`
-  })
+  const map = TableMap.of(node)
+  const width = Math.max(1, map.width)
+  const lines: string[] = []
+  for (let row = 0; row < map.height; row++) {
+    const cells: string[] = []
+    for (let column = 0; column < width; column++) {
+      const placed = map.at(row, column)
+      const own = placed && placed.top === row && placed.left === column
+      cells.push(
+        own
+          ? placed.node.content.children
+              .map((child) => (child.isTextblock ? inline(child, context) : block(child, context)))
+              .join(' ')
+          : '',
+      )
+    }
+    lines.push(`${cells.join(' & ')} \\\\ \\hline`)
+  }
   const columns = Array.from({ length: width }, () => 'l').join(' | ')
   return `\\begin{tabular}{| ${columns} |}\n\\hline\n${lines.join('\n')}\n\\end{tabular}`
 }
 
 /** The document as a LaTeX file, preamble and all. */
 export function serializeToLaTeX(doc: EditorNode, options: LaTeXOptions = {}): string {
-  const context: Context = { packages: new Set(['hyperref', 'ulem']) }
+  const notes = new Map<string, EditorNode>()
+  const labels = new Set<string>()
+  const collect = (node: EditorNode): void => {
+    if (node.type.name === 'footnoteItem') notes.set(`footnoteRef:${String(node.attrs.id)}`, node)
+    if (node.type.name === 'endnoteItem') notes.set(`endnoteRef:${String(node.attrs.id)}`, node)
+    if (node.type.name === 'heading' && typeof node.attrs.id === 'string') labels.add(node.attrs.id)
+    for (const child of node.content.children) collect(child)
+  }
+  collect(doc)
+  const context: Context = { packages: new Set(['hyperref', 'ulem']), notes, labels }
   const blocks = doc.content.children
   const first = blocks[0]
   // A level-one heading first is the title, as `\maketitle` sets it.
@@ -238,13 +333,44 @@ export function serializeToLaTeX(doc: EditorNode, options: LaTeXOptions = {}): s
     .map((child) => block(child, context))
     .filter(Boolean)
     .join('\n\n')
+  // The symbols this text uses that pdfLaTeX cannot set, mapped for it.
+  const symbols = Object.entries(SYMBOLS).filter(([char]) => body.includes(char))
+  if (symbols.length > 0) context.packages.add('amssymb')
   const packages = [...context.packages]
     .sort()
-    .map((name) => (name === 'ulem' ? '\\usepackage[normalem]{ulem}' : `\\usepackage{${name}}`))
+    .map((name) =>
+      name === 'ulem'
+        ? '\\usepackage[normalem]{ulem}'
+        : name === 'mhchem'
+          ? '\\usepackage[version=4]{mhchem}'
+          : `\\usepackage{${name}}`,
+    )
+  // pdfLaTeX reads UTF-8 through inputenc; XeLaTeX and LuaLaTeX read it
+  // themselves, and set any script, Arabic too, in a system font.
+  const engines = [
+    '\\usepackage{iftex}',
+    '\\ifPDFTeX',
+    '\\usepackage[utf8]{inputenc}',
+    '\\usepackage[T1]{fontenc}',
+    ...(symbols.length > 0 ? ['\\usepackage{newunicodechar}'] : []),
+    ...symbols.map(([char, command]) => `\\newunicodechar{${char}}{${command}}`),
+    '\\else',
+    '\\usepackage{fontspec}',
+    '\\fi',
+  ]
+  // Listings reads a byte at a time under pdfLaTeX: each symbol in code is
+  // spelled out for it, as `literate` does.
+  const literate =
+    context.packages.has('listings') && symbols.length > 0
+      ? [
+          `\\ifPDFTeX\\lstset{literate=${symbols.map(([char, command]) => `{${char}}{{${command}}}1`).join(' ')}}\\fi`,
+        ]
+      : []
   const head = [
     '\\documentclass{article}',
-    '\\usepackage[utf8]{inputenc}',
+    ...engines,
     ...packages,
+    ...literate,
     ...(title ? [`\\title{${escapeLaTeX(title)}}`] : []),
     ...(options.author ? [`\\author{${escapeLaTeX(options.author)}}`] : []),
     ...(title ? ['\\date{}'] : []),

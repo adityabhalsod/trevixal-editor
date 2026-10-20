@@ -212,8 +212,15 @@ describe('formatCodeBlock', () => {
     expect(formatCodeBlock('json')(state)).toBeNull()
   })
 
-  it('declines when the block declares no language', () => {
+  it('formats a block that declares no language, and writes the language down', () => {
     const state = stateAt(docOf(codeBlock('{"a":1}', null)), [0], 0)
+    const next = run(state, formatCodeBlock('json'))
+    expect(firstBlockText(next)).toBe('{\n  "a": 1\n}')
+    expect(next.doc.child(0).attrs.language).toBe('json')
+  })
+
+  it('declines a block that declares no language and does not start like one', () => {
+    const state = stateAt(docOf(codeBlock('42', null)), [0], 0)
     expect(formatCodeBlock('json')(state)).toBeNull()
   })
 
@@ -232,10 +239,31 @@ describe('formatCodeBlock', () => {
     expect(formatCodeBlock('json')(state)).toBeNull()
   })
 
-  it('declines outside a code block', () => {
-    const paragraph = schema.node('paragraph', undefined, Fragment.of(schema.text('{"a":1}')))
-    const state = stateAt(docOf(paragraph), [0], 0)
+  it('declines outside a code block or a paragraph', () => {
+    const heading = schema.node('heading', { level: 1 }, Fragment.of(schema.text('{"a":1}')))
+    const state = stateAt(docOf(heading), [0], 0)
     expect(formatCodeBlock('json')(state)).toBeNull()
+  })
+
+  it('makes JSON pasted as paragraphs one formatted code block', () => {
+    const line = (text: string) =>
+      schema.node('paragraph', undefined, Fragment.of(schema.text(text)))
+    const doc = docOf(line('{"a":'), line('1}'))
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: new TextSelection(pos([0], 0), pos([1], 2)),
+    })
+    const next = run(state, formatCodeBlock('json'))
+    expect(next.doc.childCount).toBe(1)
+    expect(next.doc.child(0).type.name).toBe('codeBlock')
+    expect(next.doc.child(0).attrs.language).toBe('json')
+    expect(firstBlockText(next)).toBe('{\n  "a": 1\n}')
+  })
+
+  it('leaves paragraphs of prose alone', () => {
+    const paragraph = schema.node('paragraph', undefined, Fragment.of(schema.text('Hello')))
+    expect(formatCodeBlock('json')(stateAt(docOf(paragraph), [0], 0))).toBeNull()
   })
 
   it('declines on a doctype-with-entity payload rather than rewriting it', () => {

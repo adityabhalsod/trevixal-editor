@@ -189,9 +189,13 @@ test.describe('responsive chrome and code editing', () => {
       await page.goto(server.origin)
       await page.waitForSelector('.trevixal-toggle__summary')
 
+      // The chevron is the summary's ::before, the room after it its end margin.
       const gap = await page.evaluate(() =>
         Number.parseFloat(
-          getComputedStyle(document.querySelector('.trevixal-toggle__summary') as HTMLElement).gap,
+          getComputedStyle(
+            document.querySelector('.trevixal-toggle__summary') as HTMLElement,
+            '::before',
+          ).getPropertyValue('margin-inline-end'),
         ),
       )
       // 8px against an 8px chevron read as cramped.

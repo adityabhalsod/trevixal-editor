@@ -1,4 +1,10 @@
-import type { EditorNode, TextNode } from '@trevixal/core'
+import {
+  type EditorNode,
+  type TextNode,
+  exportTextOf,
+  formatListCounter,
+  listStylesFor,
+} from '@trevixal/core'
 import { FORM_FIELD, type FormField, formFieldOf } from './fields'
 
 /**
@@ -36,6 +42,22 @@ const FIELD_HEIGHTS: Readonly<Record<FormField['kind'], number>> = {
   checkbox: 11,
 }
 
+/** How far a list's items sit in from the text around it, a level each, in points. */
+const LIST_INDENT = 18
+/** Code's monospace advance, in thousandths of the size. */
+const MONO_ADVANCE = 600
+
+/** The type a word is set in: the body face, bold, italic, or code's monospace. */
+type Face = 'regular' | 'bold' | 'italic' | 'mono'
+
+/** Each face's font resource, as the page's resources name them. */
+const FONTS: Readonly<Record<Face, string>> = {
+  regular: 'F1',
+  bold: 'F2',
+  italic: 'F3',
+  mono: 'F4',
+}
+
 /** Helvetica's advance widths, near enough to wrap lines by, in thousandths of the size. */
 function advance(char: string, bold: boolean): number {
   let width = 556
@@ -48,8 +70,34 @@ function advance(char: string, bold: boolean): number {
   return bold ? width * 1.06 : width
 }
 
-const measure = (text: string, size: number, bold: boolean): number =>
-  [...text].reduce((total, char) => total + (advance(char, bold) * size) / 1000, 0)
+// Measured as set: `→` goes on the page as `->`, two characters wide.
+const measure = (text: string, size: number, face: Face): number =>
+  [...settable(text)].reduce(
+    (total, char) =>
+      total + ((face === 'mono' ? MONO_ADVANCE : advance(char, face === 'bold')) * size) / 1000,
+    0,
+  )
+
+/**
+ * Symbols the editor's text uses that WinAnsi has no code for, as the
+ * nearest it can set: they printed as question marks.
+ */
+const STAND_INS: Readonly<Record<string, string>> = {
+  '▸': '>',
+  '▾': 'v',
+  '→': '->',
+  '➜': '->',
+  '←': '<-',
+  '✓': 'v',
+  '☐': '[ ]',
+  '☑': '[x]',
+  '●': '•',
+  '○': 'o',
+  '▪': '•',
+}
+
+/** The text as WinAnsi sets it, each symbol it lacks swapped for its stand-in. */
+const settable = (text: string): string => [...text].map((each) => STAND_INS[each] ?? each).join('')
 
 /** Characters WinAnsi has beyond Latin-1, by their code there. */
 const WIN_ANSI: Readonly<Record<string, number>> = {
@@ -68,7 +116,7 @@ const WIN_ANSI: Readonly<Record<string, number>> = {
 /** A PDF literal string in WinAnsi: brackets and backslashes escaped, the rest octal. */
 export function pdfString(text: string): string {
   let out = '('
-  for (const char of text) {
+  for (const char of settable(text)) {
     const code = char.codePointAt(0) ?? 63
     if (char === '(' || char === ')' || char === '\\') out += `\\${char}`
     else if (code >= 32 && code < 127) out += char
@@ -84,26 +132,116 @@ export function pdfString(text: string): string {
 /** A PDF name: what a field is called, `#`-escaped where a name cannot hold it. */
 const pdfName = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, '_')
 
-/** One thing set on a line: a word, or a field. */
+/** One thing set on a line: a word, a field, or the end of a line of code. */
 type Piece =
-  | { readonly kind: 'word'; readonly text: string; readonly bold: boolean }
+  | { readonly kind: 'word'; readonly text: string; readonly face: Face }
   | { readonly kind: 'field'; readonly field: FormField }
+  | { readonly kind: 'break' }
 
-/** A block's pieces: words split at spaces, fields as they stand. */
+/** Words split at spaces in a face; a line break ends the line, as code's lines do. */
+function words(text: string, face: Face, out: Piece[]): void {
+  text.split('\n').forEach((line, index) => {
+    if (index > 0) out.push({ kind: 'break' })
+    // Code keeps its indentation; prose collapses its spaces.
+    for (const word of line.split(face === 'mono' ? /( )/ : /(\s+)/)) {
+      if (word === '') continue
+      out.push({ kind: 'word', text: /^\s+$/.test(word) ? ' ' : word, face })
+    }
+  })
+}
+
+/** A block's pieces: words split at spaces, fields as they stand, an atom its words. */
 function pieces(block: EditorNode, bold: boolean): Piece[] {
   const out: Piece[] = []
+  const code = block.type.name === 'codeBlock'
   for (const child of block.content.children) {
     if (child.type.name === FORM_FIELD) {
       out.push({ kind: 'field', field: formFieldOf(child) })
       continue
     }
-    const text = child.isText ? (child as TextNode).text : child.textContent
-    const strong = bold || child.marks.some((mark) => mark.type.name === 'bold')
-    for (const word of text.split(/(\s+)/)) {
-      if (word === '') continue
-      out.push({ kind: 'word', text: /^\s+$/.test(word) ? ' ' : word, bold: strong })
-    }
+    // An atom reads as the words it stands for: an equation, a reference.
+    const text = child.isText ? (child as TextNode).text : exportTextOf(child)
+    const has = (name: string): boolean => child.marks.some((mark) => mark.type.name === name)
+    const face: Face =
+      code || has('code')
+        ? 'mono'
+        : bold || has('bold')
+          ? 'bold'
+          : has('italic')
+            ? 'italic'
+            : 'regular'
+    words(text, face, out)
   }
+  return out
+}
+
+/** A word cut into pieces no wider than the line, where it is wider: the rest is unchanged. */
+function fitted(piece: Extract<Piece, { kind: 'word' }>, size: number, available: number): Piece[] {
+  if (measure(piece.text, size, piece.face) <= available) return [piece]
+  const out: Piece[] = []
+  let chunk = ''
+  for (const char of piece.text) {
+    if (chunk && measure(chunk + char, size, piece.face) > available) {
+      out.push({ ...piece, text: chunk }, { kind: 'break' })
+      chunk = ''
+    }
+    chunk += char
+  }
+  if (chunk) out.push({ ...piece, text: chunk })
+  return out
+}
+
+/** A textblock to set, or an atom's words, with the indent and marker its list gives it. */
+interface Setting {
+  readonly block: EditorNode | null
+  readonly text: string
+  readonly indent: number
+  readonly marker: string
+}
+
+/** The marker a list draws before an item: a box, a number in its style, a bullet. */
+function markerOf(list: EditorNode, item: EditorNode, index: number): string {
+  if (item.type.name === 'taskItem') return item.attrs.checked === true ? '[x] ' : '[ ] '
+  const style = typeof list.attrs.listStyle === 'string' ? list.attrs.listStyle : ''
+  if (list.type.name === 'orderedList') {
+    const start = typeof list.attrs.start === 'number' ? list.attrs.start : 1
+    const counter = listStylesFor(list.type.name).has(style) ? style : 'decimal'
+    return `${formatListCounter(start + index, counter)}. `
+  }
+  return '• '
+}
+
+/** The document's textblocks in order, each list item's marked and indented, each atom's words. */
+function settings(doc: EditorNode): Setting[] {
+  const out: Setting[] = []
+  const visit = (node: EditorNode, indent: number, marker: string): void => {
+    if (node.isTextblock) {
+      out.push({ block: node, text: '', indent, marker })
+      return
+    }
+    if (node.childCount === 0) {
+      const text = exportTextOf(node)
+      if (text) out.push({ block: null, text, indent, marker })
+      return
+    }
+    // A table's row is a line, its cells apart, as the page reads it across.
+    if (node.type.name === 'tableRow') {
+      const cells = node.content.children.map((cell) => cell.textContent.trim())
+      out.push({ block: null, text: cells.join('   |   '), indent, marker })
+      return
+    }
+    if (['bulletList', 'orderedList', 'taskList'].includes(node.type.name)) {
+      node.content.children.forEach((item, index) => {
+        const own = markerOf(node, item, index)
+        item.content.children.forEach((child, at) =>
+          visit(child, indent + LIST_INDENT, at === 0 ? own : ''),
+        )
+      })
+      return
+    }
+    node.content.children.forEach((child, index) => visit(child, indent, index === 0 ? marker : ''))
+  }
+  visit(doc, 0, '')
   return out
 }
 
@@ -125,16 +263,12 @@ function layout(doc: EditorNode) {
     pages.push([])
     y = PAGE_HEIGHT - MARGIN
   }
-  const blocks: EditorNode[] = []
-  const collect = (node: EditorNode): void => {
-    if (node.isTextblock) blocks.push(node)
-    else for (const child of node.content.children) collect(child)
-  }
-  collect(doc)
-  for (const block of blocks) {
-    const level = block.type.name === 'heading' ? Number(block.attrs.level) || 1 : 0
-    const size = HEADING_SIZES[level] ?? BODY_SIZE
+  for (const { block, text, indent, marker } of settings(doc)) {
+    const level = block?.type.name === 'heading' ? Number(block.attrs.level) || 1 : 0
+    const code = block?.type.name === 'codeBlock'
+    const size = code ? BODY_SIZE - 1 : (HEADING_SIZES[level] ?? BODY_SIZE)
     const bold = level > 0
+    const available = TEXT_WIDTH - indent
     let line: { piece: Piece; width: number }[] = []
     let width = 0
     const flush = (): void => {
@@ -146,12 +280,13 @@ function layout(doc: EditorNode) {
       )
       room(tall)
       y -= tall
-      let x = MARGIN
+      let x = MARGIN + indent
       for (const { piece, width: each } of line) {
+        if (piece.kind === 'break') continue
         if (piece.kind === 'word') {
           if (piece.text !== ' ') {
             page().push(
-              `BT /${piece.bold ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(2)} ${(y + 3).toFixed(2)} Td ${pdfString(piece.text)} Tj ET`,
+              `BT /${FONTS[piece.face]} ${size} Tf ${x.toFixed(2)} ${(y + 3).toFixed(2)} Td ${pdfString(piece.text)} Tj ET`,
             )
           }
         } else {
@@ -167,20 +302,37 @@ function layout(doc: EditorNode) {
       line = []
       width = 0
     }
-    for (const piece of pieces(block, bold)) {
-      const each =
-        piece.kind === 'field'
-          ? FIELD_WIDTHS[piece.field.kind] + 4
-          : measure(piece.text, size, piece.bold)
-      if (width + each > TEXT_WIDTH && line.length > 0) {
+    const all: Piece[] = []
+    // A list item's marker hangs before its first line, in the body face.
+    if (marker) words(marker, 'regular', all)
+    if (block) all.push(...pieces(block, bold))
+    else words(text, 'regular', all)
+    for (const whole of all) {
+      if (whole.kind === 'break') {
         flush()
-        if (piece.kind === 'word' && piece.text === ' ') continue
+        continue
       }
-      line.push({ piece, width: each })
-      width += each
+      // A word wider than the line, a long line of code, is cut to fit.
+      for (const piece of whole.kind === 'word' ? fitted(whole, size, available) : [whole]) {
+        if (piece.kind === 'break') {
+          flush()
+          continue
+        }
+        const each =
+          piece.kind === 'field'
+            ? FIELD_WIDTHS[piece.field.kind] + 4
+            : measure(piece.text, size, piece.face)
+        if (width + each > available && line.length > 0) {
+          flush()
+          if (piece.kind === 'word' && piece.text === ' ') continue
+        }
+        line.push({ piece, width: each })
+        width += each
+      }
     }
     flush()
-    y -= PARAGRAPH_GAP
+    // Code's lines run on; between other paragraphs, a gap.
+    if (!code) y -= PARAGRAPH_GAP
   }
   return { pages, fields }
 }
@@ -206,6 +358,12 @@ export function serializeToPDFForm(doc: EditorNode, options: PDFFormOptions = {}
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
   )
   const dingbats = add('<< /Type /Font /Subtype /Type1 /BaseFont /ZapfDingbats >>')
+  const helveticaOblique = add(
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>',
+  )
+  const courier = add(
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>',
+  )
   const tickOn = add(
     stream(
       `/Type /XObject /Subtype /Form /BBox [0 0 11 11] /Resources << /Font << /ZaDb ${dingbats} 0 R >> >>`,
@@ -252,7 +410,7 @@ export function serializeToPDFForm(doc: EditorNode, options: PDFFormOptions = {}
     const content = drawing.join('\n')
     const annots = annotations[index] ?? []
     objects[pageNumber - 1] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${helvetica} 0 R /F2 ${helveticaBold} 0 R >> >> /Contents ${pageNumber + 1} 0 R${annots.length > 0 ? ` /Annots [${annots.map((n) => `${n} 0 R`).join(' ')}]` : ''} >>`
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${helvetica} 0 R /F2 ${helveticaBold} 0 R /F3 ${helveticaOblique} 0 R /F4 ${courier} 0 R >> >> /Contents ${pageNumber + 1} 0 R${annots.length > 0 ? ` /Annots [${annots.map((n) => `${n} 0 R`).join(' ')}]` : ''} >>`
     objects[pageNumber] = stream('', content)
   })
   const acroForm = add(

@@ -117,19 +117,44 @@ export function odtExporter(): DocumentExporter {
     label: ODT_LABEL,
     extension: 'odt',
     mime: ODT_MIME,
-    serialize: (doc, context) => serializeToODT(doc, { title: context.title }),
+    serialize: (doc, context) =>
+      serializeToODT(doc, {
+        title: context.title,
+        theme: context.theme?.tokens,
+        ...(context.rendered ? { rendered: context.rendered } : {}),
+      }),
   }
 }
 
+/** What the book's pages carry of the editor's look, from the page the editor is on. */
+export interface EPUBExporterOptions {
+  /** The editor's stylesheet, as `collectDocumentCSS` from `@trevixal/ui` reads it. */
+  readonly styles?: () => string
+  /**
+   * Markup for a node instead of its schema's, from what the editor drew:
+   * `renderedNodeHTML` from `@trevixal/ui`, for highlighted code and diagrams.
+   */
+  renderNode?(rendered: RenderedDocument): (node: EditorNode) => string | null
+}
+
 /** The `.epub` export target: a book of chapters, one per level-one heading. */
-export function epubExporter(): DocumentExporter {
+export function epubExporter(options: EPUBExporterOptions = {}): DocumentExporter {
   return {
     name: 'epub',
     label: 'EPUB book (.epub)',
     extension: 'epub',
     mime: 'application/epub+zip',
-    serialize: (doc, context) =>
-      serializeToEPUB(doc, globalThis.document, { title: context.title }),
+    serialize: (doc, context) => {
+      const styles = options.styles?.()
+      const renderNode =
+        context.rendered && options.renderNode ? options.renderNode(context.rendered) : undefined
+      return serializeToEPUB(doc, globalThis.document, {
+        title: context.title,
+        ...(styles ? { styles } : {}),
+        ...(context.theme ? { theme: context.theme } : {}),
+        ...(renderNode ? { renderNode } : {}),
+      })
+    },
   }
 }
 
@@ -151,7 +176,11 @@ export function pptxExporter(): DocumentExporter {
     label: 'PowerPoint (.pptx)',
     extension: 'pptx',
     mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    serialize: (doc, context) => serializeToPPTX(doc, { title: context.title }),
+    serialize: (doc, context) =>
+      serializeToPPTX(doc, {
+        title: context.title,
+        ...(context.rendered ? { rendered: context.rendered } : {}),
+      }),
   }
 }
 
@@ -193,13 +222,18 @@ export function pdfImporter(load: () => Promise<PdfJsLike> = () => loadPdfJs()):
   }
 }
 
+/** What the targets that need the page's own look are given of it. */
+export interface ExportFormatsOptions {
+  readonly epub?: EPUBExporterOptions
+}
+
 /** Every export target this package provides, in menu order. */
-export function exportFormats(): DocumentExporter[] {
+export function exportFormats(options: ExportFormatsOptions = {}): DocumentExporter[] {
   return [
     docxExporter(),
     rtfExporter(),
     odtExporter(),
-    epubExporter(),
+    epubExporter(options.epub),
     latexExporter(),
     pptxExporter(),
   ]

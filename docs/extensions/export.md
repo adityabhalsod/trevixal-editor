@@ -47,10 +47,10 @@ const fromArchive = await parseExportArchive(schema, file, document)
 
 | Format | Writes | Reads |
 | --- | --- | --- |
-| OpenDocument `.odt` | Headings, marks, links, lists, code, tables with merged cells, pictures packed in | The same, and what LibreOffice writes: automatic styles read back as marks, spans as colspans and rowspans |
-| EPUB `.epub` | A chapter for each level-one heading, a table of contents, pictures as files in the book | |
-| LaTeX `.tex` | An `article`: sections, marks, lists, `lstlisting` code, equations, `tabular` tables, every special character escaped | |
-| PowerPoint `.pptx` | A slide for each top-level heading (the highest level the document uses), its blocks as the body, lists as bullets at their depth, note callouts as speaker's notes | |
+| OpenDocument `.odt` | Headings, marks, links, lists in their own numbering, code with its line numbers, tables with merged cells, borders and fills, pictures packed in, equations as formula objects, notes numbered, and the boxes and looks the editor draws | The same, and what LibreOffice writes: automatic styles read back as marks, spans as colspans and rowspans |
+| EPUB `.epub` | A chapter for each level-one heading, a table of contents, pictures as files in the book; with the editor's stylesheet and its highlighted code when given them | |
+| LaTeX `.tex` | An `article`: sections, marks, lists, `lstlisting` code, equations (with `mhchem` for chemistry), `tabular` tables, footnotes and endnotes where they are cited, citations and a bibliography, cross-references as links, every special character escaped and the symbols pdfLaTeX lacks mapped | |
+| PowerPoint `.pptx` | A slide for each top-level heading (the highest level the document uses), its blocks as the body, lists as bullets or numbers at their depth, pictures and diagrams beside the text, note callouts as speaker's notes | |
 | PDF `.pdf` | | The text layer: lines by their baseline, paragraphs by the space between, larger lines as headings |
 | Notion or Google Docs `.zip` | | Notion's Markdown or HTML pages, or Google Docs' web page export, pictures packed in and Google's class styles read as formatting |
 
@@ -67,10 +67,19 @@ import { builtinExporters, exportDocument } from '@trevixal/ui'
 await exportDocument(editor, { exporters: [...builtinExporters(), ...exportFormats()] })
 ```
 
+An EPUB reads as the editor shows it when it is given the editor's stylesheet
+and what the editor drew, as `mountFullEditor` gives it:
+
+```ts
+import { collectDocumentCSS, renderedNodeHTML } from '@trevixal/ui'
+
+exportFormats({ epub: { styles: collectDocumentCSS, renderNode: renderedNodeHTML } })
+```
+
 ## It carries what the editor was showing
 
-Both writers take a `theme` and a `rendered` bundle from `ExportContext`, so
-a download is not a bleached copy of the document:
+DOCX, RTF and OpenDocument take a `theme` and a `rendered` bundle from
+`ExportContext`, so a download is not a bleached copy of the document:
 
 - **Colour.** DOCX writes `w:background` and the `word/settings.xml` that
   makes Word actually draw it, which is stored and ignored without. RTF shades
@@ -85,6 +94,14 @@ a download is not a bleached copy of the document:
   (`\pict\pngblip`), so ordinary images embed there too instead of degrading
   to `[alt]`. The drawing replaces the source it was drawn from, unless
   nothing managed to draw one.
+- **Boxes and looks.** A format with no stylesheet is told how the editor
+  draws each block: a callout's ground and edge, a card's frame, a finished
+  task struck through, a footnote's marker raised, a badge's pill. They go out
+  as paragraph borders and shading and as run properties.
+- **Code lines.** A code block's title, its line numbers and the lines it
+  picks out, each line banded as the editor bands it.
+- **Equations.** Word's own Office Math from the MathML the editor sets,
+  formula objects in OpenDocument, and a picture of the equation in RTF.
 
 The full picture of how the UI kit gathers these is on
 [What an export carries](../reference/exports).

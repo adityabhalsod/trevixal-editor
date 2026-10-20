@@ -932,6 +932,10 @@
 // band across the column. Inside the block it previews, the rules below make
 // it the lower half of that block instead.
 .trevixal-diagram {
+  // A renderer lays its drawing out left to right, whatever the page's
+  // direction: in a right-to-left one a chart's labels, anchored at their
+  // end, ran over its bars, and its title read `(£) Cost`.
+  direction: ltr;
   width: fit-content;
   max-width: 100%;
   margin: t.token('space-3') auto;

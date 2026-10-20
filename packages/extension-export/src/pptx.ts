@@ -1,4 +1,6 @@
-import { type EditorNode, type TextNode, exportTextOf } from '@trevixal/core'
+import { type EditorNode, type TextNode, exportTextOf, listStylesFor } from '@trevixal/core'
+import type { RenderedDocument } from './rendered'
+import { NODE, attrString, decodeDataURL, imageDimensions, listStart } from './shared'
 import { type Slide, documentSlides } from './slides'
 import { escapeXML } from './xml'
 import { type ZipEntry, createZip } from './zip'
@@ -15,6 +17,12 @@ export interface PPTXOptions {
   readonly title?: string
   /** A fixed time, for output that does not change from run to run. */
   readonly modified?: Date
+  /**
+   * What the editor drew that the document does not hold: a diagram's and a
+   * drawing's picture, an SVG image as a bitmap. They go on the slide beside
+   * its text.
+   */
+  readonly rendered?: RenderedDocument
 }
 
 const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
@@ -61,14 +69,43 @@ function runs(block: EditorNode): string {
     .join('')
 }
 
+/** PowerPoint's numbering for each of a list's counter styles. */
+const AUTO_NUMBERS: Readonly<Record<string, string>> = {
+  decimal: 'arabicPeriod',
+  'lower-alpha': 'alphaLcPeriod',
+  'upper-alpha': 'alphaUcPeriod',
+  'lower-roman': 'romanLcPeriod',
+  'upper-roman': 'romanUcPeriod',
+}
+
+/** The bullet glyph a list style draws. */
+const BULLET_CHARS: Readonly<Record<string, string>> = { disc: '•', circle: '○', square: '▪' }
+
+/**
+ * A list's own marker as a paragraph's bullet: numbered in its counter style
+ * from where it starts, or its bullet glyph; empty for the master's bullet.
+ */
+function listBullet(list: EditorNode): string {
+  const style = attrString(list.attrs, 'listStyle')
+  const own = style && listStylesFor(list.type.name).has(style) ? style : null
+  if (list.type.name === NODE.orderedList) {
+    const start = listStart(list)
+    return `<a:buFont typeface="+mj-lt"/><a:buAutoNum type="${AUTO_NUMBERS[own ?? 'decimal'] ?? 'arabicPeriod'}"${start === 1 ? '' : ` startAt="${start}"`}/>`
+  }
+  return own && BULLET_CHARS[own] ? `<a:buChar char="${BULLET_CHARS[own]}"/>` : ''
+}
+
 /** One paragraph of a slide's body: bulleted at a level, or plain. */
-function paragraph(content: string, level: number | null, bold = false): string {
+function paragraph(content: string, level: number | null, bold = false, bullet = ''): string {
+  const lvl = level !== null && level > 0 ? ` lvl="${Math.min(level, MAX_LEVEL)}"` : ''
   const pPr =
     level === null
       ? '<a:pPr marL="0" indent="0"><a:buNone/></a:pPr>'
-      : level > 0
-        ? `<a:pPr lvl="${Math.min(level, MAX_LEVEL)}"/>`
-        : ''
+      : bullet
+        ? `<a:pPr${lvl}>${bullet}</a:pPr>`
+        : lvl
+          ? `<a:pPr${lvl}/>`
+          : ''
   // A heading in the body reads bold, unless its runs already say so.
   const body = bold
     ? content.replace(/<a:rPr lang="en-US"(?![^>]*\bb="1")/g, '<a:rPr lang="en-US" b="1"')
@@ -77,9 +114,17 @@ function paragraph(content: string, level: number | null, bold = false): string 
 }
 
 /** A block's paragraphs: lists become bullets at their depth, containers give up their text. */
-function bodyParagraphs(block: EditorNode, depth = 0): string[] {
+function bodyParagraphs(
+  block: EditorNode,
+  depth = 0,
+  pictures?: ReadonlySet<EditorNode>,
+): string[] {
   const name = block.type.name
+  // A picture goes beside the text, not in it.
+  if (pictures?.has(block)) return []
   if (name === 'bulletList' || name === 'orderedList' || name === 'taskList') {
+    // Numbered as the editor numbers it; a task's box is its own marker.
+    const bullet = name === 'taskList' ? '<a:buNone/>' : listBullet(block)
     return block.content.children.flatMap((item) => {
       // A task keeps its box, ticked or not, as the page shows it.
       const box =
@@ -88,8 +133,15 @@ function bodyParagraphs(block: EditorNode, depth = 0): string[] {
           : ''
       return item.content.children.flatMap((child, index) =>
         child.isTextblock
-          ? [paragraph((index === 0 ? box : '') + runs(child), depth)]
-          : bodyParagraphs(child, depth + 1),
+          ? [
+              paragraph(
+                (index === 0 ? box : '') + runs(child),
+                depth,
+                false,
+                index === 0 ? bullet : '<a:buNone/>',
+              ),
+            ]
+          : bodyParagraphs(child, depth + 1, pictures),
       )
     })
   }
@@ -129,7 +181,111 @@ function bodyParagraphs(block: EditorNode, depth = 0): string[] {
         ]
       : []
   }
-  return block.content.children.flatMap((child) => bodyParagraphs(child, depth))
+  return block.content.children.flatMap((child) => bodyParagraphs(child, depth, pictures))
+}
+
+/** A picture for a slide: its bytes, its type, its shape. */
+interface SlidePicture {
+  readonly bytes: Uint8Array
+  readonly extension: 'png' | 'jpeg' | 'gif'
+  readonly width: number
+  readonly height: number
+  readonly alt: string
+}
+
+const PICTURE_EXTENSIONS: Readonly<Record<string, SlidePicture['extension']>> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/gif': 'gif',
+}
+
+/**
+ * The pictures a slide's blocks show, as the editor shows them: an image
+ * (the bitmap the editor drew of an SVG one), a gallery's, a drawing's, and
+ * a diagram a code block draws, which stands for the code. Keyed by the
+ * block it replaces in the text.
+ */
+function slidePictures(
+  blocks: readonly EditorNode[],
+  rendered: RenderedDocument,
+): Map<EditorNode, SlidePicture[]> {
+  const found = new Map<EditorNode, SlidePicture[]>()
+  const pictureOf = (src: string | null | undefined, alt: string): SlidePicture | null => {
+    const decoded = src ? decodeDataURL(src) : null
+    const extension = decoded ? PICTURE_EXTENSIONS[decoded.mime] : undefined
+    if (!decoded || !extension) return null
+    const size = imageDimensions(decoded.bytes) ?? { width: 4, height: 3 }
+    return { bytes: decoded.bytes, extension, width: size.width, height: size.height, alt }
+  }
+  const visit = (block: EditorNode): void => {
+    const drawn = rendered.get(block)?.image
+    const alt = attrString(block.attrs, 'alt') ?? drawn?.alt ?? ''
+    if (block.type.name === NODE.image) {
+      const picture = pictureOf(drawn?.src ?? attrString(block.attrs, 'src'), alt)
+      if (picture) found.set(block, [picture])
+      return
+    }
+    if (block.type.name === 'gallery') {
+      const pictures = block.content.children
+        .map((image) =>
+          pictureOf(
+            rendered.get(image)?.image?.src ?? attrString(image.attrs, 'src'),
+            attrString(image.attrs, 'alt') ?? '',
+          ),
+        )
+        .filter((picture): picture is SlidePicture => picture !== null)
+      if (pictures.length > 0) found.set(block, pictures)
+      return
+    }
+    // A drawing, or a diagram standing for the code that describes it.
+    if (drawn?.src && block.type.name !== 'math' && block.type.name !== 'mathBlock') {
+      const picture = pictureOf(drawn.src, alt)
+      if (picture) {
+        found.set(block, [picture])
+        return
+      }
+    }
+    if (!block.isTextblock) block.content.children.forEach(visit)
+  }
+  blocks.forEach(visit)
+  return found
+}
+
+/** The body placeholder's area on the master, in EMU. */
+const BODY = { x: 838200, y: 1825625, cx: 10515600, cy: 4351338 }
+/** The room between the text and the pictures beside it. */
+const GUTTER = 228600
+
+/**
+ * A slide's pictures as picture shapes, side by side down the right half of
+ * the body (all of it when the slide has no text), each as big as its share
+ * of the room allows, keeping its proportions.
+ */
+function pictureShapes(
+  pictures: readonly SlidePicture[],
+  relIds: readonly string[],
+  halved: boolean,
+): string {
+  const area = halved
+    ? { x: BODY.x + BODY.cx / 2 + GUTTER / 2, y: BODY.y, cx: BODY.cx / 2 - GUTTER / 2, cy: BODY.cy }
+    : BODY
+  const columns = pictures.length > 2 ? 2 : 1
+  const rows = Math.ceil(pictures.length / columns)
+  const cellWidth = (area.cx - GUTTER * (columns - 1)) / columns
+  const cellHeight = (area.cy - GUTTER * (rows - 1)) / rows
+  return pictures
+    .map((picture, index) => {
+      const scale = Math.min(cellWidth / picture.width, cellHeight / picture.height)
+      const cx = Math.round(picture.width * scale)
+      const cy = Math.round(picture.height * scale)
+      const column = index % columns
+      const row = Math.floor(index / columns)
+      const x = Math.round(area.x + column * (cellWidth + GUTTER) + (cellWidth - cx) / 2)
+      const y = Math.round(area.y + row * (cellHeight + GUTTER) + (cellHeight - cy) / 2)
+      const id = 10 + index
+      return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Picture ${index + 1}" descr="${escapeXML(picture.alt)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relIds[index]}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
+    })
+    .join('')
 }
 
 const groupShape =
@@ -146,22 +302,35 @@ const placeholder = (
 ): string =>
   `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr>${ph}</p:nvPr></p:nvSpPr>${spPr}<p:txBody>${bodyPr}<a:lstStyle/>${body}</p:txBody></p:sp>`
 
-function slideXML(slide: Slide): string {
+function slideXML(
+  slide: Slide,
+  pictures: ReadonlyMap<EditorNode, SlidePicture[]>,
+  relIds: readonly string[],
+): string {
   const title = slide.title
     ? `<a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXML(slide.title)}</a:t></a:r></a:p>`
     : '<a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p>'
-  const body =
-    slide.blocks.flatMap((block) => bodyParagraphs(block)).join('') || paragraph('', null)
+  const shown = new Set(pictures.keys())
+  const paragraphs = slide.blocks.flatMap((block) => bodyParagraphs(block, 0, shown))
+  const all = [...pictures.values()].flat()
+  // With pictures, the text takes the left half of the body and they the right.
+  const halved = all.length > 0 && paragraphs.length > 0
+  const area = halved
+    ? `<p:spPr><a:xfrm><a:off x="${BODY.x}" y="${BODY.y}"/><a:ext cx="${BODY.cx / 2 - GUTTER / 2}" cy="${BODY.cy}"/></a:xfrm></p:spPr>`
+    : '<p:spPr/>'
   // The body shrinks its text to fit, rather than running off the slide.
-  const content = placeholder(
-    3,
-    'Content Placeholder 2',
-    '<p:ph idx="1"/>',
-    body,
-    '<p:spPr/>',
-    '<a:bodyPr><a:normAutofit/></a:bodyPr>',
-  )
-  return `${XML_HEADER}<p:sld ${NAMESPACES}><p:cSld><p:spTree>${groupShape}${placeholder(2, 'Title 1', '<p:ph type="title"/>', title)}${content}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
+  const content =
+    paragraphs.length > 0 || all.length === 0
+      ? placeholder(
+          3,
+          'Content Placeholder 2',
+          '<p:ph idx="1"/>',
+          paragraphs.join('') || paragraph('', null),
+          area,
+          '<a:bodyPr><a:normAutofit/></a:bodyPr>',
+        )
+      : ''
+  return `${XML_HEADER}<p:sld ${NAMESPACES}><p:cSld><p:spTree>${groupShape}${placeholder(2, 'Title 1', '<p:ph type="title"/>', title)}${content}${pictureShapes(all, relIds, halved)}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
 }
 
 function notesXML(slide: Slide): string {
@@ -277,7 +446,7 @@ function presentationRelationships(slides: readonly Slide[]): string {
   return `${XML_HEADER}<Relationships xmlns="${NS_REL}">${entries.join('')}</Relationships>`
 }
 
-function contentTypes(slides: readonly Slide[]): string {
+function contentTypes(slides: readonly Slide[], media: ReadonlySet<string>): string {
   const override = (part: string, type: string): string =>
     `<Override PartName="${part}" ContentType="${type}"/>`
   const perSlide = slides
@@ -286,7 +455,10 @@ function contentTypes(slides: readonly Slide[]): string {
       override(`/ppt/notesSlides/notesSlide${index + 1}.xml`, `${PML}.notesSlide+xml`),
     ])
     .join('')
-  return `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${override('/ppt/presentation.xml', `${PML}.presentation.main+xml`)}${override('/ppt/slideMasters/slideMaster1.xml', `${PML}.slideMaster+xml`)}${override('/ppt/slideLayouts/slideLayout1.xml', `${PML}.slideLayout+xml`)}${override('/ppt/notesMasters/notesMaster1.xml', `${PML}.notesMaster+xml`)}${perSlide}${override('/ppt/theme/theme1.xml', 'application/vnd.openxmlformats-officedocument.theme+xml')}${override('/ppt/theme/theme2.xml', 'application/vnd.openxmlformats-officedocument.theme+xml')}${override('/ppt/presProps.xml', `${PML}.presProps+xml`)}${override('/ppt/viewProps.xml', `${PML}.viewProps+xml`)}${override('/ppt/tableStyles.xml', `${PML}.tableStyles+xml`)}${override('/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml')}${override('/docProps/app.xml', 'application/vnd.openxmlformats-officedocument.extended-properties+xml')}</Types>`
+  const pictures = [...media]
+    .map((extension) => `<Default Extension="${extension}" ContentType="image/${extension}"/>`)
+    .join('')
+  return `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${pictures}${override('/ppt/presentation.xml', `${PML}.presentation.main+xml`)}${override('/ppt/slideMasters/slideMaster1.xml', `${PML}.slideMaster+xml`)}${override('/ppt/slideLayouts/slideLayout1.xml', `${PML}.slideLayout+xml`)}${override('/ppt/notesMasters/notesMaster1.xml', `${PML}.notesMaster+xml`)}${perSlide}${override('/ppt/theme/theme1.xml', 'application/vnd.openxmlformats-officedocument.theme+xml')}${override('/ppt/theme/theme2.xml', 'application/vnd.openxmlformats-officedocument.theme+xml')}${override('/ppt/presProps.xml', `${PML}.presProps+xml`)}${override('/ppt/viewProps.xml', `${PML}.viewProps+xml`)}${override('/ppt/tableStyles.xml', `${PML}.tableStyles+xml`)}${override('/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml')}${override('/docProps/app.xml', 'application/vnd.openxmlformats-officedocument.extended-properties+xml')}</Types>`
 }
 
 function coreXML(title: string, when: string): string {
@@ -298,8 +470,22 @@ export function serializeToPPTX(doc: EditorNode, options: PPTXOptions = {}): Uin
   const slides = documentSlides(doc)
   const when = (options.modified ?? new Date()).toISOString().replace(/\.\d{3}Z$/, 'Z')
   const title = options.title ?? slides[0]?.title ?? 'Presentation'
+  const rendered = options.rendered ?? new Map()
+  const media: ZipEntry[] = []
+  const extensions = new Set<string>()
+  // Each slide's pictures, their files numbered across the deck.
+  const perSlide = slides.map((slide) => {
+    const pictures = slidePictures(slide.blocks, rendered)
+    const targets = [...pictures.values()].flat().map((picture) => {
+      const name = `image${media.length + 1}.${picture.extension}`
+      media.push({ name: `ppt/media/${name}`, data: picture.bytes })
+      extensions.add(picture.extension)
+      return `../media/${name}`
+    })
+    return { pictures, targets }
+  })
   const entries: ZipEntry[] = [
-    { name: '[Content_Types].xml', data: contentTypes(slides) },
+    { name: '[Content_Types].xml', data: contentTypes(slides, extensions) },
     {
       name: '_rels/.rels',
       data: `${XML_HEADER}<Relationships xmlns="${NS_REL}"><Relationship Id="rId1" Type="${NS_R}/officeDocument" Target="ppt/presentation.xml"/><Relationship Id="rId2" Type="${NS_REL}/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="${NS_R}/extended-properties" Target="docProps/app.xml"/></Relationships>`,
@@ -343,13 +529,17 @@ export function serializeToPPTX(doc: EditorNode, options: PPTXOptions = {}): Uin
   ]
   slides.forEach((slide, index) => {
     const n = index + 1
+    const { pictures, targets } = perSlide[index] as (typeof perSlide)[number]
+    // The layout and the notes are rId1 and rId2; the pictures follow.
+    const relIds = targets.map((_target, at) => `rId${at + 3}`)
     entries.push(
-      { name: `ppt/slides/slide${n}.xml`, data: slideXML(slide) },
+      { name: `ppt/slides/slide${n}.xml`, data: slideXML(slide, pictures, relIds) },
       {
         name: `ppt/slides/_rels/slide${n}.xml.rels`,
         data: relationships([
           ['slideLayout', '../slideLayouts/slideLayout1.xml'],
           ['notesSlide', `../notesSlides/notesSlide${n}.xml`],
+          ...targets.map((target): [string, string] => ['image', target]),
         ]),
       },
       { name: `ppt/notesSlides/notesSlide${n}.xml`, data: notesXML(slide) },
@@ -362,5 +552,5 @@ export function serializeToPPTX(doc: EditorNode, options: PPTXOptions = {}): Uin
       },
     )
   })
-  return createZip(entries)
+  return createZip([...entries, ...media])
 }

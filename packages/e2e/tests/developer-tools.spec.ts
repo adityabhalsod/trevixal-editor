@@ -161,14 +161,17 @@ test('copies a terminal session’s commands without their prompts', async ({ pa
   await recordClipboard(page)
   const server = await openBlank(page)
   try {
+    // The session opens on a prompt. Shift+Enter writes a line of output, and
+    // Enter starts the next command on a prompt of its own.
     await runMenuItem(page, 'insert', 'insertTerminal')
     await page.keyboard.type('npm install')
-    await page.keyboard.press('Enter')
+    await page.keyboard.press('Shift+Enter')
     await page.keyboard.type('added 12 packages')
     await page.keyboard.press('Enter')
-    await page.keyboard.type('$ npm test')
+    await page.keyboard.type('npm test')
     const pre = page.locator(`${surface} pre`)
     await expect(pre).toHaveAttribute('data-language', 'console')
+    await expect(pre.locator('code')).toHaveText('$ npm install\nadded 12 packages\n$ npm test')
     await page.locator('.trevixal-codelang__copy').click()
     await expect
       .poll(() => page.evaluate(() => (window as unknown as { copied: () => string }).copied()))

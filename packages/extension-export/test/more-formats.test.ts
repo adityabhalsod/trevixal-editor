@@ -3,6 +3,7 @@ import { type EditorNode, Fragment } from '@trevixal/core'
 import { describe, expect, it } from 'vitest'
 import { parseExportArchive } from '../src/archive-import'
 import { serializeToEPUB } from '../src/epub'
+import { exportFormats } from '../src/formats'
 import { escapeLaTeX, serializeToLaTeX } from '../src/latex'
 import { parseODT, serializeToODT } from '../src/odt'
 import { type PdfJsLike, linesToBlocks, pageLines, parsePDF } from '../src/pdf'
@@ -102,6 +103,66 @@ describe('EPUB', () => {
     expect(chapter).toContain('src="images/image-1.png"')
     const nav = new TextDecoder().decode(parts.get('OEBPS/nav.xhtml'))
     expect(nav).toContain('<a href="chapter-1.xhtml">One</a>')
+  })
+
+  it('carries the editor’s stylesheet and what it drew, so a chapter reads as the editor shows it', async () => {
+    const code = codeBlock('let x = 1', 'javascript')
+    const highlighted = '<pre><code><span class="tvx-tok-keyword">let</span> x = 1</code></pre>'
+    const book = serializeToEPUB(doc(heading(1, 'One'), code), document, {
+      identifier: 'urn:uuid:test',
+      modified: new Date('2026-01-01T00:00:00Z'),
+      styles: '.trevixal-callout { border-left: 4px solid #36c; }',
+      renderNode: (node) => (node === code ? highlighted : null),
+    })
+    const parts = await readZip(book)
+    const text = (name: string) => new TextDecoder().decode(parts.get(name))
+    expect(text('OEBPS/style.css')).toContain('.trevixal-callout { border-left: 4px solid #36c; }')
+    expect(text('OEBPS/style.css')).not.toContain('font-family: serif')
+    const chapter = text('OEBPS/chapter-1.xhtml')
+    // Inside the editor's own classes, for its stylesheet's selectors to reach.
+    expect(chapter).toContain('<div class="trevixal">\n<div class="trevixal-content">')
+    expect(chapter).toContain(highlighted)
+    expect(() => parseXML(chapter)).not.toThrow()
+  })
+
+  it('takes the editor’s stylesheet and what it drew when the export menu writes the book', async () => {
+    const code = codeBlock('x')
+    const rendered = new Map([[code, { runs: [{ text: 'x', color: '#ff0000' }] }]])
+    const seen: unknown[] = []
+    const epub = exportFormats({
+      epub: {
+        styles: () => '.trevixal-content { color: red; }',
+        renderNode: (captured) => {
+          seen.push(captured)
+          return (node) => (node === code ? '<pre>drawn</pre>' : null)
+        },
+      },
+    }).find((format) => format.name === 'epub')
+    const bytes = await epub?.serialize(doc(heading(1, 'One'), code), {
+      schema,
+      title: 'One',
+      rendered,
+    })
+    const parts = await readZip(bytes as Uint8Array)
+    expect(seen).toEqual([rendered])
+    expect(new TextDecoder().decode(parts.get('OEBPS/style.css'))).toContain(
+      '.trevixal-content { color: red; }',
+    )
+    expect(new TextDecoder().decode(parts.get('OEBPS/chapter-1.xhtml'))).toContain(
+      '<pre>drawn</pre>',
+    )
+  })
+
+  it('falls back to a plain book style without the editor’s', async () => {
+    const parts = await readZip(
+      serializeToEPUB(doc(heading(1, 'One'), p('a')), document, {
+        identifier: 'urn:uuid:test',
+        modified: new Date('2026-01-01T00:00:00Z'),
+      }),
+    )
+    expect(new TextDecoder().decode(parts.get('OEBPS/style.css'))).toContain(
+      'body { font-family: serif;',
+    )
   })
 })
 

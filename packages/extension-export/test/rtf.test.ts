@@ -77,8 +77,10 @@ describe('serializeToRTF document shell', () => {
 
 describe('serializeToRTF blocks', () => {
   it('sizes headings and marks them bold and keep-with-next', () => {
-    expect(output).toContain('\\sb240\\sa120\\keepn\\b\\f0\\fs48 Report\\par')
-    expect(output).toContain('\\sb240\\sa120\\keepn\\b\\f0\\fs40 Summary\\par')
+    expect(output).toContain('\\sa120\\sb240\\keepn\\b\\f0\\fs48 Report\\par')
+    expect(output).toContain('\\sa120\\sb240\\keepn\\b\\f0\\fs40 Summary\\par')
+    // One space after each: the heading's, not the body's as well.
+    expect(output).not.toMatch(/\\sa\d+[^ ]*\\sa\d+[^ ]* Report/)
   })
 
   it('ends every paragraph with \\par', () => {
@@ -86,13 +88,16 @@ describe('serializeToRTF blocks', () => {
     expect(output.split('\\par').length).toBeGreaterThan(5)
   })
 
-  it('writes a code block in the monospace font a step smaller', () => {
-    expect(output).toContain('\\f1\\fs20 const x = 1;\\line return x;\\par')
+  it('writes a code block in the monospace font a step smaller, a paragraph a line', () => {
+    // A paragraph a line, so a line can carry its own number and band; the
+    // block's space after comes once, under its last line.
+    expect(output).toContain('\\pard\\plain\\f1\\fs20 const x = 1;\\par')
+    expect(output).toContain('\\pard\\plain\\sa160\\f1\\fs20 return x;\\par')
   })
 
   it('indents and italicises a blockquote', () => {
     const quoted = serializeToRTF(doc(blockquote(p('Quoted'))))
-    expect(quoted).toContain('\\pard\\plain\\li720\\i\\f0\\fs22 Quoted\\par')
+    expect(quoted).toContain('\\pard\\plain\\li720\\sa160\\i\\f0\\fs22 Quoted\\par')
   })
 
   it('draws a horizontal rule as a bottom border', () => {
@@ -272,7 +277,9 @@ describe('serializeToRTF tables', () => {
     expect(rtf).toContain('\\red21\\green96\\blue130;')
     expect(rtf).toMatch(/\\clcbpat\d+\\cellx/)
     expect(rtf).toContain('\\red255\\green255\\blue255;')
-    expect(rtf).toMatch(/\\intbl\\cf\d+\\b/)
+    // The header's fill goes on its paragraph as well, as a reader that
+    // skips cell shading would otherwise show white ink on white.
+    expect(rtf).toMatch(/\\intbl\\cf\d+\\cbpat\d+\\b/)
   })
 
   it('draws cell borders unless the table asks for none', () => {
@@ -438,7 +445,7 @@ describe('the theme', () => {
   })
 
   it('gives a code block its own ground', () => {
-    expect(themed()).toMatch(/\\pard\\plain\\cbpat2\\cf1\\cbpat3\\f1/)
+    expect(themed()).toMatch(/\\pard\\plain\\cbpat2\\cf1\\sa160\\cbpat3\\f1/)
   })
 
   it('colours the rules a table and a horizontal rule draw', () => {
@@ -466,7 +473,7 @@ describe('the theme', () => {
     expect(rtf).not.toContain('\\cbpat')
     expect(rtf).not.toContain('{\\*\\background')
     expect(rtf).not.toContain('\\brdrcf')
-    expect(rtf).toContain('\\pard\\plain\\f0')
+    expect(rtf).toContain('\\pard\\plain\\sa160\\f0')
   })
 
   it('ignores a colour RTF cannot carry', () => {

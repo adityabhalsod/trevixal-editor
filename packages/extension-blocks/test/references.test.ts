@@ -12,6 +12,7 @@ import {
   createEditor,
   defaultMarks,
   defaultNodes,
+  exportTextOf,
   parseHTML,
   pos,
   serializeToHTML,
@@ -466,5 +467,38 @@ describe('numbered equations', () => {
     expect(editor.state.doc.child(1).attrs.number).toBe('1')
     expect(reference()?.attrs.text).toBe('Equation (1)')
     editor.destroy()
+  })
+})
+
+describe('references as plain text', () => {
+  it('brackets a numbered citation, and leaves an author-date one as it reads', () => {
+    expect(exportTextOf(schema.node('citation', { id: 'a', label: '1' }))).toBe('[1]')
+    expect(exportTextOf(schema.node('citation', { id: 'a', label: 'Smith, 2020' }))).toBe(
+      'Smith, 2020',
+    )
+  })
+
+  it('writes a table of figures an entry a line', () => {
+    const entries = [
+      { id: 'f1', text: 'Figure 1: Owl' },
+      { id: 'f2', text: 'Figure 2: Barn' },
+    ]
+    const list = schema.node('captionList', { kind: 'figure', entries: JSON.stringify(entries) })
+    expect(exportTextOf(list)).toBe('Figure 1: Owl\nFigure 2: Barn')
+  })
+
+  it('writes an index an entry a line, its subentries indented under it', () => {
+    const entries = [
+      {
+        term: 'Owl',
+        locations: [
+          { id: 'a', label: '1' },
+          { id: 'b', label: '4' },
+        ],
+        subentries: [{ term: 'barn', locations: [{ id: 'c', label: '2' }] }],
+      },
+    ]
+    const index = schema.node('documentIndex', { entries: JSON.stringify(entries) })
+    expect(exportTextOf(index)).toBe('Owl, 1, 4\n  barn, 2')
   })
 })

@@ -1,3 +1,4 @@
+import { Schema } from '@trevixal/core'
 import { describe, expect, it } from 'vitest'
 import {
   attrNumber,
@@ -7,6 +8,7 @@ import {
   blockLayout,
   cellSpan,
   decodeDataURL,
+  embedLink,
   extensionForMime,
   hasMark,
   headingLevel,
@@ -16,10 +18,13 @@ import {
   listStart,
   markNamed,
   mimeForExtension,
+  namedLook,
+  notesNumbering,
   primaryFont,
   rowSpan,
   tableColumns,
   taskGlyph,
+  taskTally,
 } from '../src/shared'
 import {
   bulletList,
@@ -31,6 +36,7 @@ import {
   p,
   pngBytes,
   row,
+  schema,
   table,
   taskItem,
   taskList,
@@ -278,5 +284,58 @@ describe('text nodes carry their marks', () => {
   it('markNamed reads a mark off a text node', () => {
     const node = text('linked', mark('link', { href: 'https://example.com/' }))
     expect(markNamed(node.marks, 'link')?.attrs.href).toBe('https://example.com/')
+  })
+})
+
+describe('what the editor adds to a block', () => {
+  const notes = { content: 'paragraph+', group: 'block', attrs: { style: { default: null } } }
+  const extended = new Schema({
+    nodes: {
+      ...schema.spec.nodes,
+      footnoteList: notes,
+      endnoteList: notes,
+      referenceList: notes,
+      embed: {
+        atom: true,
+        group: 'block',
+        attrs: { src: { default: '' }, title: { default: null } },
+      },
+    },
+    marks: schema.spec.marks,
+  })
+  const list = (name: string, attrs?: Record<string, unknown>) =>
+    extended.node(name, attrs, [extended.node('paragraph', undefined, [extended.text('A note.')])])
+
+  it('numbers footnotes, endnotes in roman numerals, and IEEE references only', () => {
+    expect(notesNumbering(list('footnoteList'))).toBe('decimal')
+    expect(notesNumbering(list('endnoteList'))).toBe('lower-roman')
+    expect(notesNumbering(list('referenceList'))).toBe('decimal')
+    expect(notesNumbering(list('referenceList', { style: 'apa' }))).toBe('none')
+    expect(notesNumbering(p('Not a list.'))).toBeNull()
+  })
+
+  it('tallies a task list of two or more, as the editor does under it', () => {
+    expect(taskTally(taskList(taskItem(true, p('a')), taskItem(false, p('b'))))).toBe('1 of 2 done')
+    expect(taskTally(taskList(taskItem(true, p('a'))))).toBeNull()
+  })
+
+  it('links an embed to its web address by its title, and to no other address', () => {
+    const embed = (attrs: Record<string, unknown>) => extended.node('embed', attrs)
+    expect(embedLink(embed({ src: 'https://v.test/1', title: 'Talk' }))).toEqual({
+      text: 'Talk',
+      href: 'https://v.test/1',
+    })
+    expect(embedLink(embed({ src: 'https://v.test/1' }))?.text).toBe('https://v.test/1')
+    expect(embedLink(embed({ src: 'javascript:alert(1)', title: 'Bad' }))).toBeNull()
+    expect(embedLink(p('Not an atom.'))).toBeNull()
+  })
+
+  it('lays a named style over the look Word gives its built-in one', () => {
+    expect(namedLook('title', { color: '#112233' })).toEqual({
+      fontSize: 28,
+      spaceAfter: 12,
+      color: '#112233',
+    })
+    expect(namedLook('custom', { bold: true })).toEqual({ bold: true })
   })
 })

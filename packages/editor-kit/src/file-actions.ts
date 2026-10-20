@@ -44,6 +44,7 @@ import {
   openLinkReport,
   pickFile,
   readDocumentFile,
+  renderedNodeHTML,
 } from '@trevixal/ui'
 import { createWorkerSerializer } from './export-client'
 import { readerCopy } from './reader-copy'
@@ -82,7 +83,8 @@ export function createFileActions(
   // two Office formats, and the DOCX reader that imports Word documents.
   const exporters = [
     ...builtinExporters({ styles: collectDocumentCSS }),
-    ...exportFormats(),
+    // A book carries the editor's stylesheet and what it drew, as a web page does.
+    ...exportFormats({ epub: { styles: collectDocumentCSS, renderNode: renderedNodeHTML } }),
     // The document as a PDF that opens ready to fill in, its fields real form fields.
     {
       name: 'pdfForm',

@@ -3,6 +3,7 @@ import {
   type EditorNode,
   Fragment,
   type Mark,
+  type StyleProps,
   TableMap,
   type TableMapCell,
 } from '@trevixal/core'
@@ -68,6 +69,79 @@ export function primaryFont(family: string): string {
 /** The glyph a task item renders in formats without checkboxes. */
 export function taskGlyph(item: EditorNode): string {
   return item.attrs.checked === true ? '☑' : '☐'
+}
+
+/**
+ * The built-in styles' own look, which RTF and OpenDocument have no Word
+ * style sheet to carry: Title, Subtitle and the character styles as Word
+ * draws them before a document changes anything in them (see
+ * word-styles.ts). A heading brings its own.
+ */
+const BUILT_IN_LOOK: Readonly<Record<string, StyleProps>> = {
+  title: { fontSize: 28, spaceAfter: 12 },
+  subtitle: { fontSize: 15, color: '#5a5a5a', spaceAfter: 8 },
+  emphasis: { italic: true },
+  strong: { bold: true },
+  subtleEmphasis: { italic: true, color: '#404040' },
+}
+
+/** A named style's props laid over the built-in look it starts from. */
+export function namedLook(id: string, props: StyleProps): StyleProps {
+  return { ...BUILT_IN_LOOK[id], ...props }
+}
+
+/** The lists the editor collects at the end of a document, by their node names. */
+export const NOTES = {
+  footnotes: 'footnoteList',
+  endnotes: 'endnoteList',
+  references: 'referenceList',
+} as const
+
+/**
+ * How the editor numbers one of those lists: footnotes 1, 2, 3, endnotes i,
+ * ii, iii, and a reference list in IEEE's numbers, though an author-date
+ * style's is not numbered at all. Null for any other node.
+ */
+export function notesNumbering(list: EditorNode): 'decimal' | 'lower-roman' | 'none' | null {
+  switch (list.type.name) {
+    case NOTES.footnotes:
+      return 'decimal'
+    case NOTES.endnotes:
+      return 'lower-roman'
+    case NOTES.references:
+      return (attrString(list.attrs, 'style') ?? 'ieee') === 'ieee' ? 'decimal' : 'none'
+    default:
+      return null
+  }
+}
+
+/** How a task list tallies itself under its items, as the editor does: `2 of 3 done`. */
+export function taskTally(list: EditorNode): string | null {
+  if (list.childCount < 2) return null
+  const done = list.content.children.filter((item) => item.attrs.checked === true).length
+  return `${done} of ${list.childCount} done`
+}
+
+/** A web address, and nothing else: no `data:`, no `javascript:`. */
+function webAddress(value: unknown): string | null {
+  return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null
+}
+
+/**
+ * Where an embedded thing lives, a video, a page's card, a file, a button's
+ * target, and the words a link to it reads: its title. A document format
+ * cannot play it, but it can link to it. Null for an atom that is not one.
+ */
+export function embedLink(
+  node: EditorNode,
+): { readonly text: string; readonly href: string } | null {
+  if (!node.isAtom) return null
+  const href = webAddress(node.attrs.href) ?? webAddress(node.attrs.src)
+  if (!href) return null
+  const words = ['title', 'label', 'name', 'filename']
+    .map((key) => attrString(node.attrs, key))
+    .find((value) => value !== null)
+  return { text: words ?? href, href }
 }
 
 export type Alignment = 'left' | 'center' | 'right' | 'justify'

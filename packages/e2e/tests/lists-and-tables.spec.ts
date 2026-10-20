@@ -111,8 +111,10 @@ test.describe('lists and tasks', () => {
       { type: 'taskList', content: [task('Alone')] },
     )
     const lists = surface(page).locator('ul[data-type="taskList"]')
+    // Between isolates (U+2068, U+2069), so the words keep their order in a
+    // right-to-left list.
     expect(await pseudo(lists.first(), '::after')).toBe(
-      'counter(tvx-tasks-done)ofcounter(tvx-tasks)done',
+      '\u2068counter(tvx-tasks-done)ofcounter(tvx-tasks)done\u2069',
     )
     await expect
       .poll(() => lists.first().evaluate((element) => getComputedStyle(element, '::after').display))

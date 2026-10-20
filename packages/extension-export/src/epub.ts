@@ -1,4 +1,9 @@
-import { type EditorNode, Fragment, serializeToHTML } from '@trevixal/core'
+import {
+  type EditorNode,
+  Fragment,
+  type HTMLDocumentTheme,
+  serializeToHTMLDocument,
+} from '@trevixal/core'
 import { escapeXML } from './xml'
 import { type ZipEntry, createZip } from './zip'
 
@@ -18,6 +23,16 @@ export interface EPUBOptions {
   /** A fixed identifier and date, for output that does not change from run to run. */
   readonly identifier?: string
   readonly modified?: Date
+  /**
+   * The editor's own stylesheet, which the book's pages carry so a chapter
+   * reads as the editor shows it: a callout tinted, a task struck through.
+   * Without it, a plain book style.
+   */
+  readonly styles?: string
+  /** The palette the editor rendered in. */
+  readonly theme?: HTMLDocumentTheme
+  /** Markup for a node instead of its schema's: the editor's highlighted code, a diagram's picture. */
+  readonly renderNode?: (node: EditorNode) => string | null
 }
 
 const MIME = 'application/epub+zip'
@@ -30,6 +45,7 @@ const CONTAINER = `<?xml version="1.0" encoding="UTF-8"?>
 </container>
 `
 
+/** The book's own style, where the editor's stylesheet is not given. */
 const STYLE = `body { font-family: serif; line-height: 1.5; margin: 0 5%; }
 h1, h2, h3 { font-family: sans-serif; line-height: 1.2; }
 img { max-width: 100%; height: auto; }
@@ -84,18 +100,27 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   'image/svg+xml': 'svg',
 }
 
+/** What a reader needs on top of the editor's stylesheet: pictures that fit the page. */
+const BOOK_STYLE = 'img, svg { max-width: 100%; height: auto; }'
+
 /**
- * HTML as XHTML, well formed as EPUB's content documents must be: parsed as
- * HTML and written back as XML, so every void tag closes and every entity
- * is a character.
+ * A page as XHTML, well formed as EPUB's content documents must be: parsed
+ * as HTML and written back as XML, so every void tag closes and every entity
+ * is a character. Its stylesheets come back apart, for the book's own file.
  */
-function toXHTML(html: string, document: Document): string {
+function toXHTML(html: string, document: Document): { body: string; css: string } {
   const parsed = new (document.defaultView?.DOMParser ?? DOMParser)().parseFromString(
-    `<!doctype html><html><body>${html}</body></html>`,
+    html.startsWith('<!doctype') ? html : `<!doctype html><html><body>${html}</body></html>`,
     'text/html',
   )
   const serializer = new (document.defaultView?.XMLSerializer ?? XMLSerializer)()
-  return [...parsed.body.childNodes].map((node) => serializer.serializeToString(node)).join('')
+  const css = [...parsed.head.querySelectorAll('style')]
+    .map((style) => style.textContent ?? '')
+    .join('\n')
+  const body = [...parsed.body.childNodes]
+    .map((node) => serializer.serializeToString(node))
+    .join('')
+  return { body, css }
 }
 
 /** The book as the bytes of an `.epub` file. */
@@ -113,10 +138,18 @@ export function serializeToEPUB(
   const manifest: string[] = []
   const chapters = chaptersOf(doc, title)
 
+  let stylesheet = ''
   const files = chapters.map((chapter, index) => {
     const name = `chapter-${index + 1}.xhtml`
     const fragment = doc.type.create(doc.attrs, Fragment.from(chapter.blocks))
-    let html = serializeToHTML(fragment)
+    // The page the web page download writes, theme, named styles and all, so
+    // the book carries what the editor shows; its stylesheets go in style.css.
+    let html = serializeToHTMLDocument(fragment, {
+      title: chapter.title,
+      ...(options.styles ? { inlineCSS: options.styles } : {}),
+      ...(options.theme ? { theme: options.theme } : {}),
+      ...(options.renderNode ? { renderNode: options.renderNode } : {}),
+    })
     // Pictures kept as data become files in the book, which readers want.
     html = html.replace(/src="(data:[^"]+)"/g, (whole, src: string) => {
       const decoded = decodeDataURL(src.replace(/&amp;/g, '&'))
@@ -129,7 +162,8 @@ export function serializeToEPUB(
       )
       return `src="${file}"`
     })
-    const body = toXHTML(html, document)
+    const { body, css } = toXHTML(html, document)
+    if (index === 0) stylesheet = css
     const page = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${escapeXML(language)}" lang="${escapeXML(language)}">
@@ -180,7 +214,7 @@ ${files.map((_, index) => `    <itemref idref="chapter-${index + 1}"/>`).join('\
     { name: 'META-INF/container.xml', data: CONTAINER },
     { name: 'OEBPS/content.opf', data: opf },
     { name: 'OEBPS/nav.xhtml', data: nav },
-    { name: 'OEBPS/style.css', data: STYLE },
+    { name: 'OEBPS/style.css', data: options.styles ? `${stylesheet}\n${BOOK_STYLE}\n` : STYLE },
     ...files.map((file) => ({ name: `OEBPS/${file.name}`, data: file.page })),
     ...images,
   ])

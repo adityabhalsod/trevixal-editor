@@ -244,6 +244,7 @@ export { parseHTML } from './serialize/parse-html'
 export {
   cleanPastedHTML,
   detectPasteSource,
+  looksLikeMarkdown,
   type PasteSource,
 } from './serialize/paste-source'
 export { type MarkdownParseOptions, parseMarkdown } from './serialize/parse-markdown'

@@ -119,6 +119,11 @@ $list-depth: 9;
     line-height: 1.55;
     tab-size: 2;
     overflow-x: auto;
+    // Code reads left to right in any document, as a code editor sets it. In
+    // a right-to-left one its lines lined up on the right, and the bidi
+    // algorithm reordered them: `y-axis "Cost (£)"` read `"(£) y-axis "Cost`.
+    direction: ltr;
+    text-align: left;
 
     code {
       background: none;

@@ -26,8 +26,12 @@ const TARGETS = [
     // own with the stylesheet that draws them. The measured 45.8 kB plus about 10%.
     // Then from 50 kB with the FEATURE.md work (rowspan's table map, front
     // matter and MDX, style marks on paste, the page setup): the measured
-    // 49.1 kB plus about 10%.
-    budgetKb: 54,
+    // 49.1 kB plus about 10%. Then from 54 kB with the 16-item fix batch and
+    // the export and paste work (cleaning paste from Word, Excel, Google Docs
+    // and Sheets, Notion and web pages; Markdown paste; notes, references and
+    // list markers in the text and Markdown writers): the measured 54.8 kB
+    // plus about 10%.
+    budgetKb: 60,
   },
   // Raised from 80 kB with the formatting features (named styles and the
   // Styles pane, borders and shading, drop caps, tab stops, text columns):
@@ -54,8 +58,11 @@ const TARGETS = [
     // plus about 10%. Then from 256 kB with the FEATURE.md work: comments,
     // forms and mail merge, signatures, the new writers and readers (ODT,
     // EPUB, LaTeX, PPTX, PDF text), media and the whiteboard, data tables:
-    // the measured 338.3 kB plus about 10%.
-    budgetKb: 372,
+    // the measured 338.3 kB plus about 10%. Then from 372 kB with the 16-item
+    // fix batch (every emoji among them) and the export work, each writer
+    // drawing what the editor shows (boxes, looks, code lines, notes, Office
+    // Math, formula objects, pictures): the measured 384.0 kB plus about 10%.
+    budgetKb: 422,
     note: 'every extension included',
   },
   {
@@ -74,8 +81,9 @@ const TARGETS = [
     // the measured 210.8 kB plus about 10%. Then from 232 kB with the list
     // and table tools: the measured 233.1 kB plus about 10%. Then from 256 kB
     // with the FEATURE.md work, as the kit above: the measured 339.2 kB plus
-    // about 10%.
-    budgetKb: 373,
+    // about 10%. Then from 373 kB with the 16-item fix batch and the export
+    // work, as the kit above: the measured 385.3 kB plus about 10%.
+    budgetKb: 424,
     note: 'already minified',
   },
   {
@@ -84,8 +92,10 @@ const TARGETS = [
     // Raised from 32 kB: it inlines the core, which the formatting features
     // (named styles, paragraph formatting, AutoFormat) grew. The measured
     // 33.7 kB plus about 10%. Then from 37 kB, the core having grown with the
-    // FEATURE.md work: the measured 36.7 kB plus about 10%.
-    budgetKb: 40,
+    // FEATURE.md work: the measured 36.7 kB plus about 10%. Then from 40 kB,
+    // the core having grown with the 16-item fix batch and the paste work:
+    // the measured 44.1 kB plus about 10%.
+    budgetKb: 49,
     note: 'already minified',
   },
 ]
