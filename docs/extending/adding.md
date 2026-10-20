@@ -6,11 +6,11 @@ avoid.
 
 ## A whole extension
 
-`create-trevixal-extension` makes a package to start from, laid out as the
+`@trevixal/create-extension` makes a package to start from, laid out as the
 shipped extensions are:
 
 ```sh
-npm create trevixal-extension @acme/trevixal-extension-sticky-note
+npm create @trevixal/extension @acme/trevixal-extension-sticky-note
 cd trevixal-extension-sticky-note
 npm install
 npm test
