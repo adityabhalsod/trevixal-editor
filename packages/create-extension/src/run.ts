@@ -17,7 +17,7 @@ const USAGE = [
   'Makes a Trevixal editor extension: a package with a node type, its',
   'commands, a menu entry and tests, laid out as the shipped extensions are.',
   '',
-  '  npm create trevixal-extension @acme/trevixal-extension-sticky-note',
+  '  npm create @trevixal/extension @acme/trevixal-extension-sticky-note',
 ]
 
 /** Run the command on `args`; resolves to its exit code. */

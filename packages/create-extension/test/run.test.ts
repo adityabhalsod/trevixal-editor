@@ -17,7 +17,7 @@ function memory(taken: readonly string[] = []) {
   return { io, written, said, complained }
 }
 
-describe('create-trevixal-extension', () => {
+describe('@trevixal/create-extension', () => {
   it('says how it is used, asked or not', async () => {
     const asked = memory()
     expect(await run(['--help'], asked.io)).toBe(0)

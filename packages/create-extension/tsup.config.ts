@@ -15,7 +15,7 @@ const shared = {
 export default defineConfig([
   // What a tool of its own imports, both ways, as every package here ships.
   { ...shared, entry: ['src/index.ts'], format: ['esm', 'cjs'], dts: true, clean: ['index.*'] },
-  // The command `npm create trevixal-extension` runs, straight from the tarball.
+  // The command `npm create @trevixal/extension` runs, straight from the tarball.
   {
     ...shared,
     entry: ['src/cli.ts'],

@@ -4,7 +4,7 @@
   "entryPoints": [
     "packages/angular",
     "packages/core",
-    "packages/create-trevixal-extension",
+    "packages/create-extension",
     "packages/extension-blocks",
     "packages/extension-code-highlight",
     "packages/extension-comments",

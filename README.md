@@ -34,7 +34,7 @@ const doc = editor.getJSON() // the document, as data you can store and validate
 
 | | |
 | --- | --- |
-| **Packages** | 25 under `@trevixal/*`. A headless core, an optional chrome, an assembled editor, five adapters, seventeen extensions; and `create-trevixal-extension` to start one of your own |
+| **Packages** | 26 under `@trevixal/*`. A headless core, an optional chrome, an assembled editor, five adapters, seventeen extensions; and `@trevixal/create-extension` to start one of your own |
 | **Tests** | **3,051 unit** across 212 files · **333 browser** across 48 specs, on Chromium, Firefox and WebKit |
 | **Engines** | Chromium, Firefox and WebKit, all three driven by the browser suite |
 | **Size** | **49.1 kB** gzipped for the engine; 338.3 kB for the whole assembled editor |
@@ -390,7 +390,7 @@ file.
 | [`@trevixal/extension-export`](packages/extension-export) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-export&label=) | 395 | DOCX and RTF writers and a DOCX reader, with their own ZIP and XML implementations; themed, with highlighted code and embedded diagrams. |
 | [`@trevixal/extension-comments`](packages/extension-comments) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-comments&label=) | 6 | Comment threads on a selection, replies, resolving, `@mentions` from a host list and a notifications hook, saved with the document and carried into `.docx` comments. |
 | [`@trevixal/extension-forms`](packages/extension-forms) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-forms&label=) | 6 | Fields in the text (text box, tick box, drop-down, date, signature) filled in by click or key, a fillable PDF form with real AcroForm fields, and mail merge from CSV or JSON into one document a row. |
-| [`create-trevixal-extension`](packages/create-trevixal-extension) | ![](https://img.shields.io/npm/dm/create-trevixal-extension?label=) | 10 | `npm create trevixal-extension <name>`: a new extension package with its node type, commands, menu entry and tests, laid out as the shipped extensions are; its tests pass and it typechecks as made. |
+| [`@trevixal/create-extension`](packages/create-extension) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dcreate-extension&label=) | 10 | `npm create @trevixal/extension <name>`: a new extension package with its node type, commands, menu entry and tests, laid out as the shipped extensions are; its tests pass and it typechecks as made. |
 | [`@trevixal/extension-security`](packages/extension-security) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-security&label=) | 84 | PBKDF2 + AES-GCM document encryption with expiry, an encrypted key-value storage wrapper, copy/cut/paste/print/download/context-menu restrictions. |
 | [`@trevixal/extension-writing`](packages/extension-writing) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-writing&label=) | 133 | Readability, passive voice, repeated words, long sentences, grammar rules, keyword density, reading/speaking time, goals, spell-check toggle. |
 | [`@trevixal/extension-workspace`](packages/extension-workspace) | ![](https://img.shields.io/endpoint?url=https%3A%2F%2Ftrevixal-editor.vercel.app%2Fapi%2Fdownloads%3Fpackage%3Dextension-workspace&label=) | 152 | A document store with folders, templates, recents and favourites; a tab strip; a workspace panel; a split preview or mirrored second editor. |
@@ -1785,7 +1785,7 @@ a `.docx` read back) is a browser test, and everything else is a unit test.
 | extension-embed | 134 | vue | 19 |
 | extension-writing | 133 | react | 17 |
 | extension-math | 125 | angular | 12 |
-| extension-image | 107 | create-trevixal-extension | 10 |
+| extension-image | 107 | create-extension | 10 |
 | editor-kit | 86 | svelte | 8 |
 | extension-code-highlight | 85 | extension-forms | 6 |
 | extension-security | 84 | extension-comments | 6 |

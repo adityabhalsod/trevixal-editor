@@ -1,6 +1,6 @@
 /**
- * create-trevixal-extension: scaffold a Trevixal editor extension. The
- * command is `npm create trevixal-extension <package-name>`; what it writes
+ * `@trevixal/create-extension`: scaffold a Trevixal editor extension. The
+ * command is `npm create @trevixal/extension <package-name>`; what it writes
  * is here too, for a tool of your own.
  */
 

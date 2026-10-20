@@ -339,7 +339,7 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.1)(happy-dom@15.11.7)(jiti@2.7.0)(lightningcss@1.33.0)(sass@1.103.1)(supports-color@10.2.2)(terser@5.51.2)(yaml@2.9.0)
 
-  packages/create-trevixal-extension:
+  packages/create-extension:
     devDependencies:
       '@trevixal/core':
         specifier: workspace:*
