@@ -14,7 +14,7 @@ import { base64Encode } from '../src/shared'
  * The table and image nodes both writers understand live in sibling packages
  * this one does not depend on, so the tests declare the same shapes locally.
  */
-function extraNodes(): Record<string, NodeSpec> {
+export function extraNodes(): Record<string, NodeSpec> {
   return {
     table: {
       content: 'tableRow+',
@@ -33,6 +33,9 @@ function extraNodes(): Record<string, NodeSpec> {
         totalRow: { default: false },
         bandedRows: { default: false },
         bandedColumns: { default: false },
+        freezeHeader: { default: false },
+        freezeColumn: { default: false },
+        cellPadding: { default: null },
       },
     },
     tableRow: { content: 'tableCell+', attrs: { height: { default: null } } },
@@ -41,10 +44,15 @@ function extraNodes(): Record<string, NodeSpec> {
       attrs: {
         header: { default: false },
         colspan: { default: 1 },
+        rowspan: { default: 1 },
+        valueType: { default: null },
+        checked: { default: false },
+        hidden: { default: false },
         align: { default: null },
         width: { default: null },
         background: { default: null },
         hiddenBorders: { default: null },
+        verticalAlign: { default: null },
       },
     },
     image: {
@@ -58,6 +66,11 @@ function extraNodes(): Record<string, NodeSpec> {
         height: { default: null },
         align: { default: 'none' },
       },
+      toHTML: (node) => ({
+        tag: 'img',
+        attrs: { src: String(node.attrs.src ?? ''), alt: String(node.attrs.alt ?? '') },
+        isVoid: true,
+      }),
     },
     figure: { content: 'block+', group: 'block' },
     caption: { content: 'inline*', group: 'block' },

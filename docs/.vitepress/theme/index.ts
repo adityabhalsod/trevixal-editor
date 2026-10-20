@@ -6,6 +6,7 @@ import FullEditor from './FullEditor.vue'
 import GitHubStars from './GitHubStars.vue'
 import NpmDownloads from './NpmDownloads.vue'
 import Playground from './Playground.vue'
+import ScreenshotGallery from './ScreenshotGallery.vue'
 import './styles.css'
 
 export default {
@@ -20,5 +21,6 @@ export default {
     app.component('Playground', Playground)
     app.component('FullEditor', FullEditor)
     app.component('DropIn', DropIn)
+    app.component('ScreenshotGallery', ScreenshotGallery)
   },
 } satisfies Theme

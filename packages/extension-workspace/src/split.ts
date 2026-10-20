@@ -100,7 +100,11 @@ function applyPreviewSync(
 
   const blocks = (): HTMLElement[] => {
     const content = document.querySelector('.trevixal-content')
-    return content ? ([...content.children] as HTMLElement[]) : []
+    // A document with settings (numbered headings, right to left) holds its
+    // blocks in the one element carrying them, `data-trevixal-document` in
+    // the core. Spelled out: this function runs in the preview, as source.
+    const holder = content?.querySelector(':scope > [data-trevixal-document]') ?? content
+    return holder ? ([...holder.children] as HTMLElement[]) : []
   }
   // Measured against the page rather than read off `offsetTop`, which is
   // relative to whichever ancestor happens to be positioned.

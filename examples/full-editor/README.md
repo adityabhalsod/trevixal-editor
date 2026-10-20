@@ -21,6 +21,17 @@ so it can be read once and mounted from any framework. The
 SvelteKit, Angular and Solid; what changes between them is the lifecycle hook,
 and nothing else.
 
+## Installable, and offline
+
+The built page is an installable app. `public/manifest.webmanifest` names it,
+and the build writes `sw.js`, a service worker that caches the page and every
+file the build made, the language catalogues and the export worker included.
+After one visit with a network, the editor opens and works with none, and the
+browser offers to install it. [`service-worker.ts`](service-worker.ts) holds
+its source, and the plugin in [`vite.config.ts`](vite.config.ts) writes the
+build's own file list into it, so each build is a new worker. The dev server
+registers no worker, since its modules are no app shell.
+
 ## Run it
 
 ```sh
@@ -55,6 +66,42 @@ rotate and captions. Video, audio, embeds and file attachments. Equations and
 Mermaid diagrams. Callouts, tabs, accordions, columns and timelines. Task
 lists, footnotes and citations. Code blocks with syntax highlighting and a
 language selector.
+
+The tour it opens with shows the tools for longer documents in its own text,
+and names the menus for the ones a document cannot show:
+
+- **Long documents**: numbered captions, a cross-reference that follows what
+  it names, a list of tables, an index built from marked words, endnotes and
+  a right-to-left paragraph. Heading numbering and line numbers are under
+  *Format*, and every block has a menu on its grip.
+- **Formatting**: a paragraph style and a character style from the Styles
+  pane, a drop cap, a bordered and shaded paragraph, and tab stops with dot
+  leaders. Smart quotes, dashes and AutoCorrect work as you type. Text
+  columns, hyphenation, and widow and orphan control are under *Format*.
+- **Lists and tables**: tasks with assignees, due dates and a done count, a
+  folded list item, a list to sort, and a multilevel list of the document's
+  own. A captioned table with its header row frozen, wide cell padding, a
+  cell aligned to the middle and a table inside a cell. Its header row heads
+  every printed page it runs onto.
+- **Tables as data**: a total that a formula adds up, costs in a currency
+  column, and a timetable with cells merged down a column. Filtering rows and
+  drawing a chart are under *Table*.
+- **Media**: an image gallery that opens each picture full size, and a
+  whiteboard drawing to draw on. The camera, screen and audio captures and
+  video chapters are under *Insert*, and a new image asks for its alt text.
+- **Code and equations**: a titled code block with numbered lines and one
+  picked out, a terminal session, a chemical equation and a numbered display
+  equation. Diffs, code to run, Graphviz and PlantUML are under *Insert*.
+- **Review, blocks and forms**: a comment thread with a reply that mentions
+  someone, a sticky note in the margin, a poll, a paragraph shown only while
+  a template variable says so, and a text box, a tick box and a drop-down to
+  fill in. Its printed pages carry a numbered footer.
+- **Named with their menus**: links to any block, wiki links and backlinks,
+  versions and comparing, redaction, locked sections, signatures and the
+  audit log, page setup and section breaks, presenting as slides, the
+  chrome's languages, toolbar presets, theme files, the dyslexia-friendly
+  font, the writing checks and assistant, synonyms, the accessibility check,
+  citation styles, snippets, macros and several carets.
 
 ## Around the document
 

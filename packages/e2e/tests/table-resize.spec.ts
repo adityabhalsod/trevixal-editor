@@ -144,8 +144,10 @@ async function open(page: Page) {
   await page.waitForSelector('.trevixal-content table')
   // Every drag here is done in viewport coordinates, so the table has to be
   // on screen: the demo's document is long enough that it starts below the
-  // fold, and a pointer aimed past the viewport hits nothing at all.
-  await page.locator('.trevixal-content table').scrollIntoViewIfNeeded()
+  // fold, and a pointer aimed past the viewport hits nothing at all. The
+  // first table is the one these tests size, as `querySelector` finds it;
+  // the tour has more further down.
+  await page.locator('.trevixal-content table').first().scrollIntoViewIfNeeded()
   await page.waitForTimeout(120)
   return server
 }
@@ -326,7 +328,7 @@ test.describe('table resizing', () => {
       }
       // And the handle followed the corner it belongs to.
       const moved = await handle.boundingBox()
-      const table = await page.locator('.trevixal-content table').boundingBox()
+      const table = await page.locator('.trevixal-content table').first().boundingBox()
       if (!moved || !table) throw new Error('lost the handle')
       near(centre(moved).x, table.x + table.width)
       near(centre(moved).y, table.y + table.height)

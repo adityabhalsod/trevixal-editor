@@ -32,6 +32,15 @@ export interface InputRuleContext {
 export interface InputRule {
   readonly match: RegExp
   readonly run: (context: InputRuleContext, match: RegExpExecArray) => Transaction | null
+  /**
+   * Run once the typed character is in the document, as an undo step of its
+   * own, instead of in its place: Word's AutoFormat as you type, which Ctrl+Z
+   * takes back leaving what was typed. `match` then sees the text up to and
+   * including the character, from the last inline node before it (shown as
+   * U+FFFC), and so also fires after a footnote marker or an equation. See
+   * `applyTypedTextRules`.
+   */
+  readonly after?: boolean
 }
 
 /**
@@ -59,6 +68,7 @@ export function applyInputRules(
   const textBefore = block.textContent.slice(0, point.offset)
   const candidate = textBefore + typed
   for (const rule of rules) {
+    if (rule.after) continue
     const match = rule.match.exec(candidate)
     if (!match || match.index + match[0].length !== candidate.length) continue
     const tr = rule.run(

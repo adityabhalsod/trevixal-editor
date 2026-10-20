@@ -58,7 +58,8 @@ The node arrives by value and the component redraws on every change rather
 than receiving a reactive proxy: the document is immutable, so a new node *is*
 the change.
 
-A runnable version is in `examples/vue`.
+A working version is the counter in `packages/vue/test/node-views.test.ts`,
+with the tests that drive it.
 
 ## Server rendering
 

@@ -360,15 +360,29 @@ interface ParsedParagraph {
 
 function readParagraph(element: XmlElement, reader: Reader, sink: BlockSink): void {
   const parsed = parseParagraph(element, reader)
-  // A paragraph whose only content was a picture would otherwise leave an
-  // empty stub behind next to the image the writer put there.
-  const keep = parsed.node.childCount > 0 || parsed.images.length === 0
+  // A page break is a block here, after the paragraph it was typed in.
+  const pageBreak = reader.schema.nodes.pageBreak && breaksPage(element)
+  // A paragraph whose only content was a picture, or a page break, would
+  // otherwise leave an empty stub behind next to what the writer put there.
+  const keep = parsed.node.childCount > 0 || (parsed.images.length === 0 && !pageBreak)
   const blocks = keep ? [parsed.node, ...parsed.images] : [...parsed.images]
+  if (pageBreak) blocks.push(reader.schema.node('pageBreak'))
   if (parsed.numbering && reader.supportsLists) {
     sink.pushListItem(parsed.numbering, blocks)
     return
   }
   for (const block of blocks) sink.push(block)
+}
+
+/** Whether a paragraph's runs break the page: Word's Ctrl+Enter. */
+function breaksPage(paragraph: XmlElement): boolean {
+  return paragraph
+    .elements()
+    .some(
+      (run) =>
+        run.name === 'w:r' &&
+        run.elements().some((child) => child.name === 'w:br' && child.attr('w:type') === 'page'),
+    )
 }
 
 function parseParagraph(element: XmlElement, reader: Reader): ParsedParagraph {
@@ -492,6 +506,8 @@ function readRun(
         break
       case 'w:br':
       case 'w:cr':
+        // A page break is read as a block of its own (see readParagraph).
+        if (child.attr('w:type') === 'page' && reader.schema.nodes.pageBreak) break
         pushBreak(reader, marks, out)
         break
       case 'w:drawing':
@@ -616,18 +632,61 @@ function readTable(element: XmlElement, reader: Reader): EditorNode[] {
     )
   }
 
-  const built: EditorNode[] = []
+  // Word writes a vertically merged cell into every row it spans: the first
+  // copy starts the merge (`w:vMerge w:val="restart"`), and the rest, bare
+  // `w:vMerge` and empty, continue it. A continuation adds a row to the cell
+  // above it rather than making a cell of its own.
+  interface Slot {
+    node: EditorNode
+    readonly row: number
+    readonly column: number
+    rowspan: number
+  }
+  const grid: Slot[][] = []
   for (const [index, row] of rows.entries()) {
     const header =
       row.child('w:trPr')?.child('w:tblHeader') !== undefined || (index === 0 && allBold(row))
-    const cells = row
-      .childrenNamed('w:tc')
-      .map((cell) => readCell(cell, reader, header))
-      .filter((cell): cell is EditorNode => cell !== null)
-    if (cells.length > 0) {
-      built.push(reader.schema.node(NODE.tableRow, undefined, Fragment.from(cells)))
+    const slots: Slot[] = []
+    const extended: Slot[] = []
+    let column = 0
+    for (const cell of row.childrenNamed('w:tc')) {
+      const tcPr = cell.child('w:tcPr')
+      const span = Math.max(1, integer(tcPr?.child('w:gridSpan')?.attr('w:val')) ?? 1)
+      const merge = tcPr?.child('w:vMerge')
+      if (merge !== undefined && merge.attr('w:val') !== 'restart') {
+        const above = grid
+          .flat()
+          .find((slot) => slot.column === column && slot.row + slot.rowspan === grid.length)
+        if (above) {
+          above.rowspan += 1
+          extended.push(above)
+          column += span
+          continue
+        }
+      }
+      const node = readCell(cell, reader, header)
+      if (node) slots.push({ node, row: grid.length, column, rowspan: 1 })
+      column += span
     }
+    if (slots.length === 0) {
+      // A row the merges above cover completely has nothing of its own: the
+      // merges lose it again, and the row is left out.
+      for (const slot of extended) slot.rowspan -= 1
+      continue
+    }
+    grid.push(slots)
   }
+  const built = grid.map((slots) =>
+    reader.schema.node(
+      NODE.tableRow,
+      undefined,
+      Fragment.from(
+        slots.map(({ node, rowspan }) =>
+          rowspan > 1 ? node.withAttrs({ ...node.attrs, rowspan }) : node,
+        ),
+      ),
+    ),
+  )
   if (built.length === 0) return []
   return [reader.schema.node(NODE.table, undefined, Fragment.from(built))]
 }

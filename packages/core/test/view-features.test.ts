@@ -103,6 +103,29 @@ describe('input rules through the view', () => {
     fireBeforeInput(view.dom, 'insertParagraph') // exits the list
     expect(editor.getHTML()).toBe('<ul><li><p>a</p></li><li><p>b</p></li></ul><p></p>')
   })
+
+  it('Backspace on an empty point clears it; Backspace again goes back to the point above', () => {
+    const { editor, view } = mount()
+    for (const key of ['-', ' ', 'a']) fireBeforeInput(view.dom, 'insertText', key)
+    fireBeforeInput(view.dom, 'insertParagraph')
+    fireBeforeInput(view.dom, 'insertText', 'b')
+    fireBeforeInput(view.dom, 'insertParagraph') // a third, empty point
+    fireBeforeInput(view.dom, 'deleteContentBackward')
+    expect(editor.getHTML()).toBe('<ul><li><p>a</p></li><li><p>b</p></li></ul><p></p>')
+    fireBeforeInput(view.dom, 'deleteContentBackward')
+    expect(editor.getHTML()).toBe('<ul><li><p>a</p></li><li><p>b</p></li></ul>')
+    fireBeforeInput(view.dom, 'insertText', '!')
+    expect(editor.getHTML()).toBe('<ul><li><p>a</p></li><li><p>b!</p></li></ul>')
+  })
+
+  it('> + space starts a quote; Backspace on its empty line takes the quote away', () => {
+    const { editor, view } = mount()
+    fireBeforeInput(view.dom, 'insertText', '>')
+    fireBeforeInput(view.dom, 'insertText', ' ')
+    expect(editor.getHTML()).toBe('<blockquote><p></p></blockquote>')
+    fireBeforeInput(view.dom, 'deleteContentBackward')
+    expect(editor.getHTML()).toBe('<p></p>')
+  })
 })
 
 describe('clipboard', () => {

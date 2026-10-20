@@ -16,6 +16,8 @@
       "**/.vercel/**",
       "**/.vitepress/dist/**",
       "**/.vitepress/cache/**",
+      "**/graphify-out/**",
+      "env/**",
       "docs/public/api/**",
       "docs/public/trevixal/**",
       "examples/*/build/**",

@@ -1,4 +1,5 @@
 import { mountFullEditor } from '@trevixal/editor-kit'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 import '@trevixal/ui/styles.css'
 import '@trevixal/editor-kit/styles.css'
 import '../../shared/page.css'
@@ -22,6 +23,7 @@ function FullEditor() {
     const editor = mountFullEditor({
       element: host,
       namespace: 'trevixal:solid',
+      languages: uiLanguageLoaders,
       aboutRows: [{ term: 'Framework', description: 'Solid, with no adapter package' }],
     })
     onCleanup(() => editor.destroy())

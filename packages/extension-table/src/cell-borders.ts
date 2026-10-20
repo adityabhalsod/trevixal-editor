@@ -3,6 +3,8 @@ import {
   type EditorNode,
   type Path,
   SetNodeAttrsStep,
+  type TableMapCell,
+  type TableRect,
   nodeAtPath,
 } from '@trevixal/core'
 import { type CellSide, hiddenBordersValue, hiddenSides } from './schema'
@@ -45,10 +47,46 @@ export function showingSides(cell: EditorNode, sides: readonly CellSide[]): stri
  * and the new lines between the parts are drawn.
  */
 export function sidesOfColumnPart(cell: EditorNode, index: number, count: number): string | null {
+  return sidesOfPart(cell, 0, index, 1, count)
+}
+
+/**
+ * `hiddenBorders` for the part at `row`, `column` of a cell cut into `rows`
+ * by `columns`: each part keeps the erased sides on the cell's outside, and
+ * the new lines between the parts are drawn.
+ */
+export function sidesOfPart(
+  cell: EditorNode,
+  row: number,
+  column: number,
+  rows: number,
+  columns: number,
+): string | null {
   const inner: CellSide[] = []
-  if (index > 0) inner.push('left')
-  if (index < count - 1) inner.push('right')
+  if (row > 0) inner.push('top')
+  if (row < rows - 1) inner.push('bottom')
+  if (column > 0) inner.push('left')
+  if (column < columns - 1) inner.push('right')
   return showingSides(cell, inner)
+}
+
+/**
+ * `hiddenBorders` for one cell merged from the cells of a rectangle: a side
+ * of the rectangle stays erased only where every cell along it had it
+ * erased. Part of an edge cannot be hidden, and a line that comes back is
+ * easier to notice than one that quietly went missing.
+ */
+export function sidesOfMergedRect(cells: readonly TableMapCell[], rect: TableRect): string | null {
+  const along = (side: CellSide, onEdge: (cell: TableMapCell) => boolean): boolean => {
+    const edge = cells.filter(onEdge)
+    return edge.length > 0 && edge.every((cell) => hidesSide(cell.node, side))
+  }
+  const sides: CellSide[] = []
+  if (along('top', (cell) => cell.top === rect.top)) sides.push('top')
+  if (along('right', (cell) => cell.left + cell.width === rect.right)) sides.push('right')
+  if (along('bottom', (cell) => cell.top + cell.height === rect.bottom)) sides.push('bottom')
+  if (along('left', (cell) => cell.left === rect.left)) sides.push('left')
+  return hiddenBordersValue(sides)
 }
 
 /**

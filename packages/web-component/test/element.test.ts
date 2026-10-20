@@ -51,6 +51,18 @@ describe('<trevixal-editor>', () => {
     expect(element.editor?.canUndo).toBe(true)
   })
 
+  it('value setter carries the document settings, and a repeat changes nothing', () => {
+    const element = mount('<p>old</p>')
+    const html =
+      '<div data-trevixal-document="" data-heading-numbering="outline"><h1>One</h1></div>'
+    element.value = html
+    expect(element.editor?.state.doc.attrs.headingNumbering).toBe('outline')
+    // A framework re-assigning the same value on every render is not an edit.
+    const undoable = element.editor?.historyEntries().undo.length
+    element.value = html
+    expect(element.editor?.historyEntries().undo.length).toBe(undoable)
+  })
+
   it('getJSON / setJSON round-trip', () => {
     const element = mount('<p>x</p>')
     const json = element.getJSON()

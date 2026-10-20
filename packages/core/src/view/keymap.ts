@@ -4,6 +4,7 @@ import {
   indentInPreformatted,
   outdentInPreformatted,
 } from '../commands/commands'
+import { insertTabAtStop } from '../commands/paragraph-format'
 import type { Editor } from '../editor/editor'
 
 /** A key binding runs against the editor; returning true consumes the event. */
@@ -92,9 +93,16 @@ export function baseKeymap(): Keymap {
     'Mod-Shift-z': (editor) => editor.commands.redo() || true,
     'Mod-y': (editor) => editor.commands.redo() || true,
     // In a code block these indent by two spaces; in a list they indent the
-    // item; elsewhere they fall through to the browser, so Tab still moves
-    // focus out of the editor the way keyboard users expect.
-    Tab: (editor) => editor.exec(indentInPreformatted) || editor.commands.sinkListItem(),
+    // item; in a paragraph with tab stops of its own Tab types a tab;
+    // elsewhere they fall through to the browser, so Tab still moves focus
+    // out of the editor the way keyboard users expect. The first item of a
+    // list has no previous item to nest under, but Tab is still held there:
+    // jumping focus out of the middle of a list reads as a broken key.
+    Tab: (editor) =>
+      editor.exec(indentInPreformatted) ||
+      editor.commands.sinkListItem() ||
+      editor.exec(insertTabAtStop) ||
+      editor.getSnapshot().listType !== null,
     'Shift-Tab': (editor) => editor.exec(outdentInPreformatted) || editor.commands.liftListItem(),
     // Out of a code block from anywhere inside it, and out of any other
     // structure from anywhere inside that: a blockquote, a table cell, a

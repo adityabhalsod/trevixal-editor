@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a SvelteKit app: the whole editor behind a browser guard, on a prerendered route.",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "exec node ../shared/run-server.mjs vite dev",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"

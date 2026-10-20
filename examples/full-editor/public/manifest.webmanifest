@@ -1,0 +1,11 @@
+{
+  "name": "Trevixal editor",
+  "short_name": "Trevixal",
+  "description": "The complete Trevixal editor, working offline once opened.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2f6fed",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

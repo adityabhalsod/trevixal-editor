@@ -13,7 +13,9 @@
         <script src="https://unpkg.com/@trevixal/editor-kit"></script>
 
       Here they come from `vendor/`, filled by `pnpm build`, so the example
-      exercises the code in this checkout rather than the last release.
+      exercises the code in this checkout rather than the last release. So
+      do the language catalogues the script below imports, which a published
+      page takes from https://unpkg.com/@trevixal/ui/dist/locales/.
     -->
     <link rel="stylesheet" href="./vendor/ui-styles.css" />
     <link rel="stylesheet" href="./vendor/kit-styles.css" />
@@ -44,6 +46,15 @@
       TrevixalKit.mountFullEditor({
         element: document.querySelector('#app'),
         namespace: 'trevixal:cdn',
+        // Each catalogue is an ES module of its own, imported only when View ▸
+        // Language picks it. Served pages only: a browser imports no module
+        // from a page opened from disk, so there the menus stay in English.
+        languages: Object.fromEntries(
+          ['de', 'fr', 'es', 'pt', 'hi', 'ja', 'zh', 'ar'].map((code) => [
+            code,
+            () => import(`./vendor/locales/${code}.js`).then((module) => module.default),
+          ]),
+        ),
         aboutRows: [
           { term: 'Example', description: 'vanilla-cdn, every package the workspace ships' },
           { term: 'Build', description: 'CDN: one script tag, no bundler' },

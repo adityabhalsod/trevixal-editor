@@ -5,6 +5,7 @@ import {
   createAnnouncer,
   editorDocument,
 } from '@trevixal/core'
+import { createBlockMenu } from './block-menu'
 import { createIcon } from './icons'
 
 /**
@@ -19,7 +20,21 @@ import { createIcon } from './icons'
  * The same contract the toolbar's group grips use, announced the same way,
  * because a reordering gesture only available to a mouse is not available at
  * all to a good many people.
+ *
+ * Clicked rather than dragged, the grip opens the block menu (turn into,
+ * duplicate, move, copy a link, delete); Shift+F10 or the menu key opens it
+ * from the keyboard.
  */
+
+/** How far past the grip, in px, a pointer may overshoot on its way to it. */
+const MARGIN_SLACK = 12
+
+/**
+ * How far, in em, a list's fold chevrons reach out past the list's own edge
+ * (`--tvx-fold-gutter` in the stylesheet): the grip goes beyond them, or it
+ * covers the chevron of the list's first item and takes its clicks.
+ */
+const FOLD_CHEVRON_REACH_EM = 0.8
 
 export interface BlockDragHandleOptions {
   /**
@@ -59,8 +74,9 @@ export function createBlockDragHandle(
   grip.type = 'button'
   grip.className = 'trevixal-blockgrip'
   grip.dataset.trevixalItem = 'blockGrip'
-  grip.title = 'Move this block'
+  grip.title = 'Drag to move this block, or click for its menu'
   grip.setAttribute('aria-label', 'Move this block')
+  grip.setAttribute('aria-haspopup', 'menu')
   grip.hidden = true
   const glyph = createIcon(doc, 'grip')
   if (glyph) grip.appendChild(glyph)
@@ -70,11 +86,14 @@ export function createBlockDragHandle(
   indicator.hidden = true
 
   host.append(grip, indicator)
+  const menu = createBlockMenu(editor, { container: host, announcer })
 
   /** The index of the top-level block the grip currently belongs to. */
   let hovered: number | null = null
   /** The index being moved, once a move has started. */
   let carrying: number | null = null
+  /** Where a press on the grip began, to tell a click from a drag. */
+  let pressedAt: number | null = null
 
   const blocks = (): HTMLElement[] => {
     const surface = editor.view?.dom
@@ -95,7 +114,14 @@ export function createBlockDragHandle(
     const box = element.getBoundingClientRect()
     const hostBox = host.getBoundingClientRect()
     grip.hidden = false
-    grip.style.left = `${box.left - hostBox.left - host.clientLeft + host.scrollLeft - grip.offsetWidth - gap}px`
+    // Beside where the block's lines start: its right edge in right-to-left text.
+    const style = doc.defaultView?.getComputedStyle(element)
+    const rtl = style?.direction === 'rtl'
+    const clearance = element.matches('ul, ol')
+      ? FOLD_CHEVRON_REACH_EM * Number.parseFloat(style?.fontSize ?? '16')
+      : 0
+    const x = rtl ? box.right + gap + clearance : box.left - grip.offsetWidth - gap - clearance
+    grip.style.left = `${x - hostBox.left - host.clientLeft + host.scrollLeft}px`
     grip.style.top = `${box.top - hostBox.top - host.clientTop + host.scrollTop}px`
   }
 
@@ -145,8 +171,51 @@ export function createBlockDragHandle(
 
   // ------------------------------------------------------------- pointer
 
-  const onSurfaceMove = (event: PointerEvent): void => {
-    if (carrying !== null || !editor.isEditable) return
+  /**
+   * Whether the pointer is over the text or the margin beside it, where the
+   * grip hangs. The grip sits at a block's first line, so a hand heading for
+   * it from lower down the block crosses that margin first: leaving the
+   * surface there is on the way to the grip, not away from the editor.
+   */
+  const nearSurface = (event: PointerEvent): boolean => {
+    const surface = editor.view?.dom
+    if (!surface) return false
+    const target = event.target
+    if (target instanceof Node && (surface.contains(target) || grip.contains(target))) return true
+    const box = surface.getBoundingClientRect()
+    const reach = grip.offsetWidth + gap + MARGIN_SLACK
+    const rtl = doc.defaultView?.getComputedStyle(surface).direction === 'rtl'
+    const left = rtl ? box.left : box.left - reach
+    const right = rtl ? box.right + reach : box.right
+    return (
+      event.clientX >= left &&
+      event.clientX <= right &&
+      event.clientY >= box.top &&
+      event.clientY <= box.bottom
+    )
+  }
+
+  /** A press on the grip that ended where the grip never heard it end: put the block back. */
+  const dropPress = (): void => {
+    if (pressedAt === null) return
+    pressedAt = null
+    indicator.hidden = true
+    carrying = null
+    grip.removeAttribute('aria-pressed')
+  }
+
+  const onPointerMove = (event: PointerEvent): void => {
+    if (carrying !== null) {
+      // No button down while a press is carrying: it came up over a frame,
+      // which Firefox does not report to the grip.
+      if (event.buttons === 0) dropPress()
+      return
+    }
+    if (!editor.isEditable) return
+    if (!nearSurface(event)) {
+      grip.hidden = true
+      return
+    }
     const list = blocks()
     const index = list.findIndex((element) => {
       const box = element.getBoundingClientRect()
@@ -157,17 +226,11 @@ export function createBlockDragHandle(
     place(index)
   }
 
-  const onLeave = (event: PointerEvent): void => {
-    if (carrying !== null) return
-    // Moving onto the grip itself is not leaving.
-    const to = event.relatedTarget
-    if (to instanceof Node && (grip.contains(to) || grip === to)) return
-    grip.hidden = true
-  }
-
   const onGripDown = (event: PointerEvent): void => {
     if (hovered === null) return
     event.preventDefault()
+    menu.close()
+    pressedAt = event.clientY
     carrying = hovered
     grip.setAttribute('aria-pressed', 'true')
     grip.setPointerCapture(event.pointerId)
@@ -179,16 +242,27 @@ export function createBlockDragHandle(
     showDrop(gapNear(event.clientY))
   }
 
+  /** Pointer travel under which a press is a click, in px. */
+  const CLICK_SLOP = 4
+
   const onGripUp = (event: PointerEvent): void => {
     if (carrying === null) return
     const from = carrying
-    finish(from, targetFor(from, gapNear(event.clientY)))
+    const clicked = pressedAt !== null && Math.abs(event.clientY - pressedAt) < CLICK_SLOP
+    pressedAt = null
+    finish(from, clicked ? from : targetFor(from, gapNear(event.clientY)))
+    if (clicked) menu.open(from, grip)
   }
 
   // ------------------------------------------------------------ keyboard
 
   const onGripKey = (event: KeyboardEvent): void => {
     const count = blocks().length
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      event.preventDefault()
+      if (hovered !== null && carrying === null) menu.open(hovered, grip)
+      return
+    }
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault()
       if (carrying === null) {
@@ -227,18 +301,20 @@ export function createBlockDragHandle(
     announcer.announce(`Position ${to + 1} of ${count}`)
   }
 
-  const surfaceOf = (): HTMLElement | null => editor.view?.dom ?? null
-  const surface = surfaceOf()
-  surface?.addEventListener('pointermove', onSurfaceMove as EventListener)
-  surface?.addEventListener('pointerleave', onLeave as EventListener)
+  doc.addEventListener('pointermove', onPointerMove)
   grip.addEventListener('pointerdown', onGripDown)
   grip.addEventListener('pointermove', onGripMove)
   grip.addEventListener('pointerup', onGripUp)
+  // A press the browser takes back (a touch that turned into a scroll) or
+  // whose capture it drops ends without a pointerup.
+  grip.addEventListener('pointercancel', dropPress)
+  grip.addEventListener('lostpointercapture', dropPress)
   grip.addEventListener('keydown', onGripKey)
 
   return {
     element: grip,
     reset() {
+      menu.close()
       indicator.hidden = true
       carrying = null
       hovered = null
@@ -246,9 +322,8 @@ export function createBlockDragHandle(
       grip.removeAttribute('aria-pressed')
     },
     destroy() {
-      const current = surfaceOf()
-      current?.removeEventListener('pointermove', onSurfaceMove as EventListener)
-      current?.removeEventListener('pointerleave', onLeave as EventListener)
+      doc.removeEventListener('pointermove', onPointerMove)
+      menu.destroy()
       grip.remove()
       indicator.remove()
       if (ownsAnnouncer) announcer.destroy()

@@ -144,6 +144,20 @@ export function setImageAlt(alt: string, at?: Path): Command {
 }
 
 /** Select an image as a whole node, the way clicking it does. */
+/**
+ * Mark an image as decoration, or take the mark off. A decorative image has
+ * no alt text, so screen readers pass it by; one that is not keeps what it
+ * had, for its alt text to be written.
+ */
+export function setImageDecorative(decorative: boolean, at?: Path): Command {
+  return (state) => {
+    const hit = findImage(state, at)
+    if (!hit || (hit.node.attrs.decorative === true) === decorative) return null
+    const attrs = { ...hit.node.attrs, decorative, ...(decorative ? { alt: '' } : {}) }
+    return state.tr.step(new SetNodeAttrsStep(hit.path, attrs))
+  }
+}
+
 export function selectImage(at: Path): Command {
   return (state) => {
     const hit = hitAt(state.doc, at)

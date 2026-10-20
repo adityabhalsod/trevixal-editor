@@ -2,6 +2,7 @@ import type { Fragment } from '../model/fragment'
 import { inlineSize } from '../model/inline'
 import type { EditorNode, TextNode } from '../model/node'
 import type { HTMLSpec } from '../model/schema'
+import { documentSettingsAttrs } from '../schema/document-settings'
 
 /** An inline range in a textblock rendered with an extra class (search match, …). */
 export interface InlineDecoration {
@@ -96,6 +97,8 @@ export class DOMRenderer {
   /** Decorations each content element last rendered with, for cheap change checks. */
   private readonly renderedDecorations = new WeakMap<HTMLElement, readonly InlineDecoration[]>()
   private readonly instances = new WeakMap<HTMLElement, NodeViewInstance>()
+  /** Attribute names the document's settings last put on the root. */
+  private rootAttrs: readonly string[] = []
 
   constructor(
     private readonly document: Document,
@@ -108,11 +111,27 @@ export class DOMRenderer {
     this.epoch++
   }
 
-  /** Sync the root element's children with the document node's children. */
+  /**
+   * Sync the root element with the document node: its children, and the
+   * attributes the document's settings are written as, which the stylesheet
+   * reads off the editing surface just as it does off a saved page's wrapper.
+   */
   renderDoc(doc: EditorNode, root: HTMLElement): void {
     this.modelOf.set(root, doc)
     this.contentOf.set(root, root)
+    this.syncRootAttrs(doc, root)
     this.patchChildren(root, doc.content)
+  }
+
+  private syncRootAttrs(doc: EditorNode, root: HTMLElement): void {
+    const next = documentSettingsAttrs(doc)
+    for (const name of this.rootAttrs) {
+      if (!(name in next)) root.removeAttribute(name)
+    }
+    for (const [name, value] of Object.entries(next)) {
+      if (root.getAttribute(name) !== value) root.setAttribute(name, value)
+    }
+    this.rootAttrs = Object.keys(next)
   }
 
   /** The element that holds a rendered node's children. */

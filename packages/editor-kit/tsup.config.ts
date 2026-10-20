@@ -2,7 +2,9 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig([
   {
-    entry: ['src/index.ts'],
+    // The export worker is an entry of its own: the page starts it with
+    // `new URL('./export-worker.js', import.meta.url)`, which a bundler follows.
+    entry: ['src/index.ts', 'src/export-worker.ts'],
     format: ['esm', 'cjs'],
     dts: true,
     sourcemap: true,

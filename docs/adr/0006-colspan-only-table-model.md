@@ -1,6 +1,6 @@
 # ADR-0006: Colspan-only table cell merging
 
-**Status:** Accepted, 2026-08-30
+**Status:** Superseded by [ADR-0011](./0011-rectangular-cell-merging), 2026-09-29. Accepted, 2026-08-30
 
 ## Context
 

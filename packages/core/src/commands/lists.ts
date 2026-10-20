@@ -41,6 +41,11 @@ export function isListItemTypeName(typeName: string | undefined): boolean {
   return typeName !== undefined && ITEM_TYPE_NAMES.has(typeName)
 }
 
+/** Whether a node type names a list: bullets, numbers or tasks. */
+export function isListTypeName(typeName: string): boolean {
+  return Object.hasOwn(ITEM_TYPES, typeName)
+}
+
 /** Item type a list type holds; `listItem` for anything unregistered. */
 function itemTypeNameFor(listTypeName: string): string {
   return ITEM_TYPES[listTypeName] ?? 'listItem'
@@ -183,12 +188,16 @@ export const splitListItem: Command = (state) => {
   tr.step(new SplitNodeStep(point.path, point.offset))
 
   // Move the second half (and any later blocks of this item) into a new item.
+  // A folded item keeps the blocks it hides: the new item goes after them,
+  // as an outliner's does, rather than bringing them into view.
   const item = nodeAtPath(tr.doc, context.itemPath)
   if (!item) return null
-  const moved = item.content.slice(blockIndex + 1)
-  tr.step(new ReplaceNodesStep(context.itemPath, blockIndex + 1, item.childCount, Fragment.empty))
+  const end = context.item.attrs.folded === true ? blockIndex + 2 : item.childCount
+  const moved = Fragment.from(item.content.children.slice(blockIndex + 1, end))
+  tr.step(new ReplaceNodesStep(context.itemPath, blockIndex + 1, end, Fragment.empty))
   // The new item inherits the old one's type but never its `checked` state:
-  // splitting a finished task yields a fresh, unfinished one.
+  // splitting a finished task yields a fresh, unfinished one. Nor its due
+  // date, assignee or fold, which are the old item's own.
   const itemType = context.item.type
   const newAttrs = 'checked' in context.item.attrs ? { checked: false } : undefined
   tr.step(
@@ -203,45 +212,68 @@ export const splitListItem: Command = (state) => {
   return tr
 }
 
-/** Tab: nest the current item under its previous sibling. */
+/**
+ * Backspace on an empty point takes it out of its list, as Enter on one does:
+ * the way a word processor's Backspace clears a blank line's numbering. A
+ * nested point comes out one level; a top-level one becomes a plain line. A
+ * point with text, or a blank line below a point's first, is left to
+ * Backspace's own deleting and joining.
+ */
+export const liftEmptyListItem: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  if (!listContextAt(state.doc, path) || path[path.length - 1] !== 0) return null
+  const block = nodeAtPath(state.doc, path)
+  if (!block?.isTextblock || inlineLength(block.content) > 0) return null
+  return liftListItem(state)
+}
+
+/**
+ * Tab: nest the current item under its previous sibling, and with it every
+ * later item of the same list the selection reaches: selecting three items
+ * and pressing Tab used to nest the first alone.
+ */
 export const sinkListItem: Command = (state) => {
   const selection = state.selection
   const context = listContextAt(state.doc, selection.from.path)
   if (!context || context.itemIndex === 0) return null
-  const previous = context.list.content.child(context.itemIndex - 1)
+  const { list, listPath, itemIndex } = context
+  const depth = listPath.length
+  const toPath = selection.to.path
+  const reaches = toPath.length > depth && pathsEqual(toPath.slice(0, depth), listPath)
+  const lastIndex = reaches ? Math.max(itemIndex, toPath[depth] as number) : itemIndex
+  const moved = Fragment.from(list.content.children.slice(itemIndex, lastIndex + 1))
+  const previous = list.content.child(itemIndex - 1)
   const lastChild = previous.content.maybeChild(previous.childCount - 1)
-  const restPath = selection.from.path.slice(context.listPath.length + 1)
 
-  let replacement: EditorNode
-  let newBlockPath: Path
-  if (lastChild && lastChild.type === context.list.type) {
-    // Previous item already ends in a same-type nested list: append there.
-    const nested = lastChild.withContent(lastChild.content.append(Fragment.of(context.item)))
-    replacement = previous.withContent(
-      previous.content.replaceChild(previous.childCount - 1, nested),
-    )
-    newBlockPath = [
-      ...context.listPath,
-      context.itemIndex - 1,
-      previous.childCount - 1,
-      lastChild.childCount,
-      ...restPath,
-    ]
-  } else {
-    const nested = context.list.type.create(undefined, Fragment.of(context.item))
-    replacement = previous.withContent(previous.content.append(Fragment.of(nested)))
-    newBlockPath = [...context.listPath, context.itemIndex - 1, previous.childCount, 0, ...restPath]
-  }
+  // Previous item already ends in a same-type nested list: append there.
+  const tail = lastChild?.type === list.type ? lastChild : null
+  const nestedIndex = tail ? previous.childCount - 1 : previous.childCount
+  const firstSlot = tail ? tail.childCount : 0
+  const replacement = tail
+    ? previous.withContent(
+        previous.content.replaceChild(nestedIndex, tail.withContent(tail.content.append(moved))),
+      )
+    : previous.withContent(previous.content.append(Fragment.of(list.type.create(undefined, moved))))
   const tr = state.tr
-  tr.step(
-    new ReplaceNodesStep(
-      context.listPath,
-      context.itemIndex - 1,
-      context.itemIndex + 1,
-      Fragment.of(replacement),
-    ),
-  )
-  tr.setSelection(new TextSelection(pos(newBlockPath, selection.from.offset)))
+  tr.step(new ReplaceNodesStep(listPath, itemIndex - 1, lastIndex + 1, Fragment.of(replacement)))
+
+  // Each end of the selection moves with the item it is in.
+  const moveWith = (position: Position): Position => {
+    const index = position.path[depth] as number
+    if (!pathsEqual(position.path.slice(0, depth), listPath) || index < itemIndex) return position
+    const rest = position.path.slice(depth + 1)
+    return pos(
+      [...listPath, itemIndex - 1, nestedIndex, firstSlot + index - itemIndex, ...rest],
+      position.offset,
+    )
+  }
+  const [anchor, head] =
+    selection instanceof TextSelection
+      ? [selection.anchor, selection.head]
+      : [selection.from, selection.from]
+  tr.setSelection(new TextSelection(moveWith(anchor), moveWith(head)))
   return tr
 }
 
@@ -250,21 +282,30 @@ export const liftListItem: Command = (state) => {
   const selection = state.selection
   const context = listContextAt(state.doc, selection.from.path)
   if (!context) return null
-  const items = context.list.content.children
-  const before = items.slice(0, context.itemIndex)
-  const after = items.slice(context.itemIndex + 1)
-  const blockIndex = (selection.from.path[context.listPath.length + 1] as number | undefined) ?? 0
+  const { list, listPath, itemIndex } = context
+  const depth = listPath.length
+  // Every item of this list the selection reaches is lifted, as Tab nests them.
+  const toPath = selection.to.path
+  const reaches = toPath.length > depth && pathsEqual(toPath.slice(0, depth), listPath)
+  const lastIndex = reaches ? Math.max(itemIndex, toPath[depth] as number) : itemIndex
+  const items = list.content.children
+  const before = items.slice(0, itemIndex)
+  const lifted = items.slice(itemIndex, lastIndex + 1)
+  const after = items.slice(lastIndex + 1)
   const tr = state.tr
 
-  // Nested list (this list lives inside another list item): the lifted item
-  // becomes a sibling of its parent item in the outer list.
-  const parentItemPath = context.listPath.slice(0, -1)
+  /** Where a position in a lifted item ends up, or null for one in none of them. */
+  let moveWith: (position: Position) => Position | null
+
+  // Nested list (this list lives inside another list item): the lifted items
+  // become siblings of their parent item in the outer list.
+  const parentItemPath = listPath.slice(0, -1)
   const parentItem = parentItemPath.length > 0 ? nodeAtPath(state.doc, parentItemPath) : null
   if (parentItem && isListItemTypeName(parentItem.type.name)) {
-    const listIndexInItem = context.listPath[context.listPath.length - 1] as number
+    const listIndexInItem = listPath[depth - 1] as number
     const outerPath = parentItemPath.slice(0, -1)
     const parentIndex = parentItemPath[parentItemPath.length - 1] as number
-    const keptNested = before.length > 0 ? [context.list.withContent(Fragment.from(before))] : []
+    const keptNested = before.length > 0 ? [list.withContent(Fragment.from(before))] : []
     const newParent = parentItem.withContent(
       parentItem.content.replaceRange(
         listIndexInItem,
@@ -272,37 +313,69 @@ export const liftListItem: Command = (state) => {
         Fragment.from(keptNested),
       ),
     )
-    const carried =
-      after.length > 0 ? [context.list.type.create(undefined, Fragment.from(after))] : []
-    const newItem = context.item.withContent(context.item.content.append(Fragment.from(carried)))
+    // The items after the lifted ones stay nested, under the last lifted one.
+    const carried = after.length > 0 ? [list.type.create(undefined, Fragment.from(after))] : []
+    const last = lifted[lifted.length - 1] as EditorNode
+    const newItems = [
+      ...lifted.slice(0, -1),
+      last.withContent(last.content.append(Fragment.from(carried))),
+    ]
     tr.step(
       new ReplaceNodesStep(
         outerPath,
         parentIndex,
         parentIndex + 1,
-        Fragment.of(newParent, newItem),
+        Fragment.from([newParent, ...newItems]),
       ),
     )
-    tr.setSelection(
-      new TextSelection(pos([...outerPath, parentIndex + 1, blockIndex], selection.from.offset)),
-    )
-    return tr
+    moveWith = (position) => {
+      const index = (position.path[depth] as number) - itemIndex
+      if (
+        !pathsEqual(position.path.slice(0, depth), listPath) ||
+        index < 0 ||
+        index >= lifted.length
+      )
+        return null
+      return pos(
+        [...outerPath, parentIndex + 1 + index, ...position.path.slice(depth + 1)],
+        position.offset,
+      )
+    }
+  } else {
+    // Top-level list: the items' blocks land beside the (possibly split) list.
+    const replacement: EditorNode[] = []
+    if (before.length > 0) replacement.push(list.withContent(Fragment.from(before)))
+    for (const item of lifted) replacement.push(...item.content.children)
+    if (after.length > 0) replacement.push(list.type.create(undefined, Fragment.from(after)))
+    tr.step(replaceNodeAt(listPath, Fragment.from(replacement)))
+
+    const parentPath = listPath.slice(0, -1)
+    const firstIndex = (listPath[depth - 1] as number) + (before.length > 0 ? 1 : 0)
+    moveWith = (position) => {
+      const index = (position.path[depth] as number) - itemIndex
+      if (
+        !pathsEqual(position.path.slice(0, depth), listPath) ||
+        index < 0 ||
+        index >= lifted.length
+      )
+        return null
+      const blocksBefore = lifted.slice(0, index).reduce((sum, item) => sum + item.childCount, 0)
+      const blockIndex = (position.path[depth + 1] as number | undefined) ?? 0
+      return pos(
+        [...parentPath, firstIndex + blocksBefore + blockIndex, ...position.path.slice(depth + 2)],
+        position.offset,
+      )
+    }
   }
 
-  // Top-level list: the item's blocks land beside the (possibly split) list.
-  const replacement: EditorNode[] = []
-  if (before.length > 0) replacement.push(context.list.withContent(Fragment.from(before)))
-  replacement.push(...context.item.content.children)
-  if (after.length > 0) {
-    replacement.push(context.list.type.create(undefined, Fragment.from(after)))
-  }
-  tr.step(replaceNodeAt(context.listPath, Fragment.from(replacement)))
-
-  const listIndex = context.listPath[context.listPath.length - 1] as number
-  const newIndex = listIndex + (before.length > 0 ? 1 : 0) + blockIndex
-  tr.setSelection(
-    new TextSelection(pos([...context.listPath.slice(0, -1), newIndex], selection.from.offset)),
-  )
+  // An end of the selection outside the lifted items has moved with the
+  // blocks around it, so the selection collapses to where its start went.
+  const from = moveWith(selection.from) as Position
+  const [anchor, head] =
+    selection instanceof TextSelection
+      ? [moveWith(selection.anchor) ?? from, moveWith(selection.head) ?? from]
+      : [from, from]
+  tr.setSelection(new TextSelection(anchor, head))
   return tr
 }
 
@@ -452,7 +525,7 @@ function renumbered(list: EditorNode, scheme: ListNumberingScheme, isRoot: boole
  */
 export function setListNumbering(schemeId: string): Command {
   return (state) => {
-    const scheme = listNumberingScheme(schemeId)
+    const scheme = listNumberingScheme(schemeId, state.doc)
     if (!scheme) return null
     const type = state.schema.nodeType(scheme.listType)
     if (storedNumbering(scheme) !== null && !('numbering' in (type.spec.attrs ?? {}))) return null
@@ -491,5 +564,5 @@ export const unwrapList: Command = (state) => {
  */
 export function listNumberingAt(doc: EditorNode, blockPath: Path): ListNumberingScheme | null {
   const root = listTreeRootAt(doc, blockPath)
-  return root ? listNumberingOf(root.node) : null
+  return root ? listNumberingOf(root.node, doc) : null
 }

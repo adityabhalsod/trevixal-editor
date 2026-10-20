@@ -13,7 +13,9 @@ IndexedDB, or an encrypted wrapper.
 ## Tabs
 
 Open documents appear as tabs above the editor. The tab strip owns the
-autosave into the store, so there is one strip per page.
+autosave into the store, so there is one strip per page. The command palette
+(`Ctrl+K`) lists the documents opened lately at its top, so a jump back to
+one is a few keys away.
 
 ## Two views of one document
 
@@ -26,3 +28,22 @@ Both panes carry the syntax colours, the drawn diagrams and the working tab
 strips the editor has, none of which is in the document itself. The
 [workspace extension](../extensions/workspace) page explains how, and what
 the preview's sandbox does and does not allow.
+
+## Links between documents
+
+Type `[[` to link to another document in the workspace. A list of documents
+opens and narrows as you type; `Enter` or a click puts in a link to the one
+picked. The link keeps working when the document is renamed, since it points
+at the document rather than its title.
+
+A click on the link opens its document in a tab. Under the folders,
+*Backlinks* lists the documents that link to the one you are reading, each a
+button that opens it.
+
+## Including one document in another
+
+*Insert > Include from workspace...* shows another document, or one block
+of it, inside this one. The inclusion follows its source: change the source
+and, once it is saved, the inclusion shows the change. It cannot be edited
+where it is included; its *Open* button opens the source. A block can be
+included when it has an id, which a link to it gives it.

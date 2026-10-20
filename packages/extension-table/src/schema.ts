@@ -109,6 +109,28 @@ export function hiddenBordersValue(sides: Iterable<CellSide>): string | null {
   return value === '' ? null : value
 }
 
+/** Where a cell's content sits in its height. Top, the default, is stored as null. */
+export type CellVerticalAlign = 'top' | 'middle' | 'bottom'
+
+export const CELL_VERTICAL_ALIGNS: readonly CellVerticalAlign[] = ['top', 'middle', 'bottom']
+
+/** A vertical alignment as a cell stores it: null for top, the default, and for anything unknown. */
+export function cellVerticalAlign(value: unknown): CellVerticalAlign | null {
+  const align = typeof value === 'string' ? value.trim().toLowerCase() : null
+  // `center` is what `valign` and Word call the middle.
+  const named = align === 'center' ? 'middle' : align
+  return named === 'middle' || named === 'bottom' ? named : null
+}
+
+/**
+ * The room inside a table's cells, as a length the schema will emit: `0`,
+ * or px, em or rem. Null is the stylesheet's own, the default.
+ */
+export function cellPadding(value: unknown): string | null {
+  const length = safeTableLength(value)
+  return length !== null && /^(?:0|[\d.]+(?:px|em|rem))$/.test(length) ? length : null
+}
+
 const ALIGNS: readonly CellAlign[] = ['left', 'center', 'right']
 
 function parseAlign(value: string | null): CellAlign | null {
@@ -145,8 +167,9 @@ function styleValue(element: HTMLElement, property: string): string | null {
  * Table node specs to merge into a schema:
  * `new Schema({ nodes: { ...defaultNodes(), ...tableNodes() }, marks: … })`.
  *
- * Cells span horizontally via `colspan`; vertical (rowspan) merging is a
- * roadmap item. A cell with `header: true` renders as `th`.
+ * Cells span columns with `colspan` and rows with `rowspan`, as HTML's do
+ * (ADR-0011): a row holds only the cells that start in it. A cell with
+ * `header: true` renders as `th`.
  */
 export function tableNodes(): Record<string, NodeSpec> {
   return {
@@ -177,6 +200,14 @@ export function tableNodes(): Record<string, NodeSpec> {
         totalRow: { default: false },
         bandedRows: { default: false },
         bandedColumns: { default: false },
+        // The header row stays at the top of the window while a long table
+        // scrolls by. (It heads every printed page, and every page in Word,
+        // either way: that is what a header row is for.)
+        freezeHeader: { default: false },
+        // The first column stays in view while a wide table scrolls sideways.
+        freezeColumn: { default: false },
+        // Word's cell margins, for every cell of the table (see cellPadding).
+        cellPadding: { default: null },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
@@ -203,6 +234,9 @@ export function tableNodes(): Record<string, NodeSpec> {
         for (const option of TABLE_STYLE_OPTIONS) {
           if (node.attrs[option] === true) attrs[OPTION_ATTRIBUTES[option]] = ''
         }
+        if (node.attrs.freezeHeader === true) attrs['data-freeze-header'] = ''
+        if (node.attrs.freezeColumn === true) attrs['data-freeze-column'] = ''
+        addStyle(attrs, '--tvx-cell-padding', cellPadding(node.attrs.cellPadding))
         return { tag: 'table', attrs }
       },
       parseHTML: [
@@ -226,6 +260,12 @@ export function tableNodes(): Record<string, NodeSpec> {
               tableStyle: style,
               accentColor: style ? safeColor(element.getAttribute('data-accent-color')) : null,
               ...options,
+              freezeHeader: element.hasAttribute('data-freeze-header'),
+              freezeColumn: element.hasAttribute('data-freeze-column'),
+              // Read off the attribute: not every DOM parses a custom property.
+              cellPadding: cellPadding(
+                /--tvx-cell-padding:\s*([^;]+)/.exec(element.getAttribute('style') ?? '')?.[1],
+              ),
             }
           },
         },
@@ -233,14 +273,25 @@ export function tableNodes(): Record<string, NodeSpec> {
     },
     tableRow: {
       content: 'tableCell+',
-      attrs: { height: { default: null } },
+      attrs: {
+        height: { default: null },
+        // Out of sight, not deleted: a row a filter hid (Table ▸ Filter rows).
+        hidden: { default: false },
+      },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
         addStyle(attrs, 'height', safeTableLength(node.attrs.height))
+        if (node.attrs.hidden === true) attrs['data-hidden'] = ''
         return { tag: 'tr', attrs }
       },
       parseHTML: [
-        { tag: 'tr', getAttrs: (element) => ({ height: styleValue(element, 'height') }) },
+        {
+          tag: 'tr',
+          getAttrs: (element) => ({
+            height: styleValue(element, 'height'),
+            hidden: element.hasAttribute('data-hidden'),
+          }),
+        },
       ],
     },
     tableCell: {
@@ -248,23 +299,40 @@ export function tableNodes(): Record<string, NodeSpec> {
       attrs: {
         header: { default: false },
         colspan: { default: 1 },
+        rowspan: { default: 1 },
         align: { default: null },
         // A column's width lives on its cells, which is how HTML carries it.
         width: { default: null },
         background: { default: null },
         // Sides whose line the Eraser took out, `'top left'`; null draws all four.
         hiddenBorders: { default: null },
+        // `middle` or `bottom`; null sits the content at the top.
+        verticalAlign: { default: null },
+        // What the cell's column holds, beyond text (see `setColumnType`):
+        // `number`, `currency`, `percentage`, `date` or `checkbox`.
+        valueType: { default: null },
+        // A checkbox cell's tick.
+        checked: { default: false },
+        // Out of sight, not deleted: a cell of a hidden column (Table ▸ Hide column).
+        hidden: { default: false },
       },
       toHTML: (node) => {
         const attrs: Record<string, string> = {}
         const colspan = node.attrs.colspan
         if (typeof colspan === 'number' && colspan > 1) attrs.colspan = String(colspan)
+        const rowspan = node.attrs.rowspan
+        if (typeof rowspan === 'number' && rowspan > 1) attrs.rowspan = String(rowspan)
         const align = parseAlign(node.attrs.align as string | null)
         if (align) addStyle(attrs, 'text-align', align)
+        addStyle(attrs, 'vertical-align', cellVerticalAlign(node.attrs.verticalAlign))
         addStyle(attrs, 'width', safeTableLength(node.attrs.width))
         addStyle(attrs, 'background-color', safeColor(node.attrs.background))
         const hidden = hiddenBordersValue(hiddenSides(node.attrs.hiddenBorders))
         if (hidden) attrs['data-hidden-borders'] = hidden
+        const valueType = cellValueTypeName(node.attrs.valueType)
+        if (valueType) attrs['data-value-type'] = valueType
+        if (valueType === 'checkbox' && node.attrs.checked === true) attrs['data-checked'] = ''
+        if (node.attrs.hidden === true) attrs['data-hidden'] = ''
         return { tag: node.attrs.header === true ? 'th' : 'td', attrs }
       },
       parseHTML: [
@@ -275,9 +343,48 @@ export function tableNodes(): Record<string, NodeSpec> {
   }
 }
 
+const VALUE_TYPES = ['number', 'currency', 'percentage', 'date', 'checkbox'] as const
+
+/** A cell value type the schema knows, or null. */
+function cellValueTypeName(value: unknown): (typeof VALUE_TYPES)[number] | null {
+  return VALUE_TYPES.includes(value as (typeof VALUE_TYPES)[number])
+    ? (value as (typeof VALUE_TYPES)[number])
+    : null
+}
+
+/**
+ * The value type a spreadsheet's copied cell says it holds. Excel marks a
+ * number with `x:num` and a boolean with `x:bool`; Google Sheets writes the
+ * value as JSON in `data-sheets-value`, its type under key `1` (3 a number,
+ * 4 a boolean). What the number is, money, a percentage or a date, shows in
+ * the text as it was formatted.
+ */
+function spreadsheetValueType(element: HTMLElement): (typeof VALUE_TYPES)[number] | null {
+  const sheets = element.getAttribute('data-sheets-value') ?? ''
+  if (element.hasAttribute('x:bool') || /"1"\s*:\s*4\b/.test(sheets)) return 'checkbox'
+  const numeric = element.hasAttribute('x:num') || /"1"\s*:\s*3\b/.test(sheets)
+  if (!numeric) return null
+  const text = (element.textContent ?? '').trim()
+  if (text.endsWith('%')) return 'percentage'
+  if (/^[-(]?[$£€¥₹]/.test(text)) return 'currency'
+  if (/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/.test(text)) return 'date'
+  return 'number'
+}
+
+/** The most rows one cell may span, HTML's own ceiling for columns. */
+const MAX_ROWSPAN = 1000
+
+/** A span attribute as a whole number from 1 to `max`; anything else is 1. */
+function spanAttr(element: HTMLElement, name: 'colspan' | 'rowspan', max: number): number {
+  const value = Number.parseInt(element.getAttribute(name) ?? '1', 10)
+  return Number.isNaN(value) || value < 1 ? 1 : Math.min(value, max)
+}
+
 function cellAttrsFrom(element: HTMLElement, header: boolean): Record<string, unknown> {
-  const colspanRaw = Number.parseInt(element.getAttribute('colspan') ?? '1', 10)
-  const colspan = Number.isNaN(colspanRaw) || colspanRaw < 1 ? 1 : Math.min(colspanRaw, 100)
+  const colspan = spanAttr(element, 'colspan', 100)
+  // `rowspan="0"` spans the rest of the section in HTML; one row is what the
+  // grid can be sure of.
+  const rowspan = spanAttr(element, 'rowspan', MAX_ROWSPAN)
   const style = element.getAttribute('style') ?? ''
   const styleMatch = /text-align:\s*(left|center|right)/i.exec(style)
   const align = parseAlign(
@@ -288,5 +395,26 @@ function cellAttrsFrom(element: HTMLElement, header: boolean): Record<string, un
     backgroundMatch?.[1]?.trim() ?? element.getAttribute('bgcolor') ?? null,
   )
   const hiddenBorders = hiddenBordersValue(hiddenSides(element.getAttribute('data-hidden-borders')))
-  return { header, colspan, align, width: styleValue(element, 'width'), background, hiddenBorders }
+  const verticalAlign = cellVerticalAlign(
+    element.style.verticalAlign || element.getAttribute('valign'),
+  )
+  const valueType =
+    cellValueTypeName(element.getAttribute('data-value-type')) ?? spreadsheetValueType(element)
+  const checked =
+    element.hasAttribute('data-checked') ||
+    /"4"\s*:\s*true/.test(element.getAttribute('data-sheets-value') ?? '') ||
+    /^true$/i.test(element.getAttribute('x:bool') ?? '')
+  return {
+    header,
+    colspan,
+    rowspan,
+    valueType,
+    checked: valueType === 'checkbox' && checked,
+    hidden: element.hasAttribute('data-hidden'),
+    align,
+    width: styleValue(element, 'width'),
+    background,
+    hiddenBorders,
+    verticalAlign,
+  }
 }

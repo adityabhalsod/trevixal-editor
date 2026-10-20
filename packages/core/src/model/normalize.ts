@@ -24,27 +24,29 @@ function normalizeNode(node: EditorNode): EditorNode {
     return node.childCount === 0 ? node : node.withContent(Fragment.empty)
   }
 
-  let children = node.content.children.map((child) =>
-    stripDisallowedMarks(normalizeNode(child), node),
-  )
+  const children = node.content.children.map(normalizeNode)
 
   if (node.isTextblock) {
     // Inline context: flatten any stray block children into their inline content.
-    children = children.flatMap((child) =>
-      child.isInline ? [child] : child.content.children.filter((inner) => inner.isInline),
-    )
-    return node.withContent(mergeInline(Fragment.from(children)))
+    const inline = children
+      .map((child) => stripDisallowedMarks(child, node))
+      .flatMap((child) =>
+        child.isInline ? [child] : child.content.children.filter((inner) => inner.isInline),
+      )
+    return node.withContent(mergeInline(Fragment.from(inline)))
   }
 
   // Block context: wrap runs of stray inline children in the default textblock.
+  // Their marks are checked against that textblock, not against this block,
+  // which allows none: text pasted loose from a `<div>` lost its bold there.
   const schema = node.type.schema
   const wrapped: EditorNode[] = []
   let inlineRun: EditorNode[] = []
   const flushRun = (): void => {
     if (inlineRun.length > 0) {
-      wrapped.push(
-        schema.firstTextblockType().create(undefined, mergeInline(Fragment.from(inlineRun))),
-      )
+      const textblock = schema.firstTextblockType().create()
+      const inline = inlineRun.map((child) => stripDisallowedMarks(child, textblock))
+      wrapped.push(textblock.withContent(mergeInline(Fragment.from(inline))))
       inlineRun = []
     }
   }
@@ -53,7 +55,7 @@ function normalizeNode(node: EditorNode): EditorNode {
       inlineRun.push(child)
     } else {
       flushRun()
-      wrapped.push(child)
+      wrapped.push(stripDisallowedMarks(child, node))
     }
   }
   flushRun()

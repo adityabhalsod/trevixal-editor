@@ -89,7 +89,13 @@ describe('block inserts', () => {
 
   it('declines unsafe media sources', () => {
     expect(run(stateOf([p()]), insertVideo({ src: 'javascript:alert(1)' }))).toBeNull()
-    expect(run(stateOf([p()]), insertAudio({ src: 'data:audio/mp3;base64,AA' }))).toBeNull()
+    expect(run(stateOf([p()]), insertAudio({ src: 'data:text/html,<b>x</b>' }))).toBeNull()
+    expect(run(stateOf([p()]), insertVideo({ src: 'data:video/mp4;base64,AA' }))).toBeNull()
+  })
+
+  it('keeps a recording inline when there is no server to store it', () => {
+    // A voice memo's worth of audio, not a film: inline audio is allowed.
+    expect(run(stateOf([p()]), insertAudio({ src: 'data:audio/webm;base64,GkXf' }))).not.toBeNull()
   })
 
   it('inserts an iframe only for an allowlisted host, deriving the provider', () => {

@@ -5,11 +5,12 @@ import {
   Fragment,
   type Path,
   SetNodeAttrsStep,
+  TableMap,
   TextSelection,
   type Transaction,
   replaceNodeAt,
 } from '@trevixal/core'
-import { cellContextAt, colspanOf, columnCount, columnStart } from './commands'
+import { cellContextAt, colspanOf, columnCount, gridCellOf } from './commands'
 import { cellsInSelection } from './features'
 import { safeTableLength } from './schema'
 import type { MeasureTable } from './table-geometry'
@@ -34,16 +35,21 @@ export function setColumnWidth(width: string | null): Command {
     const context = cellContextAt(state.doc, state.selection.from)
     if (!context) return null
 
-    const { table, tablePath, row, cellIndex } = context
-    const column = columnStart(row, cellIndex)
+    const { table, tablePath } = context
+    const map = TableMap.of(table)
+    const column = gridCellOf(context).left
 
-    const rows = table.content.children.map((candidate) => {
-      const index = childIndexAtColumn(candidate, column)
-      if (index === null) return candidate
+    // The cells starting in the column, a cell spanning several rows once.
+    const rows = table.content.children.map((candidate, rowIndex) => {
+      const starting = map.cells.find((cell) => cell.row === rowIndex && cell.left === column)
+      if (!starting) return candidate
       const cells = [...candidate.content.children]
-      const cell = cells[index]
-      if (!cell) return candidate
-      cells[index] = cell.type.create({ ...cell.attrs, width: value }, cell.content, cell.marks)
+      const cell = starting.node
+      cells[starting.index] = cell.type.create(
+        { ...cell.attrs, width: value },
+        cell.content,
+        cell.marks,
+      )
       return candidate.type.create(candidate.attrs, Fragment.from(cells), candidate.marks)
     })
 
@@ -190,8 +196,15 @@ export function distributeRowsEvenly(options: MeasuredSizingOptions): Command {
     const context = cellContextAt(state.doc, state.selection.from)
     const geometry = context ? options.measure(context.tablePath) : null
     if (!context || !geometry) return null
+    // Every row a selected cell covers, a cell spanning several rows all of them.
+    const map = TableMap.of(context.table)
     const selected = [
-      ...new Set(cellsInSelection(state).map(({ path }) => path[path.length - 2] as number)),
+      ...new Set(
+        cellsInSelection(state).flatMap(({ path }) => {
+          const cell = map.cellAt(path[path.length - 2] as number, path[path.length - 1] as number)
+          return cell ? Array.from({ length: cell.height }, (_, offset) => cell.top + offset) : []
+        }),
+      ),
     ]
     const rows = selected.length > 1 ? selected : context.table.content.children.map((_, i) => i)
     const tallest = Math.max(...rows.map((index) => geometry.rows[index] ?? 0))
@@ -234,10 +247,7 @@ export function distributeColumnsEvenly(options: Partial<MeasuredSizingOptions> 
     }
 
     const { table, tablePath } = context
-    let columns = 0
-    for (const row of table.content.children) {
-      columns = Math.max(columns, columnStart(row, row.childCount))
-    }
+    const columns = columnCount(table)
     if (columns < 1) return null
 
     // Two decimals: enough that the columns visibly match, few enough that the
@@ -275,15 +285,16 @@ function selectedColumns(
 ): { first: number; last: number } | null {
   const cells = cellsInSelection(state)
   if (cells.length < 2) return null
+  const map = TableMap.of(table)
   let first = Number.POSITIVE_INFINITY
   let last = Number.NEGATIVE_INFINITY
-  for (const { path, cell } of cells) {
-    const row = table.child(path[path.length - 2] as number)
-    const start = columnStart(row, path[path.length - 1] as number)
-    first = Math.min(first, start)
-    last = Math.max(last, start + colspanOf(cell) - 1)
+  for (const { path } of cells) {
+    const cell = map.cellAt(path[path.length - 2] as number, path[path.length - 1] as number)
+    if (!cell) continue
+    first = Math.min(first, cell.left)
+    last = Math.max(last, cell.left + cell.width - 1)
   }
-  return last > first && last - first + 1 < columnCount(table) ? { first, last } : null
+  return last > first && last - first + 1 < map.width ? { first, last } : null
 }
 
 /** The row with every cell's width passed through `map`. */
@@ -309,19 +320,6 @@ function replaceTable(
   if (after.eq(before)) return null
   const tr = state.tr.step(replaceNodeAt(tablePath, Fragment.of(after)))
   return tr.setSelection(new TextSelection(state.selection.from, state.selection.to))
-}
-
-/** Child index of the cell that starts at a grid column, else null. */
-function childIndexAtColumn(row: EditorNode, column: number): number | null {
-  let start = 0
-  for (let index = 0; index < row.childCount; index++) {
-    if (start === column) return index
-    const cell = row.child(index)
-    const span = cell.attrs.colspan
-    start += typeof span === 'number' && span > 1 ? span : 1
-    if (start > column) return null
-  }
-  return null
 }
 
 /**
@@ -412,10 +410,11 @@ export function sizedTable(
   }
   if (typeof sizing.width === 'number' && !isLength(sizing.width)) return null
 
+  const map = TableMap.of(table)
   const rows = table.content.children.map((row, rowIndex) => {
     const cells = columns
       ? row.content.children.map((cell, index) => {
-          const start = columnStart(row, index)
+          const start = map.cellAt(rowIndex, index)?.left ?? 0
           const covered = columns.slice(start, start + colspanOf(cell))
           // A grid wider than the widths supplied keeps its own sizes.
           if (covered.length < colspanOf(cell)) return cell

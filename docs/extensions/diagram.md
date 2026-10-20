@@ -35,6 +35,18 @@ Return SVG markup. Anything that turns text into a picture fits (Graphviz,
 PlantUML through a service, or something of your own), and `languages`
 decides which code-block languages get a preview.
 
+## Graphviz and PlantUML
+
+`createGraphvizRenderer(await loadGraphviz())` draws DOT through Viz.js,
+Graphviz compiled to WebAssembly, fetched from jsDelivr on first use.
+`createPlantUMLRenderer(server?)` draws PlantUML through a PlantUML server,
+the public one by default. The diagram's source goes to that server in the
+picture's address, so run your own if a document must not leave your
+network. The server's answer is shown as a picture, so nothing in it can
+run. `EVERY_DIAGRAM_LANGUAGE` lists all four languages for `languages`, and
+`diagramUICommands()` adds *Insert > Graphviz diagram* and *PlantUML
+diagram*.
+
 ## The preview is not in the document
 
 It is an element the view appends under the block, which keeps the document a

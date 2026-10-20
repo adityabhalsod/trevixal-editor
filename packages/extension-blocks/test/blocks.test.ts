@@ -6,6 +6,7 @@ import {
   type Path,
   Schema,
   TextSelection,
+  clearAllFormatting,
   defaultMarks,
   defaultNodes,
   pos,
@@ -340,6 +341,29 @@ describe('buttons', () => {
     const button = schema.node('buttonBlock', { label: 'Go', href: 'https://example.com' })
     const html = serializeToHTML(docOf(schema.node('paragraph', undefined, [button])))
     expect(html).toContain('data-href="https://example.com"')
+  })
+})
+
+describe('clearing all formatting', () => {
+  it('turns a button and a badge into their words, and keeps a footnote marker', () => {
+    const line = schema.node('paragraph', undefined, [
+      schema.text('Tap '),
+      schema.node('buttonBlock', { label: 'Go', href: 'https://example.com' }),
+      schema.text(' for '),
+      schema.node('badge', { label: 'new', tone: 'success' }),
+      schema.node('footnoteRef', { id: 'fn1' }),
+    ])
+    const state = EditorState.create({
+      schema,
+      doc: docOf(line),
+      selection: new TextSelection(pos([0], 0), pos([0], 11)),
+    })
+    const next = run(state, clearAllFormatting)
+    expect(next.doc.child(0).textContent).toBe('Tap Go for new')
+    expect(next.doc.child(0).content.children.map((child) => child.type.name)).toEqual([
+      'text',
+      'footnoteRef',
+    ])
   })
 })
 

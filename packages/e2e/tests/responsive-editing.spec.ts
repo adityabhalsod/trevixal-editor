@@ -1,10 +1,32 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
+import { type Locator, expect, test } from '@playwright/test'
 import { scrollbarWidthIsReadable } from './engine'
 import { serveDist } from './serve-dist'
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../../examples/full-editor/dist')
+
+/**
+ * Click into `block`, and wait until the caret is inside it. A click resolves
+ * before WebKit has put the caret where it landed, and a key sent in that gap
+ * acts on wherever the caret was: a Home that missed the line left Tab to
+ * indent mid-line and Shift+Tab to outdent the line's start, and an Enter went
+ * to another block. Focus on the surface alone does not show that the caret
+ * has arrived.
+ */
+async function clickInto(block: Locator): Promise<void> {
+  await block.click()
+  await expect
+    .poll(() =>
+      block.evaluate((element) => {
+        const document = element.ownerDocument
+        const caret = document.getSelection()?.focusNode
+        const focused = !!document.activeElement?.closest('.trevixal-content')
+        return focused && !!caret && element.contains(caret)
+      }),
+    )
+    .toBe(true)
+}
 
 test.describe('responsive chrome and code editing', () => {
   test('wraps the toolbar and menubar on a narrow viewport instead of scrolling them', async ({
@@ -33,7 +55,6 @@ test.describe('responsive chrome and code editing', () => {
               const box = control.getBoundingClientRect()
               return box.left < 0 || box.right > window.innerWidth
             }).length,
-            pageScrollsSideways: document.documentElement.scrollWidth > window.innerWidth,
             toolbarHeight: bars[1].getBoundingClientRect().height,
           }
         })
@@ -49,7 +70,12 @@ test.describe('responsive chrome and code editing', () => {
         // the first few controls: every control has to stay on screen.
         expect(narrow.scrollsSideways).toBe(false)
         expect(narrow.offscreen).toBe(0)
-        expect(narrow.pageScrollsSideways).toBe(false)
+        // A tabbed line takes its stops from the new width a frame after the
+        // resize (tab-layout.ts), which a loaded WebKit can take longer than
+        // the wait above to draw, and reaches past the edge until it does.
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth))
+          .toBe(false)
         expect(narrow.toolbarHeight).toBeGreaterThan(wide.toolbarHeight)
       }
     } finally {
@@ -101,14 +127,12 @@ test.describe('responsive chrome and code editing', () => {
       await page.waitForSelector('.trevixal-content pre')
 
       const block = page.locator('.trevixal-content pre').filter({ hasText: 'def summarize' })
-      await block.click()
-      // Wait for the focus the click is still handing over. A Tab that arrives
-      // before the surface has it does what Tab does to an unfocused page, it
-      // moves focus on, so the indent never happens and the block is returned
-      // unchanged. Measured at two failures in ten on WebKit, on one worker,
-      // with nothing else running: not contention, just a click that had not
-      // landed yet.
-      await expect(page.locator('.trevixal-content').first()).toBeFocused()
+      // Into the block, with the caret there. A Tab that arrives before the
+      // surface has focus does what Tab does to an unfocused page, it moves
+      // focus on, and one before the caret has landed indents the wrong place.
+      // Measured at two failures in ten on WebKit, on one worker, with nothing
+      // else running: not contention, just a click that had not landed yet.
+      await clickInto(block)
       // Home, not End: Tab inserts at the caret the way any code editor does,
       // while Shift-Tab always outdents from the line's start. They only
       // invert each other from the start of a line.
@@ -165,9 +189,13 @@ test.describe('responsive chrome and code editing', () => {
       await page.goto(server.origin)
       await page.waitForSelector('.trevixal-toggle__summary')
 
+      // The chevron is the summary's ::before, the room after it its end margin.
       const gap = await page.evaluate(() =>
         Number.parseFloat(
-          getComputedStyle(document.querySelector('.trevixal-toggle__summary') as HTMLElement).gap,
+          getComputedStyle(
+            document.querySelector('.trevixal-toggle__summary') as HTMLElement,
+            '::before',
+          ).getPropertyValue('margin-inline-end'),
         ),
       )
       // 8px against an 8px chevron read as cramped.
@@ -224,18 +252,20 @@ test.describe('responsive chrome and code editing', () => {
 
       const blocks = () => page.locator('.trevixal-content pre')
       const block = blocks().filter({ hasText: 'def summarize' })
-      await block.click()
+      await clickInto(block)
       await page.keyboard.press('End')
 
       const countBefore = await blocks().count()
       const linesBefore = ((await block.textContent()) ?? '').split('\n').length
 
       await page.keyboard.press('Enter')
-      await page.waitForTimeout(150)
       // A newline, not an exit: the seeded block ends in one, and the old
       // check saw that and escaped on the very first press. Lines rather
-      // than characters, because the new line keeps its indentation.
-      expect(((await block.textContent()) ?? '').split('\n').length).toBe(linesBefore + 1)
+      // than characters, because the new line keeps its indentation. Polled
+      // rather than slept on, for the reason the Tab test gives.
+      await expect
+        .poll(async () => ((await block.textContent()) ?? '').split('\n').length)
+        .toBe(linesBefore + 1)
       expect(await blocks().count()).toBe(countBefore)
     } finally {
       await server.close()

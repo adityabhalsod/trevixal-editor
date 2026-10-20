@@ -468,4 +468,6 @@ export {
   createTrackChangesBar,
   nextSuggestion,
   suggestionAt,
+  suggestionAuthors,
+  suggestionsBy,
 } from './ui'

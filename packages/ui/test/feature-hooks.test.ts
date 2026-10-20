@@ -44,6 +44,11 @@ async function submitDialog(values: Record<string, string | boolean>): Promise<v
 const key = (init: KeyboardEventInit): KeyboardEvent =>
   new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
 
+/** Press or release the right Alt, which is AltGr on a layout that has one. */
+const altGraph = (type: 'keydown' | 'keyup'): void => {
+  document.dispatchEvent(new KeyboardEvent(type, { key: 'AltGraph', code: 'AltRight' }))
+}
+
 describe('shortcut manager labels', () => {
   it('fires an action from either of its two bindings and prints both', () => {
     const editor = mountEditor()
@@ -186,14 +191,21 @@ describe('shortcut manager keys', () => {
       true,
     )
     expect(list).toHaveBeenCalledTimes(2)
-    // Ctrl+Alt is AltGr off a Mac: AltGr+2 types `²`, and must go on typing it.
+    // Off a Mac the browser reports AltGr as Ctrl+Alt: AltGr+2 types `²`, and
+    // must go on typing it.
+    altGraph('keydown')
     expect(manager.handle(key({ key: '²', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
       false,
+    )
+    altGraph('keyup')
+    // The left Ctrl and Alt make a chord of the key, whatever it types.
+    expect(manager.handle(key({ key: '²', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
+      true,
     )
     expect(manager.handle(key({ key: '2', code: 'Digit2', ctrlKey: true, altKey: true }))).toBe(
       true,
     )
-    expect(heading).toHaveBeenCalledOnce()
+    expect(heading).toHaveBeenCalledTimes(2)
     // The recorder writes down the key, not the character.
     expect(
       manager.keysFromEvent(key({ key: '&', code: 'Digit7', ctrlKey: true, shiftKey: true })),
@@ -271,11 +283,17 @@ describe('shortcuts dialog', () => {
     const { manager, change, press, done } = openShortcuts()
     // Ctrl+Alt+E on a UK or US-International Windows keyboard: AltGr+E, é.
     const altGrE = { key: 'é', code: 'KeyE', ctrlKey: true, altKey: true }
+    altGraph('keydown')
     change('bold')?.click()
     press(altGrE)
     expect(manager.keysFor('bold')).toBe('Mod-Alt-é')
     expect(manager.displayFor('bold')).toBe('Ctrl+Alt+É')
     expect(manager.handle(key(altGrE))).toBe(true)
+    altGraph('keyup')
+    // The left Ctrl and Alt give the same character, but record the key.
+    change('italic')?.click()
+    press(altGrE)
+    expect(manager.keysFor('italic')).toBe('Mod-Alt-e')
     done()
   })
 
@@ -355,6 +373,7 @@ describe('link dialog', () => {
       'web',
       'email',
       'anchor',
+      'block',
     ])
     const anchor = document.querySelector<HTMLSelectElement>('.trevixal-dialog [name="anchor"]')
     expect([...(anchor?.options ?? [])].map((option) => option.textContent)).toEqual(['Intro'])
@@ -375,6 +394,33 @@ describe('link dialog', () => {
     ui.openLinkDialog()
     await submitDialog({ kind: 'email', email: 'not an address' })
     expect(editor.getHTML()).toContain('href="mailto:ada@example.com"')
+    ui.destroy()
+    editor.destroy()
+  })
+
+  it('links to any block, giving it an id from its words first', async () => {
+    const editor = mountEditor()
+    const ui = createEditorUI(editor, { container })
+    editor.setContent({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Go there' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Next steps' }] },
+      ],
+    })
+    // A selection made in code is lost to happy-dom's focus handling; the
+    // browser suite links part of a paragraph.
+    editor.commands.selectAll()
+    ui.openLinkDialog()
+    const block = document.querySelector<HTMLSelectElement>('.trevixal-dialog [name="block"]')
+    expect([...(block?.options ?? [])].map((option) => option.textContent)).toEqual([
+      'Paragraph: Go there',
+      'Paragraph: Next steps',
+    ])
+    await submitDialog({ kind: 'block', block: '1' })
+
+    expect(editor.state.doc.child(1).attrs.id).toBe('next-steps')
+    expect(editor.getHTML()).toContain('href="#next-steps"')
     ui.destroy()
     editor.destroy()
   })

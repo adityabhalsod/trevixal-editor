@@ -158,7 +158,7 @@ export function createTableResizeHandles(
     // it right makes that column wider. So a grab on a cell's *left* edge
     // targets the previous column, people reach for whichever side of the
     // line is nearest, and a dead left edge just reads as broken.
-    const start = columnStartOf(cell)
+    const start = columnStartOf(table, cell)
     if (box.right - event.clientX <= GRAB) {
       return { kind: 'column', table, index: start + cell.colSpan - 1, at: box.right }
     }
@@ -168,7 +168,9 @@ export function createTableResizeHandles(
     }
     const rowIndex = rowIndexOf(table, cell.parentElement as HTMLTableRowElement)
     if (box.bottom - event.clientY <= GRAB) {
-      return { kind: 'row', table, index: rowIndex, at: box.bottom }
+      // A cell spanning rows ends on its last one.
+      const last = rowIndex + Math.max(1, cell.rowSpan || 1) - 1
+      return { kind: 'row', table, index: last, at: box.bottom }
     }
     if (event.clientY - box.top <= GRAB) {
       return rowIndex > 0 ? { kind: 'row', table, index: rowIndex - 1, at: box.top } : null
@@ -533,17 +535,9 @@ export function createTableResizeHandles(
   }
 }
 
-/** Grid column where a cell begins, colspans included. */
-function columnStartOf(cell: HTMLTableCellElement): number {
-  let start = 0
-  for (
-    let sibling = cell.previousElementSibling;
-    sibling;
-    sibling = sibling.previousElementSibling
-  ) {
-    start += Math.max(1, (sibling as HTMLTableCellElement).colSpan || 1)
-  }
-  return start
+/** Grid column where a cell begins, counting cells spanning down from rows above. */
+function columnStartOf(table: HTMLTableElement, cell: HTMLTableCellElement): number {
+  return gridOf(table).cells.find((placed) => placed.element === cell)?.start ?? 0
 }
 
 function rowIndexOf(table: HTMLTableElement, row: HTMLTableRowElement): number {

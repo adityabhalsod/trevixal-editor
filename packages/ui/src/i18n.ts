@@ -1,5 +1,6 @@
+import type { Command } from '@trevixal/core'
 import { defaultMenus } from './menubar'
-import { QUICK_ACCESS_GROUP, defaultToolbarGroups } from './toolbar'
+import { QUICK_ACCESS_GROUP, type ToolbarOptions, defaultToolbarGroups } from './toolbar'
 
 /**
  * Translation for everything the kit puts on screen.
@@ -71,7 +72,7 @@ export function defaultMessages(): Messages {
 
   // Built only when a host asks for it, so it is not among the defaults.
   messages[`${TOOLBAR_GROUP_KEY}${QUICK_ACCESS_GROUP.name}`] = QUICK_ACCESS_GROUP.label
-  for (const group of defaultToolbarGroups()) {
+  for (const group of defaultToolbarGroups(EVERY_TOOLBAR_ITEM)) {
     if (group.label) messages[`${TOOLBAR_GROUP_KEY}${group.name}`] = group.label
     for (const item of group.items ?? []) {
       const entry = item as { name: string; label?: string; ariaLabel?: string }
@@ -83,6 +84,41 @@ export function defaultMessages(): Messages {
   }
 
   return messages
+}
+
+const nothing = (): void => undefined
+const unchanged: Command = (state) => state.tr
+
+/**
+ * A handler for every optional toolbar item, so each one is built and its
+ * labels listed: the kit's toolbar has them all, and a label missing here
+ * could not be translated.
+ */
+const EVERY_TOOLBAR_ITEM: ToolbarOptions = {
+  onLink: nothing,
+  onImage: nothing,
+  onInsertTable: nothing,
+  onCopyCode: nothing,
+  onFindReplace: nothing,
+  onToggleTableOfContents: nothing,
+  onToggleOutline: nothing,
+  onCommandPalette: nothing,
+  onToggleFocusMode: nothing,
+  onToggleFullscreen: nothing,
+  onFormatPainter: nothing,
+  onSpecialCharacter: nothing,
+  onEmoji: nothing,
+  onWordCount: nothing,
+  codeFormatCommands: { formatJSON: unchanged, formatXML: unchanged, minify: unchanged },
+  blockCommands: {
+    insertCallout: () => unchanged,
+    insertToggleBlock: unchanged,
+    insertColumns: () => unchanged,
+    insertCard: unchanged,
+    insertTimeline: unchanged,
+    insertPageBreak: unchanged,
+    insertFootnote: unchanged,
+  },
 }
 
 /**

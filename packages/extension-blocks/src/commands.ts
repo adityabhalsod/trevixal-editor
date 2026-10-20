@@ -2,12 +2,14 @@ import {
   type Command,
   type EditorNode,
   Fragment,
+  type PageSection,
   type Path,
   ReplaceNodesStep,
   SetNodeAttrsStep,
   TextSelection,
   insertInlineNode,
   nodeAtPath,
+  pageSectionOf,
   pos,
   safeHref,
 } from '@trevixal/core'
@@ -193,6 +195,18 @@ export const insertPageBreak: Command = (state) => {
   return inserted ? inserted.tr : null
 }
 
+/**
+ * Insert a section break after the current block: what follows, to the next
+ * one, is set on its own pages, turned, in columns or with other margins.
+ */
+export function insertSectionBreak(section: PageSection): Command {
+  return (state) => {
+    const node = state.schema.nodeType('sectionBreak').create({ ...pageSectionOf({ ...section }) })
+    const inserted = insertBlockHere(state, node, false)
+    return inserted ? inserted.tr : null
+  }
+}
+
 /** Insert an inline badge at the cursor. */
 export function insertBadge(label: string, tone: BadgeTone = 'neutral'): Command {
   return (state) => {
@@ -240,7 +254,8 @@ export function insertFootnote(id?: string): Command {
     const listIndex = findChildIndex(tr.doc, 'footnoteList')
     if (listIndex === null) {
       const list = schema.nodeType('footnoteList').create(undefined, Fragment.of(item))
-      const at = tr.doc.childCount
+      // Endnotes close the document, after the footnotes, as in Word.
+      const at = findChildIndex(tr.doc, 'endnoteList') ?? tr.doc.childCount
       tr.step(new ReplaceNodesStep([], at, at, Fragment.of(list)))
     } else {
       const list = tr.doc.child(listIndex)

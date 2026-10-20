@@ -1,6 +1,6 @@
 import type { Attrs } from '../model/attrs'
 import { attrsEq } from '../model/attrs'
-import { blocksInRange } from '../model/blocks'
+import { blocksInRange, textblocks } from '../model/blocks'
 import { Fragment } from '../model/fragment'
 import {
   coerceInlineFor,
@@ -14,19 +14,27 @@ import {
 } from '../model/inline'
 import type { Mark } from '../model/mark'
 import type { EditorNode, TextNode } from '../model/node'
-import { pos } from '../model/position'
+import { type Position, pos } from '../model/position'
 import { nodeAtPath, pathsEqual } from '../model/tree'
 import { MAX_INDENT, blockLayoutAttrs } from '../schema/basic'
+import { followingStyle } from '../schema/named-styles'
 import type { EditorState } from '../state/editor-state'
-import { AllSelection, NodeSelection, TextSelection, selectionNear } from '../state/selection'
+import {
+  AllSelection,
+  NodeSelection,
+  type Selection,
+  TextSelection,
+  selectionNear,
+} from '../state/selection'
 import { SetNodeAttrsStep } from '../state/steps/attrs-step'
 import { AddMarkStep, RemoveMarkStep } from '../state/steps/mark-steps'
 import { ReplaceInlineStep } from '../state/steps/replace-inline'
 import { ReplaceNodesStep, replaceNodeAt } from '../state/steps/replace-nodes'
-import { JoinNodesStep, SplitNodeStep } from '../state/steps/split-join'
+import { JoinNodesStep, SplitNodeStep, withoutId } from '../state/steps/split-join'
 import { LiftNodesStep, WrapNodesStep } from '../state/steps/wrap-lift'
 import type { Transaction } from '../state/transaction'
 import { deleteRange } from './helpers'
+import { plainBlocks } from './plain-blocks'
 
 /**
  * A command inspects a state and produces the transaction realizing it, or
@@ -71,12 +79,35 @@ export function insertText(text: string): Command {
   }
 }
 
+/**
+ * Whether a text selection runs from the first letter of the document to the
+ * last, across more than one block. The browser's own Ctrl+A arrives as one
+ * of these rather than as an AllSelection, and deleting it has to clear the
+ * document just the same: a range delete keeps the blocks at both ends, so
+ * the endnotes, or the list holding the last line, would stay behind empty.
+ * A single block keeps its type, as deleting a heading's words does.
+ */
+function spansWholeDocument(doc: EditorNode, selection: Selection): boolean {
+  if (!(selection instanceof TextSelection)) return false
+  const blocks = textblocks(doc)
+  const first = blocks[0]
+  const last = blocks[blocks.length - 1]
+  if (!first || !last || first === last) return false
+  const { from, to } = selection
+  return (
+    pathsEqual(from.path, first.path) &&
+    from.offset === 0 &&
+    pathsEqual(to.path, last.path) &&
+    to.offset === inlineLength(last.node.content)
+  )
+}
+
 /** Delete the selected content. */
 export const deleteSelection: Command = (state) => {
   const selection = state.selection
   if (selection.empty) return null
   const tr = state.tr
-  if (selection instanceof AllSelection) {
+  if (selection instanceof AllSelection || spansWholeDocument(state.doc, selection)) {
     const paragraph = state.schema.firstTextblockType().create()
     tr.step(new ReplaceNodesStep([], 0, state.doc.childCount, Fragment.of(paragraph)))
     tr.setSelection(new TextSelection(pos([0], 0)))
@@ -254,16 +285,32 @@ export const clearBlockFormatting: Command = (state) => {
   return tr.docChanged ? tr : null
 }
 
-/** Strip marks and reset block layout in one undoable step. */
-export const clearAllFormatting: Command = (state) => {
-  const marks = clearFormatting(state)
-  const layout = clearBlockFormatting(marks ? state.apply(marks) : state)
-  if (!marks) return layout
-  if (!layout) return marks
-  // Removing marks leaves every block where it was, so the layout steps
-  // apply unchanged on top of the mark steps.
-  for (const step of layout.steps) marks.step(step)
-  return marks
+/**
+ * Strip marks, reset block layout and make the selected blocks plain
+ * paragraphs, in one undoable step: out of the lists and quotes around them,
+ * headings and named paragraph styles dropped, and inline atoms that are
+ * styled words (see {@link NodeSpec.plainText}) turned into those words.
+ */
+export const clearAllFormatting: Command = (state) =>
+  inSequence(state, [clearFormatting, clearBlockFormatting, plainBlocks])
+
+/**
+ * Run commands one after another, each on the state the one before it left,
+ * as a single transaction. Null when none of them changed anything.
+ */
+function inSequence(state: EditorState, commands: readonly Command[]): Transaction | null {
+  let combined: Transaction | null = null
+  for (const command of commands) {
+    const tr = command(combined ? state.apply(combined) : state)
+    if (!tr) continue
+    if (!combined) {
+      combined = tr
+      continue
+    }
+    for (const step of tr.steps) combined.step(step)
+    combined.setSelection(tr.selection)
+  }
+  return combined
 }
 
 /**
@@ -747,6 +794,96 @@ export const escapeWrapperOnEnter: Command = (state) => {
 }
 
 /**
+ * Backspace on the empty first line of a wrapper takes the line out of it:
+ * above what is left of the wrapper, or in its place when it was all there
+ * was. It is how `> ` and Backspace give a plain line back, and how
+ * Backspace clears a blank line's formatting in a word processor.
+ *
+ * A line with text is left to Backspace's own deleting, and a line below the
+ * first to its joining. The schema has to allow the move on both sides,
+ * which keeps it away from fixed structures (a table cell, a toggle's slot)
+ * and from list items, whose list takes them out itself.
+ */
+export const escapeWrapperOnBackspace: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  // A top-level block has nothing to leave.
+  if (path.length < 2) return null
+  const block = nodeAtPath(state.doc, path)
+  if (!block?.isTextblock || inlineLength(block.content) > 0) return null
+  if (path[path.length - 1] !== 0) return null
+
+  const wrapperPath = path.slice(0, -1)
+  const wrapper = nodeAtPath(state.doc, wrapperPath)
+  const outerPath = wrapperPath.slice(0, -1)
+  const outer = nodeAtPath(state.doc, outerPath)
+  if (!wrapper || !outer) return null
+  const rest = Fragment.from(wrapper.content.children.slice(1))
+  if (rest.childCount > 0 && !wrapper.type.validContent(rest)) return null
+  const replacement = rest.childCount > 0 ? [block, wrapper.withContent(rest)] : [block]
+  const wrapperIndex = wrapperPath[wrapperPath.length - 1] as number
+  const siblings = [...outer.content.children]
+  siblings.splice(wrapperIndex, 1, ...replacement)
+  if (!outer.type.validContent(Fragment.from(siblings))) return null
+
+  const tr = state.tr
+  tr.step(replaceNodeAt(wrapperPath, Fragment.from(replacement)))
+  tr.setSelection(new TextSelection(pos([...outerPath, wrapperIndex], 0)))
+  return tr
+}
+
+/** What Backspace may step back into from the line after: lists and quotes. */
+const FLOWING_CONTAINERS: ReadonlySet<string> = new Set([
+  'bulletList',
+  'orderedList',
+  'taskList',
+  'listItem',
+  'taskItem',
+  'blockquote',
+])
+
+/**
+ * Backspace on an empty line right after a list or a quote removes the line
+ * and puts the caret at the end of the last line inside, to carry on from the
+ * last point. Without it the caret stays on the blank line, because a list
+ * beside it is not a line of text to join.
+ *
+ * Only a container that ends in a line of text qualifies, reached through
+ * lists and quotes alone, so Backspace does not reach into a table. A line
+ * with text, or one after a plain line, is left to Backspace's joining.
+ */
+export const deleteEmptyBlockAfterContainer: Command = (state) => {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection) || !selection.empty) return null
+  const path = selection.from.path
+  const block = nodeAtPath(state.doc, path)
+  if (path.length === 0 || !block?.isTextblock || inlineLength(block.content) > 0) return null
+  const index = path[path.length - 1] as number
+  if (index === 0) return null
+  const parentPath = path.slice(0, -1)
+  const parent = nodeAtPath(state.doc, parentPath)
+  if (!parent) return null
+
+  let targetPath = [...parentPath, index - 1]
+  let target = nodeAtPath(state.doc, targetPath)
+  if (!target || target.isTextblock) return null
+  while (target && !target.isTextblock) {
+    if (!FLOWING_CONTAINERS.has(target.type.name) || target.childCount === 0) return null
+    targetPath = [...targetPath, target.childCount - 1]
+    target = nodeAtPath(state.doc, targetPath)
+  }
+  if (!target) return null
+  const kept = parent.content.children.filter((_, at) => at !== index)
+  if (!parent.type.validContent(Fragment.from(kept))) return null
+
+  const tr = state.tr
+  tr.step(new ReplaceNodesStep(parentPath, index, index + 1, Fragment.empty))
+  tr.setSelection(new TextSelection(pos(targetPath, inlineLength(target.content))))
+  return tr
+}
+
+/**
  * Mod-Enter from anywhere nested: a new paragraph after the whole outermost
  * block, with the caret in it.
  *
@@ -885,6 +1022,23 @@ export const deleteBackwardInPreformatted: Command = (state) => {
   return null
 }
 
+/**
+ * What a block Enter starts beside `block` takes from it: its format, as in
+ * Word, bar its id and its drop cap, which are that block's alone; at the end
+ * of a Title or Subtitle, the paragraph style that follows it.
+ */
+function attrsOfNewBlock(block: EditorNode, atEnd: boolean): Attrs {
+  const attrs: Record<string, unknown> = { ...withoutId(block.attrs) }
+  if (attrs.dropCap != null) {
+    attrs.dropCap = null
+    attrs.dropCapLines = null
+  }
+  if (atEnd && typeof attrs.paragraphStyle === 'string') {
+    attrs.paragraphStyle = followingStyle(attrs.paragraphStyle)
+  }
+  return attrs
+}
+
 export const splitBlock: Command = (state) => {
   const selection = state.selection
   if (!(selection instanceof TextSelection)) return null
@@ -896,10 +1050,18 @@ export const splitBlock: Command = (state) => {
   // Enter at the end of a non-paragraph block starts a fresh paragraph.
   const paragraph = state.schema.nodes.paragraph
   const atEnd = point.offset === inlineLength(block.content)
-  const afterType = atEnd && paragraph && block.type !== paragraph ? paragraph.name : undefined
-  tr.step(new SplitNodeStep(point.path, point.offset, afterType))
   const parentPath = point.path.slice(0, -1)
   const index = point.path[point.path.length - 1] as number
+  if (point.offset === 0 && !atEnd) {
+    // Enter at the start opens an empty block above rather than splitting:
+    // the block keeps its id, so every link to it stays with its words.
+    const above = block.type.create(attrsOfNewBlock(block, false))
+    tr.step(new ReplaceNodesStep(parentPath, index, index, Fragment.of(above)))
+  } else {
+    const afterType = atEnd && paragraph && block.type !== paragraph ? paragraph.name : undefined
+    const afterAttrs = afterType ? undefined : attrsOfNewBlock(block, atEnd)
+    tr.step(new SplitNodeStep(point.path, point.offset, afterType, afterAttrs))
+  }
   tr.setSelection(new TextSelection(pos([...parentPath, index + 1], 0)))
   return tr
 }
@@ -946,6 +1108,13 @@ export function insertContent(nodes: readonly EditorNode[]): Command {
       return tr
     }
 
+    if (point.offset === 0) {
+      // At the very start the blocks go in before it, which keeps its id
+      // with its words rather than on an empty first half.
+      tr.step(new ReplaceNodesStep(parentPath, index, index, Fragment.from(nodes)))
+      tr.setSelection(selectionAfterBlocks(parentPath, index - 1, nodes))
+      return tr
+    }
     // Multi-block payload: split the current block and splice between halves.
     tr.step(new SplitNodeStep(point.path, point.offset))
     tr.step(new ReplaceNodesStep(parentPath, index + 1, index + 1, Fragment.from(nodes)))
@@ -1117,6 +1286,71 @@ export const lift: Command = (state) => {
   const tr = state.tr
   tr.step(new LiftNodesStep(wrapperPath, wrapper.childCount))
   return tr
+}
+
+/**
+ * Wrap the selected blocks in a node of the given type or, when they already
+ * sit in one, take them out of the nearest. A toolbar toggle wants this:
+ * Quote pressed twice gives no quote, not a quote inside a quote.
+ */
+export function toggleWrap(name: string, attrs?: Attrs): Command {
+  const wrap = wrapIn(name, attrs)
+  return (state) => liftOutOf(state, name) ?? wrap(state)
+}
+
+/**
+ * Take the selected blocks out of the nearest `name` around them. The blocks
+ * before and after the selection stay wrapped, so the wrapper is split around
+ * what leaves it. Null when no such wrapper holds the whole selection, or
+ * when the schema would not take the blocks where the wrapper stood.
+ */
+function liftOutOf(state: EditorState, name: string): Transaction | null {
+  const selection = state.selection
+  if (!(selection instanceof TextSelection)) return null
+  const { from, to } = selection
+  for (let depth = from.path.length - 1; depth >= 1; depth--) {
+    const wrapperPath = from.path.slice(0, depth)
+    const wrapper = nodeAtPath(state.doc, wrapperPath)
+    if (wrapper?.type.name !== name) continue
+    if (!pathsEqual(to.path.slice(0, depth), wrapperPath)) return null
+
+    const first = from.path[depth] as number
+    const last = to.path[depth] as number
+    const children = wrapper.content.children
+    const before = children.slice(0, first)
+    const after = children.slice(last + 1)
+    const replacement = [
+      ...(before.length > 0 ? [wrapper.withContent(Fragment.from(before))] : []),
+      ...children.slice(first, last + 1),
+      // The second part is a new node: it must not repeat the first one's id.
+      ...(after.length > 0
+        ? [wrapper.type.create(withoutId(wrapper.attrs), Fragment.from(after))]
+        : []),
+    ]
+    const parentPath = wrapperPath.slice(0, -1)
+    const parent = nodeAtPath(state.doc, parentPath)
+    if (!parent) return null
+    const index = wrapperPath[wrapperPath.length - 1] as number
+    const siblings = [...parent.content.children]
+    siblings.splice(index, 1, ...replacement)
+    if (!parent.type.validContent(Fragment.from(siblings))) return null
+
+    const tr = state.tr
+    tr.step(replaceNodeAt(wrapperPath, Fragment.from(replacement)))
+    const shift = before.length > 0 ? 1 : 0
+    const lifted = (position: Position): Position =>
+      pos(
+        [
+          ...parentPath,
+          index + shift + (position.path[depth] as number) - first,
+          ...position.path.slice(depth + 1),
+        ],
+        position.offset,
+      )
+    tr.setSelection(new TextSelection(lifted(selection.anchor), lifted(selection.head)))
+    return tr
+  }
+  return null
 }
 
 /** Select the whole document. */

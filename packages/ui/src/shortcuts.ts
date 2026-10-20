@@ -113,13 +113,18 @@ function eventKeyName(event: KeyboardEvent, key = event.key): string {
  * Shift turns 7 into `&` (or `/`, on a German keyboard) and ⌥ on a Mac turns
  * S into `ß`, yet `Mod-Shift-7` and `Mod-Alt-s` name the key. Read off the
  * physical key, and only when the character is not a letter or digit already,
- * so a layout that puts its letters elsewhere keeps them. Never for Ctrl+Alt
- * off a Mac: that is AltGr, which types characters a shortcut must not eat.
+ * so a layout that puts its letters elsewhere keeps them.
+ *
+ * Off a Mac, Ctrl+Alt with the right Alt is AltGr, which types characters a
+ * shortcut must not eat: `altGraph` says that key is down. Windows also types
+ * them for the left Ctrl and Alt, so on US-International Ctrl+Alt+S arrived
+ * as `ß` and no Ctrl+Alt shortcut could ever fire; with the left Alt it is
+ * the shortcut.
  */
-function physicalKey(event: KeyboardEvent, isMac: boolean): string | null {
+function physicalKey(event: KeyboardEvent, isMac: boolean, altGraph: boolean): string | null {
   if (!(event.ctrlKey || event.altKey || event.metaKey)) return null
   if (/^[a-z0-9]$/i.test(event.key)) return null
-  if (!isMac && event.ctrlKey && event.altKey) return null
+  if (!isMac && event.ctrlKey && event.altKey && altGraph) return null
   const match = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code ?? '')
   const key = match?.[1] ?? match?.[2]
   return key ? key.toLowerCase() : null
@@ -287,9 +292,23 @@ export function createShortcutManager(
     options.onChange?.({ ...overrides })
   }
 
+  /**
+   * Whether the right Alt is down: AltGr, on a layout that has one. Read off
+   * the key rather than `getModifierState('AltGraph')`, which a browser on
+   * Windows may report for the left Ctrl and Alt too.
+   */
+  let altGraphHeld = false
+  const trackAltGraph = (event: KeyboardEvent): void => {
+    if (event.code === 'AltRight') altGraphHeld = event.type === 'keydown'
+  }
+  // A key released in another window never reports its keyup here.
+  const dropAltGraph = (): void => {
+    altGraphHeld = false
+  }
+
   const handle = (event: KeyboardEvent): boolean => {
     if (event.defaultPrevented) return false
-    const physical = physicalKey(event, isMac)
+    const physical = physicalKey(event, isMac, altGraphHeld)
     const names = [eventKeyName(event), ...(physical ? [eventKeyName(event, physical)] : [])]
     for (const name of names) {
       const action = bindings.get(name)
@@ -314,6 +333,9 @@ export function createShortcutManager(
   const scopes: HTMLElement[] = [...(options.scopes ?? [])]
   if (scopes.length === 0 && editor.view) scopes.push(editor.view.dom)
   const doc = scopes[0]?.ownerDocument ?? editor.view?.dom.ownerDocument
+  doc?.addEventListener('keydown', trackAltGraph, true)
+  doc?.addEventListener('keyup', trackAltGraph, true)
+  doc?.defaultView?.addEventListener('blur', dropAltGraph)
   doc?.addEventListener('keydown', onKeyDown, true)
 
   const manager: ShortcutManager = {
@@ -380,12 +402,16 @@ export function createShortcutManager(
       if (event.altKey) mods.push('Alt')
       if (event.shiftKey) mods.push('Shift')
       const key =
-        physicalKey(event, isMac) ?? (event.key.length === 1 ? event.key.toLowerCase() : event.key)
+        physicalKey(event, isMac, altGraphHeld) ??
+        (event.key.length === 1 ? event.key.toLowerCase() : event.key)
       return [...mods, key].join('-')
     },
     format: (keys) => formatShortcut(keys, isMac),
     openDialog: (document) => openShortcutsDialog(manager, document ?? doc ?? globalThis.document),
     destroy() {
+      doc?.removeEventListener('keydown', trackAltGraph, true)
+      doc?.removeEventListener('keyup', trackAltGraph, true)
+      doc?.defaultView?.removeEventListener('blur', dropAltGraph)
       doc?.removeEventListener('keydown', onKeyDown, true)
     },
   }

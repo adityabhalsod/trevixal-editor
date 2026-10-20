@@ -77,10 +77,12 @@ test.describe('accessibility', () => {
     try {
       await page.goto(server.origin)
       await page.waitForSelector('#editor .trevixal-content')
-      // The seeded document holds a diagram, which is drawn asynchronously.
-      // Auditing before it lands measures the placeholder instead, and the
-      // suite would pass or fail on how fast the machine is.
-      await page.waitForSelector('.trevixal-diagram svg')
+      // The seeded document holds a diagram and a chart, which are drawn
+      // asynchronously. Auditing before they land measures the placeholders
+      // instead, and the suite would pass or fail on how fast the machine is.
+      await expect(page.locator('#editor .trevixal-diagram svg')).toHaveCount(2, {
+        timeout: 30_000,
+      })
       const violations = await audit(page)
       expect(describe_(violations), 'axe violations').toBe('')
     } finally {
@@ -111,6 +113,23 @@ test.describe('accessibility', () => {
       await page.click('.trevixal-menu__item[data-trevixal-item="insertLink"]')
       await page.waitForSelector('.trevixal-dialog')
       const violations = await audit(page, '.trevixal-dialog')
+      expect(describe_(violations), 'axe violations').toBe('')
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('the command palette passes an axe audit, its highlighted row included', async ({
+    page,
+  }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.goto(server.origin)
+      await page.click('[data-trevixal-menu="tools"]')
+      await page.click('.trevixal-menu__item[data-trevixal-item="commandPalette"]')
+      // The first row is highlighted as it opens, and its key is on the tint.
+      await expect(page.locator('.trevixal-palette__item--selected')).toHaveCount(1)
+      const violations = await audit(page, '.trevixal-palette')
       expect(describe_(violations), 'axe violations').toBe('')
     } finally {
       await server.close()

@@ -25,7 +25,8 @@ describe('emoji', () => {
     const editor = createEditor({ schema, element: host })
     const states: (EmojiState | null)[] = []
     const handle = emoji(editor, { onState: (state) => states.push(state) })
-    editor.commands.insertText('ship it :rock')
+    // `:rock` names 🪨 rock exactly, which comes first; `:rocke` is the rocket.
+    editor.commands.insertText('ship it :rocke')
     await flush()
     expect(states.at(-1)?.items[0]?.name).toBe('rocket')
     handle.select(0)

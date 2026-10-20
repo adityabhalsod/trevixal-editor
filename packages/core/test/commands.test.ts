@@ -8,11 +8,26 @@ import {
   setBlockType,
   splitBlock,
   toggleMark,
+  toggleWrap,
   wrapIn,
 } from '../src/commands/commands'
 import type { Command } from '../src/commands/commands'
+import { Fragment } from '../src/model/fragment'
+import type { EditorNode } from '../src/model/node'
 import type { EditorState } from '../src/state/editor-state'
 import { blockquote, bold, cursor, doc, h, p, range, stateWith, testSchema, text } from './helpers'
+
+function ul(...items: EditorNode[]): EditorNode {
+  return testSchema.node('bulletList', undefined, Fragment.from(items))
+}
+
+function ol(...items: EditorNode[]): EditorNode {
+  return testSchema.node('orderedList', undefined, Fragment.from(items))
+}
+
+function li(...blocks: EditorNode[]): EditorNode {
+  return testSchema.node('listItem', undefined, Fragment.from(blocks))
+}
 
 function run(state: EditorState, command: Command): EditorState {
   const tr = command(state)
@@ -70,6 +85,27 @@ describe('deleteSelection', () => {
   it('returns null on an empty selection', () => {
     const state = stateWith(doc(p('x')), cursor([0], 1))
     expect(deleteSelection(state)).toBeNull()
+  })
+
+  it('clears the whole document when the selection runs from its first letter to its last', () => {
+    // The browser's own Ctrl+A arrives as this, not as an AllSelection. The
+    // list at the far end must not survive it with an empty point.
+    const state = stateWith(
+      doc(h(1, 'Title'), p('body'), ol(li(p('last')))),
+      range([0], 0, [2, 0, 0], 4),
+    )
+    const next = run(state, deleteSelection)
+    expect(next.doc.eq(doc(p()))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [0], offset: 0 })
+  })
+
+  it('keeps the end blocks when the selection starts after the first letter', () => {
+    const state = stateWith(
+      doc(h(1, 'Title'), p('body'), ol(li(p('last')))),
+      range([0], 1, [2, 0, 0], 4),
+    )
+    const next = run(state, deleteSelection)
+    expect(next.doc.eq(doc(h(1, 'T'), ol(li(p()))))).toBe(true)
   })
 })
 
@@ -173,5 +209,47 @@ describe('wrapIn and lift', () => {
     expect(wrapped.selection.from).toEqual({ path: [0, 0], offset: 0 })
     const lifted = run(wrapped, lift)
     expect(lifted.doc.eq(doc(p('a'), p('b')))).toBe(true)
+  })
+})
+
+describe('toggleWrap', () => {
+  it('wraps a block that is not in a quote', () => {
+    const state = stateWith(doc(p('a')), cursor([0], 1))
+    const next = run(state, toggleWrap('blockquote'))
+    expect(next.doc.eq(doc(blockquote(p('a'))))).toBe(true)
+  })
+
+  it('takes a quoted block out again instead of nesting a second quote', () => {
+    const state = stateWith(doc(blockquote(p('a'))), cursor([0, 0], 1))
+    const next = run(state, toggleWrap('blockquote'))
+    expect(next.doc.eq(doc(p('a')))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [0], offset: 1 })
+  })
+
+  it('alternates however often it runs', () => {
+    let state = stateWith(doc(p('a')), cursor([0], 1))
+    for (let click = 0; click < 3; click++) state = run(state, toggleWrap('blockquote'))
+    expect(state.doc.eq(doc(blockquote(p('a'))))).toBe(true)
+  })
+
+  it('lifts only the selected blocks, splitting the quote around them', () => {
+    const state = stateWith(doc(blockquote(p('a'), p('b'), p('c'))), cursor([0, 1], 0))
+    const next = run(state, toggleWrap('blockquote'))
+    expect(next.doc.eq(doc(blockquote(p('a')), p('b'), blockquote(p('c'))))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [1], offset: 0 })
+  })
+
+  it('leaves only the nearest quote when quotes nest', () => {
+    const state = stateWith(doc(blockquote(blockquote(p('a')))), cursor([0, 0, 0], 0))
+    const next = run(state, toggleWrap('blockquote'))
+    expect(next.doc.eq(doc(blockquote(p('a'))))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [0, 0], offset: 0 })
+  })
+
+  it('lifts a whole list out of the quote it sits in', () => {
+    const state = stateWith(doc(blockquote(ul(li(p('a'))))), cursor([0, 0, 0, 0], 1))
+    const next = run(state, toggleWrap('blockquote'))
+    expect(next.doc.eq(doc(ul(li(p('a')))))).toBe(true)
+    expect(next.selection.from).toEqual({ path: [0, 0, 0], offset: 1 })
   })
 })

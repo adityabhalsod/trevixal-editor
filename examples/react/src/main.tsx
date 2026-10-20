@@ -1,6 +1,7 @@
 import { Schema, defaultMarks, defaultNodes } from '@trevixal/core'
 import { mountFullEditor } from '@trevixal/editor-kit'
 import { EditorContent, useEditor, useEditorSnapshot } from '@trevixal/react'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 import '@trevixal/ui/styles.css'
 import '@trevixal/editor-kit/styles.css'
 import '../../shared/page.css'
@@ -32,6 +33,7 @@ function FullEditor() {
     const editor = mountFullEditor({
       element,
       namespace: 'trevixal:react',
+      languages: uiLanguageLoaders,
       aboutRows: [{ term: 'Framework', description: 'React 19, mounted from an effect' }],
     })
     return () => editor.destroy()

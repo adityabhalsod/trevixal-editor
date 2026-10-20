@@ -3,6 +3,7 @@ export { type Attrs, attrsEq } from './model/attrs'
 export { Mark, type MarkJSON, marksEq, noMarks } from './model/mark'
 export { Fragment } from './model/fragment'
 export { EditorNode, EditorNode as Node, TextNode, type NodeJSON } from './model/node'
+export { exportTextOf } from './model/export-text'
 export {
   type HTMLSpec,
   type MarkSpec,
@@ -49,6 +50,7 @@ export {
   sliceInline,
 } from './model/inline'
 export { blocksInRange, type BlockRange, firstTextblockPath, textblocks } from './model/blocks'
+export { TableMap, type TableMapCell, type TableRect } from './model/table-map'
 export { type DocJSON, markFromJSON, nodeFromJSON } from './model/json'
 export { normalizeDoc } from './model/normalize'
 
@@ -90,7 +92,9 @@ export {
   deleteBackwardInPreformatted,
   deleteCharBackward,
   deleteCharForward,
+  deleteEmptyBlockAfterContainer,
   deleteSelection,
+  escapeWrapperOnBackspace,
   escapeWrapperOnEnter,
   exitEnclosingBlock,
   exitPreformatted,
@@ -117,6 +121,7 @@ export {
   splitBlockInPreformatted,
   toggleMark,
   toggleSmallCaps,
+  toggleWrap,
   typeInPreformatted,
   unsetMark,
   wrapIn,
@@ -126,6 +131,7 @@ export {
   continueNumbering,
   continueNumberingFromPrevious,
   isListItemTypeName,
+  liftEmptyListItem,
   liftListItem,
   listNumberingAt,
   restartNumbering,
@@ -139,6 +145,34 @@ export {
   toggleTaskList,
   unwrapList,
 } from './commands/lists'
+export {
+  setColumnRule,
+  setColumns,
+  setDocumentAttrs,
+  setDocumentDirection,
+  setHeadingNumbering,
+  setHyphenation,
+  setLineNumbers,
+  setTextDirection,
+  setWidowControl,
+} from './commands/document'
+export {
+  characterStyleAt,
+  deleteStyle,
+  newStyleId,
+  paragraphStyleOf,
+  setParagraphStyle,
+  setStyle,
+  type StyleDefinition,
+  toggleCharacterStyle,
+} from './commands/named-styles'
+export {
+  insertTabAtStop,
+  setDropCap,
+  setParagraphBorder,
+  setParagraphShading,
+  setTabStops,
+} from './commands/paragraph-format'
 export {
   type InsertEmailLinkOptions,
   insertEmailLink,
@@ -159,6 +193,14 @@ export {
   type InputRule,
   type InputRuleContext,
 } from './input-rules/input-rules'
+export {
+  applyTypedTextRules,
+  AUTOCORRECT_WORDS,
+  type AutocorrectOptions,
+  autocorrectRule,
+  smartTypographyRules,
+  type TypographyOptions,
+} from './input-rules/typography'
 
 // search & counts
 export {
@@ -186,6 +228,7 @@ export {
   type HTMLSerializeOptions,
   serializeToHTML,
   serializeToText,
+  serializeToTextFile,
 } from './serialize/html'
 export {
   type HTMLDocumentOptions,
@@ -201,6 +244,7 @@ export { parseHTML } from './serialize/parse-html'
 export {
   cleanPastedHTML,
   detectPasteSource,
+  looksLikeMarkdown,
   type PasteSource,
 } from './serialize/paste-source'
 export { type MarkdownParseOptions, parseMarkdown } from './serialize/parse-markdown'
@@ -226,10 +270,24 @@ export {
   safeLanguageName,
   safeLength,
   safeLineHeight,
+  safeAssignee,
+  safeTaskDate,
+  taskMetaText,
 } from './schema/basic'
 export {
+  CUSTOM_LEVEL_STYLES,
+  type CustomLevelStyle,
+  type CustomListLevel,
+  customListScheme,
   DEFAULT_LIST_NUMBERING,
+  defaultCustomLevel,
+  documentListSchemes,
   formatListCounter,
+  isCustomNumberingId,
+  isStoredNumbering,
+  LEVEL_INDENT,
+  LEVEL_START,
+  LIST_LEVELS,
   LIST_NUMBERING_SCHEMES,
   type ListCounterStyle,
   type ListNumberingScheme,
@@ -237,12 +295,110 @@ export {
   listMarker,
   listNumberingOf,
   listNumberingScheme,
+  listSchemesCSS,
+  parseListSchemes,
+  storedListSchemesAttr,
   storedNumbering,
   storedNumberingsFor,
 } from './schema/list-numbering'
+export {
+  HEADING_NUMBERING_SCHEMES,
+  type HeadingNumber,
+  headingNumberingOf,
+  headingNumberingScheme,
+  headingNumbers,
+} from './schema/heading-numbering'
+export {
+  CODE_TITLE_MAX,
+  codeBlockTitle,
+  lineRangeTest,
+  normalizeLineRanges,
+} from './schema/code-block'
+export {
+  columnCount,
+  DOCUMENT_ATTRIBUTE,
+  documentAttrs,
+  documentSettingsAttrs,
+  documentCommentsOf,
+  documentSettingsElement,
+  documentSignatureOf,
+  documentThemeOf,
+  frontMatterOf,
+  MAX_COLUMNS,
+  storedVariables,
+  templateVariables,
+  parseDocumentSettings,
+  type TextDirection,
+  textDirection,
+} from './schema/document-settings'
+export {
+  DEFAULT_PAGE_SETUP,
+  fillPageTemplate,
+  MAX_PAGE_MARGIN,
+  PAPER_SIZES,
+  type PageMargins,
+  type PageOrientation,
+  type PageSetup,
+  type PageTemplatePart,
+  type PaperSize,
+  type PageSection,
+  pageDimensions,
+  pageMargin,
+  pageSectionOf,
+  pageOrientation,
+  pageSetupAttr,
+  pageSetupOf,
+  pageTemplateParts,
+  paperSize,
+  storedPageSetup,
+} from './schema/page-setup'
+export {
+  BUILT_IN_STYLES,
+  documentStyle,
+  documentStyles,
+  headingLevelOfStyle,
+  type NamedStyle,
+  namedStylesCSS,
+  parseStoredStyles,
+  safeStyleId,
+  sanitizeStyleProps,
+  storedStylesAttr,
+  styleDeclarations,
+  type StyleAlign,
+  type StyleKind,
+  type StyleProps,
+} from './schema/named-styles'
+export {
+  BORDER_SIDES,
+  BORDER_STYLES,
+  type BorderSide,
+  type BorderStyle,
+  DROP_CAP_LINES,
+  type DropCap,
+  type DropCapKind,
+  dropCapOf,
+  MAX_BORDER_WIDTH,
+  type ParagraphBorder,
+  paragraphBorderOf,
+  paragraphShadingOf,
+  DEFAULT_TAB_INTERVAL,
+  formatTabStops,
+  parseTabStops,
+  TAB_ALIGNMENTS,
+  TAB_LEADERS,
+  type TabAlignment,
+  type TabLeader,
+  type TabStop,
+  tabStopsOf,
+} from './schema/paragraph-format'
 
 // view
-export { EditorView, type EditorViewOptions, type NodeViewFactory } from './view/editor-view'
+export {
+  EditorView,
+  type EditorViewOptions,
+  type NodeViewFactory,
+  TREVIXAL_MIME,
+} from './view/editor-view'
 export {
   type DecorationSource,
   DOMRenderer,

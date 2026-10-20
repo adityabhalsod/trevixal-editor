@@ -18,6 +18,7 @@ export interface DialogField {
     | 'color'
     | 'password'
     | 'email'
+    | 'date'
   readonly value?: string
   readonly placeholder?: string
   readonly required?: boolean
@@ -188,7 +189,18 @@ export function openDialog(options: DialogOptions): Promise<DialogValues | null>
 
     const first = [...inputs.values()][0]
     first?.focus()
+    if (first instanceof HTMLTextAreaElement) caretToStart(first)
   })
+}
+
+/**
+ * Put a text box's caret before its first character. A box focused with its
+ * value already set has the caret after the last line and scrolls there, so
+ * a list or a source would open at its end.
+ */
+export function caretToStart(box: HTMLTextAreaElement): void {
+  box.setSelectionRange(0, 0)
+  box.scrollTop = 0
 }
 
 /** Build the form control a field asks for, seeded with its value. */
@@ -450,7 +462,18 @@ export const SPECIAL_CHARACTERS: readonly string[] = [
 export interface PickerCharacter {
   readonly char: string
   readonly label: string
+  /**
+   * The category it is filed under, an emoji's "Smileys & Emotion". Entries
+   * with groups get a heading each, a bar of the groups to jump between, and
+   * a search box over every label.
+   */
+  readonly group?: string
+  /** More words the search box finds it by: an emoji's short code and synonyms. */
+  readonly keywords?: readonly string[]
 }
+
+/** Text as the search box compares it: lower case, `_` read as a space. */
+const searchable = (text: string): string => text.toLowerCase().replace(/_/g, ' ')
 
 export interface CharacterPickerOptions {
   /** Dialog heading (default "Special character"). */
@@ -482,12 +505,16 @@ export function openCharacterPicker(
   heading.className = 'trevixal-dialog__title'
   heading.textContent = title
 
-  const grid = document.createElement('div')
-  grid.className = options.className
-    ? `trevixal-charpicker ${options.className}`
-    : 'trevixal-charpicker'
-
-  dialog.append(heading, grid)
+  const entries = characters.map((entry) =>
+    typeof entry === 'string' ? { char: entry, label: entry } : entry,
+  )
+  const grouped = entries.some((entry) => entry.group)
+  const extra = options.className ? ` ${options.className}` : ''
+  // Grouped, the grids sit in sections under one scrolling box; otherwise
+  // the one grid is the box.
+  const box = document.createElement('div')
+  box.className = grouped ? `trevixal-charpicker__sections${extra}` : `trevixal-charpicker${extra}`
+  dialog.append(heading)
   overlay.appendChild(dialog)
   document.body.appendChild(overlay)
 
@@ -505,22 +532,102 @@ export function openCharacterPicker(
     }
     document.addEventListener('keydown', onKeyDown, true)
 
-    for (const entry of characters) {
-      const character = typeof entry === 'string' ? entry : entry.char
-      const label = typeof entry === 'string' ? entry : entry.label
+    const words = new Map<HTMLButtonElement, string>()
+    const itemFor = ({ char, label, keywords }: PickerCharacter): HTMLButtonElement => {
       const button = document.createElement('button')
       button.type = 'button'
       button.className = 'trevixal-charpicker__item'
-      button.textContent = character
+      button.textContent = char
       button.setAttribute('aria-label', label)
-      if (label !== character) button.title = label
+      if (label !== char) button.title = label
       button.dataset.trevixalChar = label
-      button.addEventListener('click', () => finish(character))
-      grid.appendChild(button)
+      button.addEventListener('click', () => finish(char))
+      words.set(button, searchable([label, ...(keywords ?? [])].join(' ')))
+      return button
     }
     overlay.addEventListener('mousedown', (event) => {
       if (event.target === overlay) finish(null)
     })
-    grid.querySelector('button')?.focus()
+
+    if (!grouped) {
+      box.append(...entries.map(itemFor))
+      dialog.append(box)
+      box.querySelector('button')?.focus()
+      return
+    }
+
+    const sections = new Map<string, HTMLElement>()
+    for (const entry of entries) {
+      const name = entry.group ?? ''
+      let section = sections.get(name)
+      if (!section) {
+        section = document.createElement('section')
+        section.className = 'trevixal-charpicker__section'
+        section.setAttribute('aria-label', name)
+        const label = document.createElement('h3')
+        label.className = 'trevixal-charpicker__heading'
+        label.textContent = name
+        const grid = document.createElement('div')
+        grid.className = 'trevixal-charpicker'
+        section.append(label, grid)
+        sections.set(name, section)
+        box.appendChild(section)
+      }
+      section.lastElementChild?.appendChild(itemFor(entry))
+    }
+
+    // A button per group, its first character for a face, that scrolls the
+    // box to the group's heading.
+    const bar = document.createElement('div')
+    bar.className = 'trevixal-charpicker__groups'
+    bar.setAttribute('role', 'toolbar')
+    bar.setAttribute('aria-label', 'Categories')
+    for (const [name, section] of sections) {
+      const jump = document.createElement('button')
+      jump.type = 'button'
+      jump.className = 'trevixal-charpicker__group'
+      jump.textContent = section.querySelector('.trevixal-charpicker__item')?.textContent ?? name
+      jump.title = name
+      jump.setAttribute('aria-label', name)
+      jump.addEventListener('click', () => {
+        box.scrollTop = section.offsetTop - box.offsetTop
+      })
+      bar.appendChild(jump)
+    }
+
+    const search = document.createElement('input')
+    search.type = 'search'
+    search.className = 'trevixal-charpicker__search'
+    search.placeholder = 'Search'
+    search.setAttribute('aria-label', `Search ${title.toLowerCase()}`)
+    const empty = document.createElement('p')
+    empty.className = 'trevixal-charpicker__empty'
+    empty.textContent = 'Nothing matches'
+    empty.hidden = true
+    search.addEventListener('input', () => {
+      const query = searchable(search.value.trim())
+      let shown = 0
+      for (const section of sections.values()) {
+        let inSection = 0
+        for (const button of section.querySelectorAll<HTMLButtonElement>('button')) {
+          const hit = query === '' || (words.get(button) ?? '').includes(query)
+          button.hidden = !hit
+          if (hit) inSection += 1
+        }
+        section.hidden = inSection === 0
+        shown += inSection
+      }
+      bar.hidden = query !== ''
+      empty.hidden = shown > 0
+    })
+    // Enter picks the first match, as a search box over a list should.
+    search.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      box.querySelector<HTMLButtonElement>('.trevixal-charpicker__item:not([hidden])')?.click()
+    })
+
+    dialog.append(search, bar, box, empty)
+    search.focus()
   })
 }

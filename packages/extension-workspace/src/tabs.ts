@@ -444,9 +444,19 @@ export function createDocumentTabs(
     })
   }
 
+  /**
+   * After a document the user picked, the caret goes to the page: the press
+   * left focus on the strip, so the first keys typed into nothing.
+   */
+  const focusEditor = (): void => {
+    if (!destroyed) editor.view?.focus()
+  }
+
   const openNewMenu = (): void => {
     if (templates.length === 0) {
-      enqueue(() => newDocument()).catch(() => undefined)
+      enqueue(() => newDocument())
+        .then(focusEditor)
+        .catch(() => undefined)
       return
     }
     const items = templates.map(
@@ -454,7 +464,9 @@ export function createDocumentTabs(
         id: `template:${template.id}`,
         label: template.icon ? `${template.icon} ${template.name}` : template.name,
         onSelect: () => {
-          enqueue(() => newDocument(template)).catch(() => undefined)
+          enqueue(() => newDocument(template))
+            .then(focusEditor)
+            .catch(() => undefined)
         },
       }),
     )
@@ -483,7 +495,10 @@ export function createDocumentTabs(
     } else if (target?.closest('.trevixal-tabs-bar__more')) {
       openTabMenu(hit.id, target.closest('.trevixal-tabs-bar__more') as HTMLElement)
     } else if (target?.closest('.trevixal-tabs-bar__tab')) {
-      tabs.open(hit.id).catch(() => undefined)
+      tabs
+        .open(hit.id)
+        .then(focusEditor)
+        .catch(() => undefined)
     }
   }
 

@@ -1,3 +1,5 @@
+import { layoutTabsIn } from './tab-layout'
+
 /**
  * The behaviour a saved page needs to match the editor it was saved from.
  *
@@ -80,6 +82,30 @@ function applyDocumentBehaviour(document: Document): void {
   document.addEventListener('click', (event) => {
     const panel = titleFrom(event.target)?.closest(PANEL)
     if (panel) show(panel)
+  })
+
+  /**
+   * A cross-reference, a table-of-figures or index entry, a note marker:
+   * each names its target as `data-href="#id"`, on a span, because an `<a>`
+   * would import back into the editor as a link. On a page nothing else
+   * follows them, so a click here does, to an element with that id or to the
+   * words an index entry marks.
+   */
+  document.addEventListener('click', (event) => {
+    const element = event.target as Element | null
+    const source =
+      element && typeof element.closest === 'function' ? element.closest('[data-href^="#"]') : null
+    const id = source ? (source.getAttribute('data-href') ?? '').slice(1) : ''
+    if (!id) return
+    // Compared as values, not written into a selector the id could break.
+    const named = (attribute: string): Element | undefined =>
+      [...document.querySelectorAll(`[${attribute}]`)].find(
+        (candidate) => candidate.getAttribute(attribute) === id,
+      )
+    const target = named('id') ?? named('data-index-term')
+    if (!target) return
+    event.preventDefault()
+    target.scrollIntoView({ block: 'center' })
   })
 
   /**
@@ -174,5 +200,15 @@ export function documentBehaviourScript(): string {
   // it. A second copy is a copy that drifts, and the two would drift in the
   // worst possible way: the preview and the saved file disagreeing about what
   // the same tab strip does.
-  return `(${applyDocumentBehaviour.toString()})(document)`
+  // The tabs, taken to their stops once the page is laid out, and again when
+  // its fonts arrive and every line changes length, or the window resizes and
+  // the lines wrap anew. First, and closed with a semicolon: source that
+  // starts with a bracket otherwise continues the last.
+  const tabs = `(function (layout) {
+    var run = function () { var root = document.querySelector('.trevixal-content'); if (root) layout(root, true) }
+    if (document.readyState === 'complete') run(); else window.addEventListener('load', run)
+    if (document.fonts) document.fonts.ready.then(run)
+    window.addEventListener('resize', run)
+  })(${layoutTabsIn.toString()});`
+  return `${tabs}\n(${applyDocumentBehaviour.toString()})(document)`
 }

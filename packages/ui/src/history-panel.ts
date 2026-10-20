@@ -56,6 +56,12 @@ export function createHistoryPanel(editor: Editor, options: HistoryPanelOptions)
   const list = document.createElement('ol')
   list.className = 'trevixal-history__list'
   root.append(toolbar, list)
+  // A press keeps focus and the caret in the document. Chrome focuses a
+  // pressed button, and the rows are rebuilt by the jump they make, so focus
+  // fell to the page and the next keys typed into nothing.
+  root.addEventListener('mousedown', (event) => {
+    if ((event.target as Element | null)?.closest?.('button')) event.preventDefault()
+  })
 
   const row = (
     entry: HistoryEntry | null,

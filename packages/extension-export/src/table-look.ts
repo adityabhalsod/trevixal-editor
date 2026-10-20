@@ -1,4 +1,4 @@
-import type { EditorNode } from '@trevixal/core'
+import { type EditorNode, TableMap } from '@trevixal/core'
 import { type RGB, parseColor } from './color'
 import { attrString } from './shared'
 
@@ -135,17 +135,23 @@ export function tableLook(table: EditorNode, colors: TableColors): TableLook {
     line,
     edges,
     cell(rowIndex, cellIndex) {
-      const row = table.child(rowIndex)
-      const cell = row.child(cellIndex)
+      // Where the cell stands on the grid: with a cell spanning down from a
+      // row above, a row's first cell is not always in the first column.
+      const map = TableMap.of(table)
+      const placed = map.cellAt(rowIndex, cellIndex)
+      const cell = placed?.node ?? table.child(rowIndex).child(cellIndex)
+      const left = placed?.left ?? cellIndex
+      const right = placed ? placed.left + placed.width : cellIndex + 1
+      const bottom = placed ? placed.top + placed.height - 1 : rowIndex
       const header = cell.attrs.header === true
-      const total = options.totalRow && rowIndex === lastRow && rowIndex > 0
+      const total = options.totalRow && bottom === lastRow && rowIndex > 0
       const bold =
         header ||
         total ||
-        (options.firstColumn && cellIndex === 0) ||
-        (options.lastColumn && cellIndex === row.childCount - 1)
+        (options.firstColumn && left === 0) ||
+        (options.lastColumn && right === map.width)
       const bandedRow = options.bandedRows && rowIndex % 2 === (headerRow ? 1 : 0)
-      const bandedColumn = options.bandedColumns && cellIndex % 2 === 0
+      const bandedColumn = options.bandedColumns && left % 2 === 0
       const filledHeader = header && style === 'header' && tone !== null
       return {
         fill: filledHeader ? tone : !header && (bandedRow || bandedColumn) ? band : null,

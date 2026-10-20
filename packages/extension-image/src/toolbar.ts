@@ -6,11 +6,14 @@ import {
   selectImage,
   setImageAlign,
   setImageAlt,
+  setImageDecorative,
   setImageWidth,
   toggleImageCaption,
 } from './commands'
 import { boxWithin, clamp, imageElementAt } from './dom'
+import { makeGallery } from './gallery'
 import type { ImageController } from './index'
+import { openImageMarkup } from './markup'
 import type { ImageAlign } from './schema'
 import type { ImageCrop } from './transform'
 
@@ -131,6 +134,22 @@ export function createImageToolbar(
     if (active) void controller.rotateRight(active.path)
   })
   const cropButton = button('Crop…', 'crop', () => (crop ? closeCrop() : openCrop()))
+  // Arrows, boxes, words and blurs, burned into the pixels as a crop is.
+  button('Mark up…', 'markup', () => {
+    if (!active) return
+    const path = active.path
+    const element = imageElementAt(editor, path)
+    const src = element instanceof HTMLImageElement ? element.currentSrc || element.src : ''
+    if (!element || !src) return
+    const natural = {
+      width: (element as HTMLImageElement).naturalWidth || element.getBoundingClientRect().width,
+      height: (element as HTMLImageElement).naturalHeight || element.getBoundingClientRect().height,
+    }
+    void openImageMarkup(doc, src, natural).then((shapes) => {
+      editor.view?.focus()
+      if (shapes) void controller.markup(shapes, path)
+    })
+  })
 
   const altInput = doc.createElement('input')
   altInput.type = 'text'
@@ -151,6 +170,12 @@ export function createImageToolbar(
   root.appendChild(altInput)
 
   const captionButton = button('Caption', 'caption', () => run((at) => toggleImageCaption(at)))
+  // Decoration only: no alt text, and screen readers pass it by.
+  const decorativeButton = button('Decorative', 'decorative', () =>
+    run((at) => setImageDecorative(active?.node.attrs.decorative !== true, at)),
+  )
+  // The image and the ones right beside it, as a gallery.
+  button('Gallery', 'gallery', () => run(() => makeGallery()))
   button('Delete', 'delete', () => run((at) => removeImage(at)))
 
   // ------------------------------------------------------------------ crop
@@ -312,6 +337,7 @@ export function createImageToolbar(
       element.setAttribute('aria-pressed', String(value === align))
     }
     captionButton.setAttribute('aria-pressed', String(hit.figurePath !== null))
+    decorativeButton.setAttribute('aria-pressed', String(hit.node.attrs.decorative === true))
     if (doc.activeElement !== altInput) altInput.value = String(hit.node.attrs.alt ?? '')
     // Before anything measures the bar: the field's width is part of it.
     sizeAltInput()

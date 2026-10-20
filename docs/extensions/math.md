@@ -38,6 +38,21 @@ It is written here rather than pulled in, so an equation costs no network
 request and renders the moment the document does, which also means it renders
 in an export, where a script would not run.
 
+## Chemistry
+
+`\ce{...}` writes chemistry the way mhchem does: `\ce{2H2 + O2 -> 2H2O}`,
+`\ce{SO4^2-}`, `\ce{CuSO4*5H2O}`, `\ce{NaCl(aq)}`, and the arrows `->`,
+`<-`, `<->` and `<=>`, with a condition over one as `->[heat]`.
+`chemistryToLatex` is the translation on its own.
+
+## Numbered equations
+
+A display equation with `numbered` set shows its number at the right,
+"(1)", as LaTeX's `equation` does. The number is a field: the field updater
+in `@trevixal/extension-blocks` works it out, in one sequence with the
+equation captions, and gives the equation an id a cross-reference can name.
+`setMathNumbered(true)` numbers the one at the selection.
+
 ## The `$...$` rule
 
 Typing the closing `$` converts the run. The rule ignores `$$`, so display

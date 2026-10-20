@@ -114,6 +114,28 @@ describe('createEditorUI view state', () => {
     expect(item('widthNarrow').getAttribute('aria-checked')).toBe('false')
   })
 
+  it('offers fullscreen at the page’s width and at the screen’s, each with its own tick', () => {
+    const editor = mount()
+    const asked: string[] = []
+    createEditorUI(editor, {
+      container,
+      viewActions: {
+        toggleFullscreen: () => asked.push('page'),
+        toggleFullscreenScreenWidth: () => asked.push('screen'),
+        isViewToggleOn: (toggle) => toggle === 'fullscreenScreenWidth',
+      },
+    })
+    const group = item('fullscreen').closest('.trevixal-menu__group')
+    expect(group?.querySelector('.trevixal-menu__heading')?.textContent).toBe('Fullscreen')
+    expect(item('fullscreen').textContent).toContain('Page width')
+    expect(item('fullscreenScreenWidth').textContent).toContain('Screen width')
+    expect(item('fullscreen').getAttribute('aria-checked')).toBe('false')
+    expect(item('fullscreenScreenWidth').getAttribute('aria-checked')).toBe('true')
+    item('fullscreen').click()
+    item('fullscreenScreenWidth').click()
+    expect(asked).toEqual(['page', 'screen'])
+  })
+
   it('leaves entries as plain commands when the host answers nothing', () => {
     const editor = mount()
     createEditorUI(editor, {

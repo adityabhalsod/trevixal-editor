@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type FullEditor, mountFullEditor } from '@trevixal/editor-kit'
+import { uiLanguageLoaders } from '@trevixal/ui/locales'
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 /**
@@ -18,6 +19,7 @@ onMounted(() => {
   editor = mountFullEditor({
     element: host.value,
     namespace: 'trevixal:vue',
+    languages: uiLanguageLoaders,
     aboutRows: [{ term: 'Framework', description: 'Vue 3, mounted from onMounted' }],
   })
 })

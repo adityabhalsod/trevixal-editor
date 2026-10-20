@@ -19,9 +19,15 @@ import {
   type DiagramController,
   type DiagramOptions,
   type DiagramRenderer,
+  EVERY_DIAGRAM_LANGUAGE,
+  GRAPHVIZ_TEMPLATE,
+  PLANTUML_TEMPLATE,
+  createGraphvizRenderer,
   createMermaidRenderer,
+  createPlantUMLRenderer,
   diagram,
   diagramUICommands,
+  encodePlantUML,
   insertDiagram,
   isDiagramBlock,
   loadMermaid,
@@ -465,7 +471,7 @@ describe('insertDiagram', () => {
 describe('diagramUICommands', () => {
   it('bundles insertDiagram for the UI, defaulting to the template and mermaid', () => {
     const commands = diagramUICommands()
-    expect(Object.keys(commands)).toEqual(['insertDiagram'])
+    expect(Object.keys(commands)).toEqual(['insertDiagram', 'insertGraphviz', 'insertPlantUML'])
 
     const editor = headless(para(''))
     expect(editor.exec(commands.insertDiagram())).toBe(true)
@@ -478,6 +484,42 @@ describe('diagramUICommands', () => {
     expect(editor.exec(diagramUICommands('plantuml').insertDiagram('@startuml'))).toBe(true)
     expect(editor.state.doc.child(0).attrs.language).toBe('plantuml')
     expect(editor.state.doc.child(0).textContent).toBe('@startuml')
+  })
+})
+
+describe('Graphviz and PlantUML', () => {
+  it('puts in a first diagram of each, in its own language', () => {
+    const commands = diagramUICommands()
+    const editor = headless(para(''))
+    expect(editor.exec(commands.insertGraphviz())).toBe(true)
+    expect(editor.state.doc.child(0).attrs.language).toBe('dot')
+    expect(editor.state.doc.child(0).textContent).toBe(GRAPHVIZ_TEMPLATE)
+    expect(editor.exec(commands.insertPlantUML())).toBe(true)
+    expect(editor.state.doc.child(1).attrs.language).toBe('plantuml')
+    expect(editor.state.doc.child(1).textContent).toBe(PLANTUML_TEMPLATE)
+    for (const block of [editor.state.doc.child(0), editor.state.doc.child(1)]) {
+      expect(isDiagramBlock(block, EVERY_DIAGRAM_LANGUAGE)).toBe(true)
+    }
+  })
+
+  it('draws DOT through Viz.js as SVG', () => {
+    const renderString = vi.fn(() => '<svg>graph</svg>')
+    const render = createGraphvizRenderer({ renderString })
+    expect(render('digraph { a -> b }', { language: 'dot', id: 'd1' })).toBe('<svg>graph</svg>')
+    expect(renderString).toHaveBeenCalledWith('digraph { a -> b }', { format: 'svg' })
+  })
+
+  it('encodes PlantUML the way its server reads it', async () => {
+    // The example in PlantUML's own documentation.
+    expect(await encodePlantUML('Bob -> Alice : hello')).toBe('SyfFKj2rKt3CoKnELR1Io4ZDoSa70000')
+  })
+
+  it('shows PlantUML as a picture from the server, which cannot run anything', async () => {
+    const render = createPlantUMLRenderer('https://uml.example/plantuml/')
+    const html = await render('Bob -> Alice : hello', { language: 'plantuml', id: 'p1' })
+    expect(html).toBe(
+      '<img class="trevixal-diagram__picture" src="https://uml.example/plantuml/svg/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000" alt="PlantUML diagram">',
+    )
   })
 })
 

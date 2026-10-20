@@ -14,6 +14,8 @@ import {
   createTrackChangesBar,
   nextSuggestion,
   suggestionAt,
+  suggestionAuthors,
+  suggestionsBy,
   trackChangesMarks,
 } from '../src'
 
@@ -261,5 +263,76 @@ describe('createTrackChangesBar external toggles', () => {
     bar.destroy()
     // No listener left behind to write into a detached bar.
     expect(() => track.enable()).not.toThrow()
+  })
+})
+
+describe('suggestions by one author', () => {
+  const by = (author: string, text: string, kind: 'insertion' | 'deletion' = 'insertion') => ({
+    type: 'text',
+    text,
+    marks: [{ type: kind, attrs: { author, timestamp: 1 } }],
+  })
+
+  function reviewed() {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const editor = createEditor({
+      schema,
+      element: host,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'Plan ' },
+              by('Priya', 'now'),
+              { type: 'text', text: ' and ' },
+              by('Sam', 'later'),
+              by('Priya', ' soon', 'deletion'),
+            ],
+          },
+        ],
+      },
+    })
+    return { editor, track: new TrackChanges(editor, { author: 'ada' }) }
+  }
+
+  it('lists who has suggestions pending, and each one’s', () => {
+    const { editor, track } = reviewed()
+    expect(suggestionAuthors(track)).toEqual(['Priya', 'Sam'])
+    expect(suggestionsBy(track, 'Priya').map((suggestion) => suggestion.kind)).toEqual(
+      expect.arrayContaining(['insertion', 'deletion']),
+    )
+    expect(suggestionsBy(track, null)).toHaveLength(3)
+    editor.destroy()
+  })
+
+  it('accepts one reviewer’s suggestions from the bar, and leaves the others', () => {
+    const { editor, track } = reviewed()
+    const bar = createTrackChangesBar(editor, track, { container })
+    const authors = bar.element.querySelector<HTMLSelectElement>('.trevixal-trackchanges__authors')
+    expect([...(authors?.options ?? [])].map((option) => option.textContent)).toEqual([
+      'By everyone',
+      'By Priya',
+      'By Sam',
+    ])
+    if (authors) {
+      authors.value = 'Priya'
+      authors.dispatchEvent(new Event('change'))
+    }
+    const accept = bar.element.querySelector<HTMLButtonElement>(
+      '.trevixal-trackchanges__accept-all',
+    )
+    expect(accept?.textContent).toBe('Accept Priya’s')
+    accept?.click()
+    // Priya's insertion is kept and her deletion carried out; Sam's waits.
+    expect(editor.state.doc.textContent).toBe('Plan now and later')
+    expect(suggestionAuthors(track)).toEqual(['Sam'])
+    // With one reviewer left there is nothing to choose between.
+    expect(authors?.hidden).toBe(true)
+    expect(accept?.textContent).toBe('Accept all')
+    bar.destroy()
+    editor.destroy()
   })
 })

@@ -1,5 +1,6 @@
 import type { NodeSpec } from '@trevixal/core'
 import { safeImageSrc, safeLength } from '@trevixal/core'
+import { drawingNodes } from './drawing'
 
 export type ImageAlign = 'left' | 'center' | 'right' | 'none'
 
@@ -16,7 +17,8 @@ const ALIGNMENTS = new Set<string>(['left', 'center', 'right', 'none'])
 export function imageNodes(): Record<string, NodeSpec> {
   return {
     image: {
-      group: 'block',
+      // `media` is what a gallery holds.
+      group: 'block media',
       atom: true,
       attrs: {
         src: { default: '' },
@@ -29,11 +31,15 @@ export function imageNodes(): Record<string, NodeSpec> {
         storageKey: { default: null },
         /** Set while an upload is running; cleared when it resolves. */
         uploadId: { default: null },
+        /** Decoration only: no alt text, and screen readers pass it by. */
+        decorative: { default: false },
       },
       toHTML: (node) => {
         const src = safeImageSrc(node.attrs.src)
         const attrs: Record<string, string> = { src: src ?? '' }
-        attrs.alt = typeof node.attrs.alt === 'string' ? node.attrs.alt : ''
+        const decorative = node.attrs.decorative === true
+        attrs.alt = !decorative && typeof node.attrs.alt === 'string' ? node.attrs.alt : ''
+        if (decorative) attrs['data-decorative'] = ''
         if (typeof node.attrs.title === 'string') attrs.title = node.attrs.title
         const width = safeLength(node.attrs.width)
         if (width) attrs.width = width.replace(/px$/, '')
@@ -48,6 +54,10 @@ export function imageNodes(): Record<string, NodeSpec> {
         if (typeof node.attrs.uploadId === 'string') {
           attrs['data-trevixal-uploading'] = node.attrs.uploadId
         }
+        // Fetched as it nears the screen, so a long document with many
+        // pictures opens without waiting on all of them. Print asks for them
+        // all at once (see `printableHTML`).
+        attrs.loading = 'lazy'
         return { tag: 'img', attrs, isVoid: true }
       },
       parseHTML: [
@@ -57,6 +67,12 @@ export function imageNodes(): Record<string, NodeSpec> {
             const src = safeImageSrc(element.getAttribute('src'))
             if (!src) return false // unsafe or missing source: drop the node
             const attrs: Record<string, unknown> = { src, alt: element.getAttribute('alt') ?? '' }
+            if (
+              element.hasAttribute('data-decorative') ||
+              element.getAttribute('role') === 'presentation'
+            ) {
+              attrs.decorative = true
+            }
             const title = element.getAttribute('title')
             if (title) attrs.title = title
             const width = safeLength(element.getAttribute('width'))
@@ -72,7 +88,7 @@ export function imageNodes(): Record<string, NodeSpec> {
     },
     figure: {
       content: 'image caption?',
-      group: 'block',
+      group: 'block media',
       toHTML: () => ({ tag: 'figure', attrs: { class: 'trevixal-figure' } }),
       parseHTML: [{ tag: 'figure' }],
     },
@@ -81,7 +97,50 @@ export function imageNodes(): Record<string, NodeSpec> {
       toHTML: () => ({ tag: 'figcaption' }),
       parseHTML: [{ tag: 'figcaption' }],
     },
+    ...drawingNodes(),
+    // A grid of images, two to six across, that open full size in the
+    // editor's lightbox.
+    gallery: {
+      content: 'media+',
+      group: 'block',
+      attrs: { columns: { default: 3 } },
+      toHTML: (node) => {
+        const columns = galleryColumns(node.attrs.columns)
+        return {
+          tag: 'div',
+          attrs: {
+            class: 'trevixal-gallery',
+            'data-gallery': '',
+            'data-columns': String(columns),
+            style: `--tvx-gallery-columns: ${columns}`,
+          },
+        }
+      },
+      parseHTML: [
+        {
+          tag: 'div',
+          attribute: 'data-gallery',
+          getAttrs: (element) => ({
+            columns: galleryColumns(element.getAttribute('data-columns')),
+          }),
+        },
+      ],
+    },
   }
+}
+
+/** The fewest and most images a gallery row takes. */
+export const GALLERY_COLUMNS = { min: 2, max: 6 } as const
+
+/** A gallery's column count, a whole number from 2 to 6; 3 for anything else. */
+export function galleryColumns(value: unknown): number {
+  const number = typeof value === 'string' ? Number.parseInt(value, 10) : value
+  return typeof number === 'number' &&
+    Number.isInteger(number) &&
+    number >= GALLERY_COLUMNS.min &&
+    number <= GALLERY_COLUMNS.max
+    ? number
+    : 3
 }
 
 function readAlign(element: HTMLElement): ImageAlign | null {

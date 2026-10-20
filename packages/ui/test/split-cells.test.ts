@@ -19,11 +19,13 @@ function mountEditor() {
   return { host, editor: createEditor({ schema, element: host }) }
 }
 
-/** The open dialog's column count, set and submitted. */
-async function submitColumns(value: string): Promise<void> {
+/** The open dialog's column count, and its row count when given, set and submitted. */
+async function submitColumns(value: string, rows?: string): Promise<void> {
   const input = document.querySelector<HTMLInputElement>('.trevixal-dialog [name="columns"]')
   expect(input).not.toBeNull()
   if (input) input.value = value
+  const rowInput = document.querySelector<HTMLInputElement>('.trevixal-dialog [name="rows"]')
+  if (rowInput && rows !== undefined) rowInput.value = rows
   document
     .querySelector<HTMLFormElement>('.trevixal-dialog__form')
     ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
@@ -52,21 +54,22 @@ function toolbarCommands(overrides: Partial<TableToolbarCommands>): TableToolbar
 }
 
 describe('openSplitCellsDialog', () => {
-  it('asks for a column count from 2 to 63, starting at 2', async () => {
+  it('asks for columns up to 63 and rows up to 100, starting at two by one', async () => {
     const pending = openSplitCellsDialog(document)
     const input = document.querySelector<HTMLInputElement>('.trevixal-dialog [name="columns"]')
     expect(input?.type).toBe('number')
-    expect([input?.value, input?.min, input?.max, input?.required]).toEqual(['2', '2', '63', true])
-    // Word's dialog asks for rows too; this model spans columns only.
-    expect(document.querySelector('.trevixal-dialog [name="rows"]')).toBeNull()
-    await submitColumns('4')
-    await expect(pending).resolves.toBe(4)
+    expect([input?.value, input?.min, input?.max, input?.required]).toEqual(['2', '1', '63', true])
+    // Word's dialog asks for rows too, and so does this one now cells span rows.
+    const rows = document.querySelector<HTMLInputElement>('.trevixal-dialog [name="rows"]')
+    expect([rows?.value, rows?.min, rows?.max]).toEqual(['1', '1', '100'])
+    await submitColumns('4', '3')
+    await expect(pending).resolves.toEqual({ columns: 4, rows: 3 })
   })
 
   it('hands back a fraction as it is, for the command to turn down', async () => {
     const pending = openSplitCellsDialog(document)
     await submitColumns('2.5')
-    await expect(pending).resolves.toBe(2.5)
+    await expect(pending).resolves.toEqual({ columns: 2.5, rows: 1 })
   })
 
   it('resolves null when dismissed', async () => {
@@ -89,7 +92,7 @@ describe('Split in the floating cell toolbar', () => {
     entry?.click()
     expect(split).not.toHaveBeenCalled()
     await submitColumns('3')
-    expect(split).toHaveBeenCalledWith(3)
+    expect(split).toHaveBeenCalledWith(3, 1)
   })
 
   it('un-merges straight away for a host without the dialog’s command', () => {
@@ -113,8 +116,8 @@ describe('Split in the Table menu', () => {
       tableCommands: { insertTable: () => noop, splitCell: noop, splitCellInto: split },
     })
     ui.element.querySelector<HTMLButtonElement>('[data-trevixal-item="splitCell"]')?.click()
-    await submitColumns('5')
-    expect(split).toHaveBeenCalledWith(5)
+    await submitColumns('5', '2')
+    expect(split).toHaveBeenCalledWith(5, 2)
     ui.destroy()
   })
 

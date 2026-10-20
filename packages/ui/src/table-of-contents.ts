@@ -6,6 +6,7 @@ import {
   TextSelection,
   pos,
 } from '@trevixal/core'
+import { scrollBehavior } from './motion'
 
 /** One heading discovered in the document. */
 export interface TocEntry {
@@ -146,7 +147,7 @@ export function createTableOfContents(
       options.onNavigate(entry, element)
       return
     }
-    element?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    element?.scrollIntoView({ block: 'start', behavior: scrollBehavior(element) })
   }
 
   /**

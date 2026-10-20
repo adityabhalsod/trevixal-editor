@@ -87,6 +87,15 @@ describe('letter spacing', () => {
     expect(mark?.attrs.spacing).toBe('0.5em')
   })
 
+  it('draws tight spacing, which is a negative length', () => {
+    const editor = editorWith('tight')
+    expect(editor.exec(setLetterSpacing('-0.02em'))).toBe(true)
+    expect(editor.getHTML()).toContain('letter-spacing: -0.02em')
+    const parsed = parseHTML(testSchema, editor.getHTML())
+    expect(parsed.child(0).child(0).marks[0]?.attrs.spacing).toBe('-0.02em')
+    editor.destroy()
+  })
+
   it('drops an unsafe spacing value at serialization time', () => {
     const editor = editorWith('sneaky')
     editor.exec(setLetterSpacing('2px; background: url(evil.png)'))
@@ -207,7 +216,7 @@ describe('paragraph spacing', () => {
       ),
     )
     expect(html).toContain('text-align: center')
-    expect(html).toContain('margin-left: 2.5rem')
+    expect(html).toContain('margin-inline-start: 2.5rem')
     expect(html).toContain('margin-top: 4px')
   })
 })

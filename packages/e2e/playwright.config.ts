@@ -4,6 +4,10 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   reporter: 'list',
+  // The full-editor example installs a service worker that caches the page.
+  // Left on, it would answer requests a test means to route or to fail, so
+  // it is off except in the spec about working offline, which turns it on.
+  use: { serviceWorkers: 'block' },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },

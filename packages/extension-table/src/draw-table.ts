@@ -6,24 +6,18 @@ import {
   type Path,
   ReplaceNodesStep,
   SetNodeAttrsStep,
+  TableMap,
   TextSelection,
   type Transaction,
   nodeAtPath,
   replaceNodeAt,
 } from '@trevixal/core'
 import { hidesSide, showingSides, sidesOfColumnPart } from './cell-borders'
-import {
-  cellAtColumn,
-  colspanOf,
-  columnCount,
-  columnStart,
-  cursorIn,
-  emptyCell,
-  withCells,
-} from './commands'
+import { columnCount, cursorIn, emptyCell } from './commands'
 import { sizedTable } from './resize'
 import type { CellSide } from './schema'
 import type { TableGeometry } from './table-geometry'
+import { type Placed, caretAtGrid, placementsOf, tableFrom } from './table-grid'
 
 /** How near an existing line a drawn one has to fall to land on it, in px. */
 export const SNAP_DISTANCE = 6
@@ -91,32 +85,63 @@ export function drawColumnLine(line: ColumnLine): Command {
     const column = bandAt(lines, line.x)
     const left = line.x - (lines[column] ?? 0)
     const right = (lines[column + 1] ?? 0) - line.x
-    const children = table.content.children.map((row, rowIndex) => {
-      const at = cellAtColumn(row, column)
-      if (!at) return row
-      const span = colspanOf(at.cell)
-      return rowIndex < rows.first || rowIndex > rows.last
-        ? withCells(row, at.index, [at.cell.withAttrs({ ...at.cell.attrs, colspan: span + 1 })])
-        : withCells(row, at.index, cutAt(at.cell, column - at.start + 1, span + 1))
-    })
+    const placed = placementsOf(table)
+    const parts: Placed[] = []
+    for (const cell of placed) {
+      if (cell.left > column) {
+        cell.left += 1
+      } else if (cell.left + cell.width > column) {
+        // The cell stands in the column the line fell in: cut where the line
+        // crossed it, widened across the new column where it missed.
+        if (!crossesRows(cell, rows)) {
+          cell.width += 1
+          continue
+        }
+        const leftSpan = column - cell.left + 1
+        const [first, second] = cutAt(cell.node, leftSpan, cell.width + 1)
+        parts.push({
+          node: second as EditorNode,
+          top: cell.top,
+          left: cell.left + leftSpan,
+          width: cell.width + 1 - leftSpan,
+          height: cell.height,
+        })
+        cell.node = first as EditorNode
+        cell.width = leftSpan
+      }
+    }
+    const built = tableFrom(table, table.content.children, [...placed, ...parts])
     const columnWidths = [...columns.slice(0, column), left, right, ...columns.slice(column + 1)]
     const sizing = { columnWidths, width: line.geometry.width }
-    const sized = sizedTable(table.withContent(Fragment.from(children)), sizing, line.geometry.room)
+    const sized = sizedTable(built.table, sizing, line.geometry.room)
     if (!sized) return null
     // The caret goes to the new cell right of the line, in the first row it crossed.
-    const landing = cellAtColumn(sized.child(rows.first), column + 1)?.index ?? 0
-    return replaced(state, line.tablePath, sized, cursorIn(line.tablePath, rows.first, landing))
+    const landing =
+      caretAtGrid(line.tablePath, sized, rows.first, column + 1) ??
+      cursorIn(line.tablePath, rows.first, 0)
+    return replaced(state, line.tablePath, sized, landing)
   }
 }
 
+/** Whether a placed cell stands in any of the rows from `first` to `last`. */
+function crossesRows(cell: Placed, rows: { first: number; last: number }): boolean {
+  return cell.top <= rows.last && cell.top + cell.height - 1 >= rows.first
+}
+
+/** Whether a placed cell stands in any of the columns from `first` to `last`. */
+function crossesColumns(cell: Placed, first: number, last: number): boolean {
+  return cell.left <= last && cell.left + cell.width - 1 >= first
+}
+
 /**
- * Word's Draw Table, a line drawn across: the row it crosses is split in two
- * where it was drawn. Cells here span columns only (ADR-0006), so the whole
- * row splits, not just the cells under the line; the new row repeats the
- * row's cells, empty, and the text stays above.
+ * Word's Draw Table, a line drawn across: every cell it crosses is split in
+ * two where it was drawn, the text staying above, and in the columns it
+ * misses the cell standing there spans both new rows, so they look as they
+ * did. The new part below each crossed cell takes its formatting.
  *
- * A line drawn onto one already there draws it again wherever the Eraser took
- * it out, under the columns the line crossed.
+ * A line drawn onto one already there lands on it instead: a merged cell it
+ * crosses is split back along it, and a line the Eraser took out is drawn
+ * again, under the columns the line crossed.
  */
 export function drawRowLine(line: RowLine): Command {
   return (state) => {
@@ -127,46 +152,89 @@ export function drawRowLine(line: RowLine): Command {
     const first = Math.min(line.fromColumn, line.toColumn)
     const last = Math.max(line.fromColumn, line.toColumn)
     const onLine = boundaryNear(lines, line.y)
-    if (onLine !== null) {
-      // The rows above and below the line each own half of it.
-      const next = table.withContent(
-        Fragment.from(
-          table.content.children.map((row, rowIndex) => {
-            if (rowIndex === onLine - 1) return showingUnder(row, first, last, 'bottom')
-            if (rowIndex === onLine) return showingUnder(row, first, last, 'top')
-            return row
-          }),
-        ),
-      )
-      return replaced(state, line.tablePath, next, keptSelection(state))
-    }
+    if (onLine !== null) return alongRowLine(state, line, table, first, last, onLine)
 
     const index = bandAt(lines, line.y)
-    const row = table.child(index)
-    const upper = row.withContent(
-      Fragment.from(row.content.children.map((cell) => withShown(cell, ['bottom']))),
-    )
-    const lower = row.withContent(
-      Fragment.from(
-        row.content.children.map((cell) =>
-          emptyCell(state.schema, { ...cell.attrs, hiddenBorders: showingSides(cell, ['top']) }),
-        ),
-      ),
-    )
-    const children = [...table.content.children]
-    children.splice(index, 1, upper, lower)
+    const placed = placementsOf(table)
+    const parts: Placed[] = []
+    for (const cell of placed) {
+      if (cell.top > index) {
+        cell.top += 1
+      } else if (cell.top + cell.height > index) {
+        if (!crossesColumns(cell, first, last)) {
+          cell.height += 1
+          continue
+        }
+        const upperHeight = index - cell.top + 1
+        parts.push({
+          node: lowerPart(cell.node),
+          top: index + 1,
+          left: cell.left,
+          width: cell.width,
+          height: cell.height + 1 - upperHeight,
+        })
+        cell.node = withShown(cell.node, ['bottom'])
+        cell.height = upperHeight
+      }
+    }
+    const rowNodes = [...table.content.children]
+    const split = rowNodes[index] as EditorNode
+    rowNodes.splice(index + 1, 0, split.type.create(split.attrs))
+    const built = tableFrom(table, rowNodes, [...placed, ...parts])
     const rowHeights: number[] = []
     rowHeights[index] = line.y - (lines[index] ?? 0)
     rowHeights[index + 1] = (lines[index + 1] ?? 0) - line.y
-    const sized = sizedTable(
-      table.withContent(Fragment.from(children)),
-      { rowHeights },
-      line.geometry.room,
-    )
+    const sized = sizedTable(built.table, { rowHeights }, line.geometry.room)
     if (!sized) return null
-    const landing = cellAtColumn(lower, first)?.index ?? 0
-    return replaced(state, line.tablePath, sized, cursorIn(line.tablePath, index + 1, landing))
+    const landing =
+      caretAtGrid(line.tablePath, sized, index + 1, first) ?? cursorIn(line.tablePath, index + 1, 0)
+    return replaced(state, line.tablePath, sized, landing)
   }
+}
+
+/** A line across onto one already there: split merged cells along it, draw it where erased. */
+function alongRowLine(
+  state: EditorState,
+  line: RowLine,
+  table: EditorNode,
+  first: number,
+  last: number,
+  boundary: number,
+): Transaction | null {
+  let landing: { top: number; left: number } | null = null
+  const placed = placementsOf(table)
+  const parts: Placed[] = []
+  for (const cell of placed) {
+    if (!crossesColumns(cell, first, last)) continue
+    if (cell.top < boundary && cell.top + cell.height > boundary) {
+      const upperHeight = boundary - cell.top
+      parts.push({
+        node: lowerPart(cell.node),
+        top: boundary,
+        left: cell.left,
+        width: cell.width,
+        height: cell.height - upperHeight,
+      })
+      cell.node = withShown(cell.node, ['bottom'])
+      cell.height = upperHeight
+      if (!landing || cell.left < landing.left) landing = { top: boundary, left: cell.left }
+    } else if (cell.top + cell.height === boundary) {
+      // The rows above and below the line each own half of it.
+      cell.node = withShown(cell.node, ['bottom'])
+    } else if (cell.top === boundary) {
+      cell.node = withShown(cell.node, ['top'])
+    }
+  }
+  const built = tableFrom(table, table.content.children, [...placed, ...parts])
+  const selection = landing
+    ? (caretAtGrid(line.tablePath, built.table, landing.top, landing.left) ?? keptSelection(state))
+    : keptSelection(state)
+  return replaced(state, line.tablePath, built.table, selection)
+}
+
+/** The empty part below a cell split across: its formatting, and its erased sides bar the top. */
+function lowerPart(cell: EditorNode): EditorNode {
+  return emptyCell(cell.type.schema, { ...cell.attrs, hiddenBorders: showingSides(cell, ['top']) })
 }
 
 /**
@@ -237,32 +305,34 @@ const OPPOSITE: Readonly<Record<CellSide, CellSide>> = {
 /** The cells across one side of a cell, each with its side that faces it. */
 function facing(doc: EditorNode, cellPath: Path, side: CellSide): { path: Path; side: CellSide }[] {
   const tablePath = cellPath.slice(0, -2)
-  const rowIndex = cellPath[cellPath.length - 2] as number
-  const cellIndex = cellPath[cellPath.length - 1] as number
   const table = nodeAtPath(doc, tablePath)
-  const row = table?.content.maybeChild(rowIndex)
-  const cell = row?.content.maybeChild(cellIndex)
-  if (!table || !row || !cell) return []
+  if (table?.type.name !== 'table') return []
+  const map = TableMap.of(table)
+  const cell = map.cellAt(
+    cellPath[cellPath.length - 2] as number,
+    cellPath[cellPath.length - 1] as number,
+  )
+  if (!cell) return []
   const opposite = OPPOSITE[side]
-  if (side === 'left' || side === 'right') {
-    const index = cellIndex + (side === 'left' ? -1 : 1)
-    return row.content.maybeChild(index)
-      ? [{ path: [...tablePath, rowIndex, index], side: opposite }]
-      : []
-  }
-  // Across a row line, every cell of the next row that shares a column with this one.
-  const otherIndex = rowIndex + (side === 'top' ? -1 : 1)
-  const other = table.content.maybeChild(otherIndex)
-  if (!other) return []
-  const start = columnStart(row, cellIndex)
-  const end = start + colspanOf(cell)
+  // Every cell across the line along that whole side, each once.
+  const spots: [number, number][] =
+    side === 'left' || side === 'right'
+      ? Array.from({ length: cell.height }, (_, offset) => [
+          cell.top + offset,
+          side === 'left' ? cell.left - 1 : cell.left + cell.width,
+        ])
+      : Array.from({ length: cell.width }, (_, offset) => [
+          side === 'top' ? cell.top - 1 : cell.top + cell.height,
+          cell.left + offset,
+        ])
   const found: { path: Path; side: CellSide }[] = []
-  other.content.children.forEach((candidate, index) => {
-    const from = columnStart(other, index)
-    if (from < end && from + colspanOf(candidate) > start) {
-      found.push({ path: [...tablePath, otherIndex, index], side: opposite })
-    }
-  })
+  const seen = new Set<unknown>()
+  for (const [row, column] of spots) {
+    const across = map.at(row, column)
+    if (!across || seen.has(across)) continue
+    seen.add(across)
+    found.push({ path: [...tablePath, across.row, across.index], side: opposite })
+  }
   return found
 }
 
@@ -303,28 +373,38 @@ function alongColumnLine(
   rows: { first: number; last: number },
   boundary: number,
 ): Transaction | null {
-  let landing: { row: number; cell: number } | null = null
-  const children: EditorNode[] = []
-  for (const [rowIndex, row] of table.content.children.entries()) {
-    const across = cellAtColumn(row, boundary)
-    if (rowIndex < rows.first || rowIndex > rows.last) {
-      children.push(row)
-    } else if (across && across.start < boundary) {
-      landing ??= { row: rowIndex, cell: across.index + 1 }
-      const span = colspanOf(across.cell)
-      children.push(withCells(row, across.index, cutAt(across.cell, boundary - across.start, span)))
-    } else {
-      children.push(showingAt(row, boundary))
+  let landing: { top: number; left: number } | null = null
+  const placed = placementsOf(table)
+  const parts: Placed[] = []
+  for (const cell of placed) {
+    if (!crossesRows(cell, rows)) continue
+    if (cell.left < boundary && cell.left + cell.width > boundary) {
+      const leftSpan = boundary - cell.left
+      const [first, second] = cutAt(cell.node, leftSpan, cell.width)
+      parts.push({
+        node: second as EditorNode,
+        top: cell.top,
+        left: boundary,
+        width: cell.width - leftSpan,
+        height: cell.height,
+      })
+      cell.node = first as EditorNode
+      cell.width = leftSpan
+      if (!landing || cell.top < landing.top) landing = { top: cell.top, left: boundary }
+    } else if (cell.left + cell.width === boundary) {
+      cell.node = withShown(cell.node, ['right'])
+    } else if (cell.left === boundary) {
+      cell.node = withShown(cell.node, ['left'])
     }
   }
-  const next = table.withContent(Fragment.from(children))
-  if (landing === null) return replaced(state, line.tablePath, next, keptSelection(state))
+  const built = tableFrom(table, table.content.children, [...placed, ...parts])
+  if (landing === null) return replaced(state, line.tablePath, built.table, keptSelection(state))
   // A merged cell split along the line: its parts take the widths of the
   // columns they now cover, as the page drew them.
   const sizing = { columnWidths: line.geometry.columns, width: line.geometry.width }
-  const sized = sizedTable(next, sizing, line.geometry.room)
-  const { row, cell } = landing
-  return sized ? replaced(state, line.tablePath, sized, cursorIn(line.tablePath, row, cell)) : null
+  const sized = sizedTable(built.table, sizing, line.geometry.room)
+  const caret = sized ? caretAtGrid(line.tablePath, sized, landing.top, landing.left) : null
+  return sized && caret ? replaced(state, line.tablePath, sized, caret) : null
 }
 
 /**
@@ -337,32 +417,6 @@ function cutAt(cell: EditorNode, leftSpan: number, span: number): EditorNode[] {
     const attrs = { ...cell.attrs, colspan, hiddenBorders: sidesOfColumnPart(cell, index, 2) }
     return index === 0 ? cell.withAttrs(attrs) : emptyCell(cell.type.schema, attrs)
   })
-}
-
-/** The row with the line at grid `boundary` drawn again on both sides of it. */
-function showingAt(row: EditorNode, boundary: number): EditorNode {
-  return row.withContent(
-    Fragment.from(
-      row.content.children.map((cell, index) => {
-        const start = columnStart(row, index)
-        if (start + colspanOf(cell) === boundary) return withShown(cell, ['right'])
-        return start === boundary ? withShown(cell, ['left']) : cell
-      }),
-    ),
-  )
-}
-
-/** The row with `side` drawn again on every cell overlapping the columns `first`..`last`. */
-function showingUnder(row: EditorNode, first: number, last: number, side: CellSide): EditorNode {
-  return row.withContent(
-    Fragment.from(
-      row.content.children.map((cell, index) => {
-        const start = columnStart(row, index)
-        const end = start + colspanOf(cell) - 1
-        return end >= first && start <= last ? withShown(cell, [side]) : cell
-      }),
-    ),
-  )
 }
 
 /** The cell with these sides drawn again, or the same cell when they already were. */

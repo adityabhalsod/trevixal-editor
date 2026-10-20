@@ -58,4 +58,5 @@ export function counterView(editor) {
 }
 ```
 
-A complete, runnable version is in `examples/svelte`.
+A complete, working version is `packages/svelte/test/counter-view.svelte.ts`,
+with the test that drives it beside it.

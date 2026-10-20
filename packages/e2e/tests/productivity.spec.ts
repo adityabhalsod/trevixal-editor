@@ -221,4 +221,39 @@ test.describe('keyboard and productivity', () => {
       await server.close()
     }
   })
+
+  test('fullscreen keeps the page’s width, or takes the whole window’s', async ({ page }) => {
+    const server = await serveDist(distDir)
+    try {
+      await page.setViewportSize({ width: 1600, height: 900 })
+      await page.goto(server.origin)
+      const shell = page.locator('.editor-shell')
+      const width = async () =>
+        (await page.locator('#editor .trevixal-content').boundingBox())?.width ?? 0
+      // The cover scrolls the document; the page under it scrolling too drew a
+      // second scrollbar beside the cover's.
+      const pageScrolls = () =>
+        page.evaluate(() => getComputedStyle(document.documentElement).overflowY !== 'hidden')
+
+      await runMenuItem(page, 'view', 'fullscreen')
+      await expect(shell).toHaveClass(/trevixal-fullscreen/)
+      expect(await width()).toBeLessThan(1000)
+      expect(await pageScrolls()).toBe(false)
+      await page.keyboard.press('Escape')
+      await expect(shell).not.toHaveClass(/trevixal-fullscreen/)
+
+      await runMenuItem(page, 'view', 'fullscreenScreenWidth')
+      await expect(shell).toHaveClass(/trevixal-fullscreen/)
+      // The window's width, whatever fullscreen made it: Firefox takes the
+      // window to the size of the screen.
+      const across = await page.evaluate(() => window.innerWidth)
+      expect(await width()).toBeGreaterThan(across - 64)
+      expect(await pageScrolls()).toBe(false)
+      await page.keyboard.press('Escape')
+      await expect(shell).not.toHaveClass(/trevixal-fullscreen/)
+      expect(await pageScrolls()).toBe(true)
+    } finally {
+      await server.close()
+    }
+  })
 })

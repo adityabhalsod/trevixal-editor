@@ -35,6 +35,17 @@ export { type Menu, type MenuItem, type MenuOptions, type PromptText, openMenu }
 export { type DocumentTabs, type DocumentTabsOptions, TABS_KEY, createDocumentTabs } from './tabs'
 export { type WorkspacePanel, type WorkspacePanelOptions, createWorkspacePanel } from './panel'
 export {
+  type BacklinksPanel,
+  type BacklinksPanelOptions,
+  backlinks,
+  createBacklinksPanel,
+  linkedDocuments,
+  type WikiLinks,
+  type WikiLinksOptions,
+  wikiLinkNodes,
+  wikiLinks,
+} from './wiki'
+export {
   MIRROR_META,
   type SplitMode,
   type SplitOrientation,
@@ -43,3 +54,12 @@ export {
   createSplitView,
   mirrorEditors,
 } from './split'
+export {
+  type TransclusionOptions,
+  type Transclusions,
+  enableTransclusions,
+  includableBlocks,
+  inclusionContent,
+  insertTransclusion,
+  transclusionNodes,
+} from './transclusion'

@@ -1,4 +1,6 @@
 import type { EditorNode } from '../model/node'
+import { listSchemesCSS } from '../schema/list-numbering'
+import { namedStylesCSS } from '../schema/named-styles'
 import { type HTMLSerializeOptions, serializeToHTML } from './html'
 
 export interface HTMLDocumentOptions {
@@ -229,6 +231,17 @@ export function serializeToHTMLDocument(
   }
 
   if (options.theme) head.push(`<style>\n${themeCSS(options.theme)}\n</style>`)
+
+  // The document's named styles, drawn from its own definitions, and after
+  // every other sheet, so a Normal it changed outranks the stylesheet's.
+  // Its list schemes likewise: a marker can hold any text, `</style>` too.
+  const own = [
+    namedStylesCSS(doc, '.trevixal .trevixal-content'),
+    listSchemesCSS(doc, '.trevixal .trevixal-content'),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  if (own) head.push(`<style>\n${own.replace(/<\/style>/gi, '<\\/style>')}\n</style>`)
 
   const themed = themeAttributes(options.theme)
   const body: string[] = [

@@ -73,9 +73,9 @@ test('alignment and indent apply to the current block', async ({ page }) => {
   await expect(page.locator(`${surface} p[style*="text-align: center"]`)).toHaveCount(1)
 
   await page.click('.trevixal-toolbar [data-trevixal-item="indent"]')
-  await expect(page.locator(`${surface} p[style*="margin-left"]`)).toHaveCount(1)
+  await expect(page.locator(`${surface} p[style*="margin-inline-start"]`)).toHaveCount(1)
   await page.click('.trevixal-toolbar [data-trevixal-item="outdent"]')
-  await expect(page.locator(`${surface} p[style*="margin-left"]`)).toHaveCount(0)
+  await expect(page.locator(`${surface} p[style*="margin-inline-start"]`)).toHaveCount(0)
 })
 
 test('the table grid inserts a table of the hovered size', async ({ page }) => {

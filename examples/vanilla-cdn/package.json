@@ -4,7 +4,7 @@
   "private": true,
   "description": "Trevixal from a script tag: the whole editor, no bundler, no npm, no build step.",
   "scripts": {
-    "dev": "node serve.mjs",
+    "dev": "exec node ../shared/run-server.mjs node serve.mjs",
     "build": "node copy-assets.mjs",
     "preview": "node serve.mjs"
   },

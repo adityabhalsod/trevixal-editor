@@ -8,11 +8,23 @@ import {
   SetNodeAttrsStep,
   SplitNodeStep,
   TextSelection,
+  type Transaction,
   inlineSize,
   insertInlineNode,
   nodeAtPath,
   pos,
+  selectionNear,
 } from '@trevixal/core'
+import {
+  type CitationStyle,
+  DEFAULT_CITATION_STYLE,
+  type ImportedSource,
+  citationLabel,
+  formatReference,
+  isCitationStyle,
+  parseSource,
+  referenceSortKey,
+} from './citation-styles'
 import { findAncestor, findChildIndex } from './helpers'
 import { safeAnchorId } from './schema'
 
@@ -81,7 +93,11 @@ export function insertCitation(text?: string, id?: string): Command {
       : -1
     const position = existingIndex >= 0 ? existingIndex : existing ? existing.list.childCount : 0
 
-    const tr = insertInlineNode('citation', { id: referenceId, label: String(position + 1) })(state)
+    const style = citationStyleOf(state.doc)
+    const source =
+      existingIndex >= 0 ? parseSource(existing?.list.child(existingIndex).attrs.source) : null
+    const label = citationLabel(source, style, position)
+    const tr = insertInlineNode('citation', { id: referenceId, label })(state)
     if (!tr) return null
     if (existingIndex >= 0) return tr
 
@@ -124,16 +140,32 @@ export const insertReferenceList: Command = (state) => {
  * entry is gone reads `?`. Declines when every label is already right.
  */
 export const renumberCitations: Command = (state) => {
-  const doc = state.doc
-  const list = referenceList(doc)
-  const positions = new Map<string, number>()
-  if (list) {
-    for (let i = 0; i < list.list.childCount; i++) {
-      const id = list.list.child(i).attrs.id
-      if (typeof id === 'string' && !positions.has(id)) positions.set(id, i + 1)
-    }
-  }
+  const list = referenceList(state.doc)
   const tr = state.tr
+  if (!relabelCitations(tr, list ? labelsOf(list.list) : new Map())) return null
+  // Swapping atoms never moves the caret, so the selection is kept as is.
+  tr.setSelection(state.selection)
+  return tr
+}
+
+/** Each entry's in-text label, in its list's style, by the entry's id. */
+function labelsOf(list: EditorNode): Map<string, string> {
+  const style = isCitationStyle(list.attrs.style) ? list.attrs.style : DEFAULT_CITATION_STYLE
+  const labels = new Map<string, string>()
+  list.content.children.forEach((item, index) => {
+    const id = item.attrs.id
+    if (typeof id === 'string' && !labels.has(id)) {
+      labels.set(id, citationLabel(parseSource(item.attrs.source), style, index))
+    }
+  })
+  return labels
+}
+
+/**
+ * Give every citation in `tr`'s document its label from `labels`; one whose
+ * entry is gone reads `?`. Whether anything changed.
+ */
+function relabelCitations(tr: Transaction, labels: ReadonlyMap<string, string>): boolean {
   let changed = false
   const visit = (node: EditorNode, path: Path): void => {
     if (node.isTextblock) {
@@ -141,8 +173,7 @@ export const renumberCitations: Command = (state) => {
       for (const child of node.content.children) {
         const size = inlineSize(child)
         if (child.type.name === 'citation') {
-          const at = positions.get(child.attrs.id as string)
-          const label = at === undefined ? '?' : String(at)
+          const label = labels.get(child.attrs.id as string) ?? '?'
           if (child.attrs.label !== label) {
             // An atom swapped for an atom keeps every later offset intact, so
             // the offsets computed from the original block stay valid.
@@ -163,11 +194,117 @@ export const renumberCitations: Command = (state) => {
     }
     for (let i = 0; i < node.childCount; i++) visit(node.child(i), [...path, i])
   }
-  visit(doc, [])
-  if (!changed) return null
-  // Swapping atoms never moves the caret, so the selection is kept as is.
-  tr.setSelection(state.selection)
-  return tr
+  visit(tr.doc, [])
+  return changed
+}
+
+/** The style the document's reference list is in; IEEE when it has none. */
+export function citationStyleOf(doc: EditorNode): CitationStyle {
+  const style = referenceList(doc)?.list.attrs.style
+  return isCitationStyle(style) ? style : DEFAULT_CITATION_STYLE
+}
+
+/** The ids of the entries in the order the text first cites them. */
+function citationOrder(doc: EditorNode): string[] {
+  const order: string[] = []
+  const visit = (node: EditorNode): void => {
+    if (node.type.name === 'citation' && typeof node.attrs.id === 'string') {
+      if (!order.includes(node.attrs.id)) order.push(node.attrs.id)
+      return
+    }
+    for (const child of node.content.children) visit(child)
+  }
+  visit(doc)
+  return order
+}
+
+/**
+ * Set the reference list in a style. An author-date style (APA, MLA,
+ * Chicago) puts its entries in author order; IEEE numbers them in the order
+ * the text cites them. Every entry with details is written out again, and
+ * every citation gets its new label, in one undoable step. An entry typed
+ * by hand, with no details, keeps its words.
+ */
+export function setCitationStyle(style: CitationStyle): Command {
+  return (state) => {
+    const found = referenceList(state.doc)
+    if (!found) return null
+    const schema = state.schema
+    const items = [...found.list.content.children]
+    const cited = citationOrder(state.doc)
+    const rank = (item: EditorNode): number => {
+      const at = cited.indexOf(item.attrs.id as string)
+      return at < 0 ? cited.length + items.indexOf(item) : at
+    }
+    const ordered =
+      style === 'ieee'
+        ? items.sort((a, b) => rank(a) - rank(b))
+        : items.sort((a, b) =>
+            referenceSortKey(parseSource(a.attrs.source), a.textContent).localeCompare(
+              referenceSortKey(parseSource(b.attrs.source), b.textContent),
+            ),
+          )
+    const written = ordered.map((item) => {
+      const source = parseSource(item.attrs.source)
+      if (!source) return item
+      return item.type.create(item.attrs, Fragment.of(schema.text(formatReference(source, style))))
+    })
+    const list = found.list.type.create({ ...found.list.attrs, style }, Fragment.from(written))
+    const tr = state.tr
+    tr.step(new ReplaceNodesStep([], found.index, found.index + 1, Fragment.of(list)))
+    relabelCitations(tr, labelsOf(list))
+    tr.setSelection(selectionNear(tr.doc, state.selection.from))
+    return tr
+  }
+}
+
+/**
+ * Add sources to the reference list, written out in its style, and start a
+ * list at the end of the document when there is none. A source whose id is
+ * already an entry is left alone, so importing the same file twice adds
+ * nothing the second time.
+ */
+export function importSources(sources: readonly ImportedSource[]): Command {
+  return (state) => {
+    const schema = state.schema
+    const found = referenceList(state.doc)
+    const style = found ? citationStyleOf(state.doc) : DEFAULT_CITATION_STYLE
+    const taken = new Set(found?.list.content.children.map((item) => item.attrs.id) ?? [])
+    const items: EditorNode[] = []
+    for (const { id, source } of sources) {
+      const safe = safeAnchorId(id.replace(/[^A-Za-z0-9_-]/g, '-'))
+      if (!safe || taken.has(safe)) continue
+      taken.add(safe)
+      items.push(
+        schema
+          .nodeType('referenceItem')
+          .create(
+            { id: safe, source: JSON.stringify(source) },
+            Fragment.of(schema.text(formatReference(source, style))),
+          ),
+      )
+    }
+    if (items.length === 0) return null
+    const tr = state.tr
+    if (found) {
+      const end = found.list.childCount
+      tr.step(new ReplaceNodesStep([found.index], end, end, Fragment.from(items)))
+    } else {
+      const list = schema.nodeType('referenceList').create(undefined, Fragment.from(items))
+      const at = state.doc.childCount
+      tr.step(new ReplaceNodesStep([], at, at, Fragment.of(list)))
+    }
+    return tr
+  }
+}
+
+/** The entries a citation can point at: each id, with its text to pick it by. */
+export function referenceChoices(doc: EditorNode): readonly { id: string; label: string }[] {
+  return (referenceList(doc)?.list.content.children ?? []).flatMap((item) =>
+    typeof item.attrs.id === 'string'
+      ? [{ id: item.attrs.id, label: item.textContent.slice(0, 80) || item.attrs.id }]
+      : [],
+  )
 }
 
 /**

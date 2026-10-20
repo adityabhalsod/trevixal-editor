@@ -164,9 +164,10 @@ function insertionPoint(state: EditorState): InsertionPoint | null {
 
 /**
  * Insert a display formula as its own block and select it, so the equation
- * editor opens on the node that was just created.
+ * editor opens on the node that was just created. A numbered one takes the
+ * next equation number.
  */
-export function insertMathBlock(latex = ''): Command {
+export function insertMathBlock(latex = '', options: { numbered?: boolean } = {}): Command {
   return (state) => {
     const type = state.schema.nodes[MATH_BLOCK_NODE]
     if (!type) return null
@@ -178,7 +179,7 @@ export function insertMathBlock(latex = ''): Command {
         point.parentPath,
         point.from,
         point.to,
-        Fragment.of(type.create({ latex })),
+        Fragment.of(type.create({ latex, numbered: options.numbered === true })),
       ),
     )
     tr.setSelection(new NodeSelection([...point.parentPath, point.from]))
@@ -198,6 +199,15 @@ export function setMathLatex(latex: string): Command {
     const tr = state.tr
     tr.step(new SetNodeAttrsStep(hit.path, { ...hit.node.attrs, latex }))
     return tr
+  }
+}
+
+/** Number the display formula at the selection, or stop numbering it. */
+export function setMathNumbered(numbered: boolean): Command {
+  return (state) => {
+    const hit = findMathAt(state)
+    if (!hit?.block || hit.node.attrs.numbered === numbered) return null
+    return state.tr.step(new SetNodeAttrsStep(hit.path, { ...hit.node.attrs, numbered }))
   }
 }
 

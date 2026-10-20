@@ -6,6 +6,8 @@ attribute, commands, a keymap, HTML in both directions, and a menu entry.
 
 About eighty lines, end to end. The finished version ships as part of
 [`@trevixal/extension-blocks`](https://www.npmjs.com/package/@trevixal/extension-blocks).
+`npm create trevixal-extension` makes a package with the same parts to start
+from (see [A whole extension](./adding#a-whole-extension)).
 
 ## 1. The node type
 

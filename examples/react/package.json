@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Trevixal in a React app: the whole editor mounted from an effect, and the adapter on its own.",
   "scripts": {
-    "dev": "vite",
+    "dev": "exec node ../shared/run-server.mjs vite",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"

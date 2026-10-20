@@ -1,4 +1,5 @@
 import { type Editor, editorDocument } from '@trevixal/core'
+import { copyableCode } from './terminal'
 
 export interface CopyCodeButtonOptions {
   /** Node type to decorate; `"codeBlock"` by default. */
@@ -85,8 +86,10 @@ export function createCopyCodeButtons(
     button.addEventListener('click', (event) => {
       event.preventDefault()
       // Read the text at click time: the block may have been edited since.
-      const code = pre.querySelector('code') ?? pre
-      void copy(code.textContent ?? '').then((ok) => {
+      // From the model, not the DOM, which also holds the block's chrome.
+      const node = editor.view?.renderer.modelOf.get(pre)
+      const code = node ? node.textContent : ((pre.querySelector('code') ?? pre).textContent ?? '')
+      void copy(copyableCode(code, node?.attrs.language)).then((ok) => {
         if (!disposed) setState(button, ok ? 'copied' : 'failed')
       })
     })

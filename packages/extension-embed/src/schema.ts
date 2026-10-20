@@ -1,6 +1,7 @@
 import type { NodeSpec } from '@trevixal/core'
 import { escapeHTML, safeHref, safeImageSrc, safeLength } from '@trevixal/core'
 import { formatBytes } from './format'
+import { chaptersHTML, parseChapters, parseWaveform, waveformSVG } from './media'
 import {
   type EmbedNodesOptions,
   type EmbedProvider,
@@ -19,7 +20,21 @@ export const EMBED_BLOCK_NODES: readonly string[] = ['video', 'audio', 'iframeEm
 /** Every node this package adds, block and inline. */
 export const EMBED_NODES: readonly string[] = [...EMBED_BLOCK_NODES, 'attachment']
 
-const PROVIDERS = new Set<string>(['youtube', 'vimeo', 'generic'])
+const PROVIDERS = new Set<string>([
+  'youtube',
+  'vimeo',
+  'twitter',
+  'gist',
+  'codepen',
+  'codesandbox',
+  'stackblitz',
+  'figma',
+  'maps',
+  'spotify',
+  'soundcloud',
+  'loom',
+  'generic',
+])
 
 /**
  * The permissions and loading attributes every rendered `<iframe>` carries.
@@ -32,6 +47,13 @@ export const IFRAME_ATTRIBUTES: Readonly<Record<string, string>> = {
   loading: 'lazy',
   referrerpolicy: 'strict-origin-when-cross-origin',
   sandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups',
+}
+
+/** Attributes as markup, every value escaped, for a player written inside a wrapper. */
+function attributesHTML(attrs: Readonly<Record<string, string>>): string {
+  return Object.entries(attrs)
+    .map(([name, value]) => (value === '' ? ` ${name}` : ` ${name}="${escapeHTML(value)}"`))
+    .join('')
 }
 
 function stringOrNull(value: unknown): string | null {
@@ -85,6 +107,18 @@ export function embedProvider(value: unknown, src?: string): EmbedProvider {
  * target rather than as nodes; `video`, `audio` and `iframeEmbed` round-trip
  * in every schema.
  */
+/**
+ * A media block or a link where a format cannot show it: its title and its
+ * address, which a reader can still follow. Not an address the file itself
+ * carries as data, which is no use written out.
+ */
+function linkWords(title: unknown, href: unknown): string {
+  const name = typeof title === 'string' ? title.trim() : ''
+  const address = typeof href === 'string' && !href.startsWith('data:') ? href.trim() : ''
+  if (name && address) return `${name} (${address})`
+  return name || address
+}
+
 export function embedNodes(options: EmbedNodesOptions = {}): Record<string, NodeSpec> {
   return {
     video: {
@@ -97,7 +131,10 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         height: { default: null },
         controls: { default: true },
         title: { default: null },
+        // Chapters, one a line (`1:30 Setting up`), listed under the player.
+        chapters: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         const attrs: Record<string, string> = { class: 'trevixal-video' }
         if (node.attrs.controls !== false) attrs.controls = ''
@@ -111,9 +148,36 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         if (height) attrs.height = height
         const title = stringOrNull(node.attrs.title)
         if (title) attrs.title = title
-        return { tag: 'video', attrs }
+        const chapters = parseChapters(node.attrs.chapters)
+        if (chapters.length === 0 || !src) return { tag: 'video', attrs }
+        // With chapters the player sits in a wrapper, the list of them below it.
+        return {
+          tag: 'div',
+          attrs: { class: 'trevixal-video-chapters', 'data-chapters': String(node.attrs.chapters) },
+          innerHTML: `<video${attributesHTML(attrs)}></video>${chaptersHTML(src, chapters)}`,
+        }
       },
       parseHTML: [
+        {
+          tag: 'div',
+          attribute: 'data-chapters',
+          getAttrs: (element) => {
+            const video = element.querySelector('video')
+            const src = safeMediaSrc(
+              video?.getAttribute('src') ?? (video ? firstSourceOf(video) : null),
+            )
+            if (!video || !src) return false
+            return {
+              src,
+              poster: safeImageSrc(video.getAttribute('poster')),
+              width: safeLength(video.getAttribute('width')),
+              height: safeLength(video.getAttribute('height')),
+              controls: true,
+              title: stringOrNull(video.getAttribute('title')),
+              chapters: stringOrNull(element.getAttribute('data-chapters')),
+            }
+          },
+        },
         {
           tag: 'video',
           getAttrs: (element) => {
@@ -142,7 +206,10 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         src: { default: '' },
         title: { default: null },
         controls: { default: true },
+        // A recording's shape, bar heights 0-100, drawn above its player.
+        waveform: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         const attrs: Record<string, string> = { class: 'trevixal-audio' }
         if (node.attrs.controls !== false) attrs.controls = ''
@@ -150,9 +217,33 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         if (src) attrs.src = src
         const title = stringOrNull(node.attrs.title)
         if (title) attrs.title = title
-        return { tag: 'audio', attrs }
+        const peaks = parseWaveform(node.attrs.waveform)
+        if (peaks.length === 0) return { tag: 'audio', attrs }
+        return {
+          tag: 'div',
+          attrs: { class: 'trevixal-audio-block', 'data-waveform': peaks.join(',') },
+          innerHTML: `${waveformSVG(peaks)}<audio${attributesHTML(attrs)}></audio>`,
+        }
       },
       parseHTML: [
+        {
+          tag: 'div',
+          attribute: 'data-waveform',
+          getAttrs: (element) => {
+            const audio = element.querySelector('audio')
+            const src = safeMediaSrc(
+              audio?.getAttribute('src') ?? (audio ? firstSourceOf(audio) : null),
+            )
+            if (!audio || !src) return false
+            const peaks = parseWaveform(element.getAttribute('data-waveform'))
+            return {
+              src,
+              title: stringOrNull(audio.getAttribute('title')),
+              controls: true,
+              waveform: peaks.length > 0 ? peaks.join(',') : null,
+            }
+          },
+        },
         {
           tag: 'audio',
           getAttrs: (element) => {
@@ -180,6 +271,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         height: { default: null },
         provider: { default: 'generic' },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.src),
       toHTML: (node) => {
         // The render path re-vets the source: a document that arrived by
         // JSON, with no parser in between, gets the same allowlist.
@@ -232,6 +324,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         /** Set while an upload is running; cleared when it resolves. */
         uploadId: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.name, node.attrs.href),
       toHTML: (node) => {
         const name = typeof node.attrs.name === 'string' ? node.attrs.name : ''
         const uploading = typeof node.attrs.uploadId === 'string'
@@ -284,6 +377,7 @@ export function embedNodes(options: EmbedNodesOptions = {}): Record<string, Node
         image: { default: null },
         siteName: { default: null },
       },
+      exportText: (node) => linkWords(node.attrs.title, node.attrs.href),
       toHTML: (node) => {
         const href = safeWebURL(node.attrs.href) ?? safeHref(node.attrs.href)
         const attrs: Record<string, string> = {

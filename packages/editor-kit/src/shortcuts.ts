@@ -10,13 +10,17 @@ import { type ShortcutAction, isApplePlatform } from '@trevixal/ui'
  * nothing here to read too early.
  */
 export interface ShortcutContext {
+  addComment(): void
+  addNextMatch(): void
   flushAutosave(): void
   newDocument(): void
   openDocument(): void
   openFindReplace(): void
   openLinkDialog(): void
+  openGoTo(): void
   openPalette(): void
   pickEmoji(): void
+  playMacro(): void
   printDocument(preview: boolean): void
   protectDocument(): void
   toggleFocusMode(): void
@@ -56,13 +60,17 @@ export function shortcutActions(
   platform: ShortcutPlatform = currentShortcutPlatform(),
 ): ShortcutAction[] {
   const {
+    addComment,
+    addNextMatch,
     flushAutosave,
     newDocument,
     openDocument,
     openFindReplace,
     openLinkDialog,
+    openGoTo,
     openPalette,
     pickEmoji,
+    playMacro,
     printDocument,
     protectDocument,
     toggleFocusMode,
@@ -287,6 +295,38 @@ export function shortcutActions(
       group: 'File',
       keys: 'Mod-Alt-n',
       run: () => void newDocument(),
+    },
+    // Word's Go To; the browser's Find next moves off Ctrl+G inside the editor.
+    {
+      name: 'goTo',
+      label: 'Go to',
+      group: 'Edit',
+      keys: 'Mod-g',
+      run: () => openGoTo(),
+    },
+    // A code editor's: the next place the selected words occur gets a caret too.
+    {
+      name: 'addNextMatch',
+      label: 'Add caret at next match',
+      group: 'Edit',
+      keys: 'Mod-d',
+      run: () => addNextMatch(),
+    },
+    // Word's own New Comment.
+    {
+      name: 'insertComment',
+      label: 'Comment',
+      group: 'Insert',
+      keys: 'Mod-Alt-m',
+      run: () => addComment(),
+    },
+    // One key, as a macro should be: F8 is free in every browser.
+    {
+      name: 'macroPlay',
+      label: 'Play macro',
+      group: 'Tools',
+      keys: 'F8',
+      run: () => playMacro(),
     },
     {
       name: 'saveDocument',

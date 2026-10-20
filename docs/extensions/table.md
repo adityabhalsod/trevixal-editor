@@ -35,6 +35,7 @@ replaces the base binding wholesale.
 | Structure | `insertTable`, `addRow`, `addColumn`, `deleteRow`, `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `splitCellInto`, `toggleHeaderRow`, `goToNextCell` |
 | Appearance | `setCellAlign`, `setCellBackground`, `setTableBorders` (`all`, `outer`, `horizontal`, `none`), `setTableBorderColor`, `setTableBorderStyle`, `setTableBorderWidth`, `hideCellBorder`, `showCellBorder` |
 | Design | `setTableStyle`, `toggleTableStyleOption`, `tableDesignAt`, `TABLE_STYLE_GALLERY` |
+| Layout | `toggleFreezeHeaderRow`, `toggleFreezeFirstColumn`, `setCellPadding`, `setCellVerticalAlign`, `tableLayoutAt` |
 | Data | `sortTable`, `convertTextToTable`, `convertTableToText`, `parseCSV`, `insertTableFromCSV`, `tableToCSV`, `csvAtSelection`, `detectDelimiter` |
 | Sizing | `createTableResizeHandles` for drag handles, plus `setColumnWidth`, `setRowHeight`, `setTableWidth`, `autoFitContents`, `autoFitWindow`, `fixColumnWidths`, `distributeRowsEvenly`, `distributeColumnsEvenly`, `clearTableSizing` |
 | Drawing | `createTableTools` for Draw table, the Eraser and the Border Painter, plus `drawColumnLine`, `drawRowLine`, `insertDrawnTable` |
@@ -159,6 +160,26 @@ Word and RTF exports get the look spelt out cell by cell (fills, bold, the
 header's ink, the style's rules and the pen), since their own table style
 stays the plain grid. A cell's own shading wins over its style's, as a direct
 format does in Word.
+
+## Layout: frozen rows and columns, padding, alignment
+
+| Command | What it does | Attribute (HTML) |
+| --- | --- | --- |
+| `toggleFreezeHeaderRow` | Holds the header row at the top of the window while a long table scrolls by; a table without a header row gets one | table `freezeHeader` (`data-freeze-header`) |
+| `toggleFreezeFirstColumn` | Holds the first column in view while a wide table scrolls sideways | table `freezeColumn` (`data-freeze-column`) |
+| `setCellPadding(length)` | Word's cell margins for the whole table: `0`, or px, em or rem; null for the stylesheet's own | table `cellPadding` (`--tvx-cell-padding`) |
+| `setCellVerticalAlign(align)` | Top, middle or bottom for every selected cell; top is stored as none | cell `verticalAlign` (`vertical-align`) |
+
+`tableLayoutAt(editor.state)` reads all four at the selection, for a menu to
+tick. Freezing is for the screen alone: a print heads every page with the
+table's header row whether it is frozen or not, as Word does with its
+*Repeat as header row*, which the `.docx` export writes for every header row.
+
+A cell holds any block, so a table can sit inside a cell. `insertTable` with
+the caret in a cell puts one there, and every command acts on the innermost
+table around the selection. The stylesheet's rules reach a table's own rows
+only (`> tr`, `> tbody > tr`), so an inner table keeps its own look whatever
+the outer one wears.
 
 ## Drawing and erasing
 

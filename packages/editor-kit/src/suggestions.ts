@@ -188,7 +188,12 @@ export function createSuggestionMenus(
   async function pickEmoji(): Promise<void> {
     const character = await openCharacterPicker(
       document,
-      defaultEmoji().map((item) => ({ char: item.char, label: item.name })),
+      defaultEmoji().map((item) => ({
+        char: item.char,
+        label: item.description ?? item.name,
+        ...(item.group ? { group: item.group } : {}),
+        keywords: [item.name, ...(item.keywords ?? [])],
+      })),
       { title: 'Emoji', className: 'trevixal-charpicker--emoji' },
     )
     editor.view?.focus()
