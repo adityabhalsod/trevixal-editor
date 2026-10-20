@@ -19,7 +19,7 @@
 Scaffold an extension for the Trevixal editor, then change the node from there.
 
 ```sh
-npm create @trevixal/extension @acme/trevixal-extension-sticky-note
+npm create @trevixal/extension trevixal-extension-sticky-note
 cd trevixal-extension-sticky-note
 npm install
 npm test
@@ -33,7 +33,7 @@ npm create @trevixal/extension <package-name> [directory]
 
 The name must be one npm takes. The node, its command and its menu entry are
 named after it without its scope and a `trevixal-extension-` prefix:
-`@acme/trevixal-extension-sticky-note` makes `stickyNote`, `insertStickyNote`
+`trevixal-extension-sticky-note` makes `stickyNote`, `insertStickyNote`
 and Insert ▸ Sticky note. The directory defaults to the name without its scope.
 
 | File | What it holds |
@@ -55,8 +55,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { extensionFiles } from '@trevixal/create-extension'
 
-for (const [path, text] of extensionFiles('@acme/trevixal-extension-sticky-note', '1.0.5')) {
-  const file = join('sticky-note', path)
+for (const [path, text] of extensionFiles('trevixal-extension-sticky-note', '1.0.5')) {
+  const file = join('trevixal-extension-sticky-note', path)
   await mkdir(dirname(file), { recursive: true })
   await writeFile(file, text)
 }
