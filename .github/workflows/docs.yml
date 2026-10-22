@@ -1,0 +1,64 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a deploy in flight finish: cancelling one half-way would leave the site
+# on the older build, with the newer one never published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the docs site
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `lastUpdated` in the VitePress config reads each page's git
+          # history, which a shallow clone does not have.
+          fetch-depth: 0
+
+      # Reads the pinned version from package.json's "packageManager".
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The demo pages load these three bundles by URL, so they are built
+      # before the site. Same command as vercel.json.
+      - run: pnpm turbo run build --filter=@trevixal/editor-kit --filter=@trevixal/web-component --filter=@trevixal/ui
+
+      # A project page is served under the repository name, so VitePress needs
+      # it as `base`. A custom domain would serve from the root: drop this.
+      - run: pnpm docs:build
+        env:
+          DOCS_BASE: /trevixal-editor/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,16 +1,21 @@
 import { defineConfig } from 'vitepress'
 
+// Served from the root unless DOCS_BASE names a subpath: Vercel builds with
+// none, the GitHub Pages workflow sets `/trevixal-editor/`. VitePress uses
+// `base` for its router as well as for asset URLs, so a relative value breaks
+// navigation rather than making it portable.
+const base = process.env.DOCS_BASE ?? '/'
+
 export default defineConfig({
   title: 'Trevixal',
   description: 'A WYSIWYG rich-text editor engine, written from scratch.',
-  // Served from the root. VitePress uses `base` for its router as well as
-  // for asset URLs, so a relative value breaks navigation rather than making
-  // it portable. Set it to the subpath if you deploy under one.
-  base: '/',
+  base,
   srcExclude: ['**/README.md'],
   cleanUrls: true,
   lastUpdated: true,
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
+  // VitePress prefixes `base` onto links in the markdown and the theme, but
+  // not onto `head` entries.
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }]],
 
   themeConfig: {
     // The same glyph serves as the tab icon and the site mark.
