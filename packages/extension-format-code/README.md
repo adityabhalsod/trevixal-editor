@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-format-code.svg)](https://www.npmjs.com/package/@trevixal/extension-format-code)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-format-code.svg)](https://www.npmjs.com/package/@trevixal/extension-format-code)
 [![license](https://img.shields.io/npm/l/@trevixal/extension-format-code.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://adityabhalsod.github.io/trevixal-editor/)
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-format-code/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 

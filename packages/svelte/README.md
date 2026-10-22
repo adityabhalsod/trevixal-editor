@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
 [![types](https://img.shields.io/npm/types/@trevixal/svelte.svg)](https://www.npmjs.com/package/@trevixal/svelte)
 [![license](https://img.shields.io/npm/l/@trevixal/svelte.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://adityabhalsod.github.io/trevixal-editor/)
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/svelte/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 

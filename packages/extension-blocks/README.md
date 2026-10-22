@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-blocks.svg)](https://www.npmjs.com/package/@trevixal/extension-blocks)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-blocks.svg)](https://www.npmjs.com/package/@trevixal/extension-blocks)
 [![license](https://img.shields.io/npm/l/@trevixal/extension-blocks.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://adityabhalsod.github.io/trevixal-editor/)
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-blocks/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 

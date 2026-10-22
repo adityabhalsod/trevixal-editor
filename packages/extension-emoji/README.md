@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/@trevixal/extension-emoji.svg)](https://www.npmjs.com/package/@trevixal/extension-emoji)
 [![types](https://img.shields.io/npm/types/@trevixal/extension-emoji.svg)](https://www.npmjs.com/package/@trevixal/extension-emoji)
 [![license](https://img.shields.io/npm/l/@trevixal/extension-emoji.svg)](https://github.com/adityabhalsod/trevixal-editor/blob/main/LICENSE)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://adityabhalsod.github.io/trevixal-editor/)
 
 [Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](https://github.com/adityabhalsod/trevixal-editor/blob/main/packages/extension-emoji/CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
 
