@@ -13,6 +13,17 @@ costs. Per-package history lives alongside each package:
 All packages are versioned and released together, so the version numbers below
 apply to every one of them.
 
+## Unreleased
+
+Documentation only: no package code changes.
+
+Every README now carries the one-minute demo video, as a thumbnail that opens
+it on YouTube, because a README cannot play a video in place. The root and
+package READMEs gain a badge for the launch post on dev.to. The package READMEs
+also gain the GitHub stars badge the root README already had, and in all of
+them it now ends the badge row. The package READMEs reach npm with the next
+release.
+
 ## 1.0.2
 
 Ships minified ESM and CJS builds. Identifiers and syntax are minified;

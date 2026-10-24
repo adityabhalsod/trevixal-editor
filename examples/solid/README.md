@@ -1,5 +1,9 @@
 # Solid example
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 The whole editor in a Solid app, with no adapter package at all.
 
 ```sh
