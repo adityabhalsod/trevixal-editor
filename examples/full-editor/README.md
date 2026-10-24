@@ -1,5 +1,9 @@
 # Full editor example
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 Every package in the workspace, assembled into one page: the editing chrome,
 the document features, and the things that sit around a document rather than
 inside it, themes, autosave, protection and a workspace of several documents.

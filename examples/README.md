@@ -1,5 +1,9 @@
 # Examples
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 Eleven apps, all running the same editor. Each one holds configuration and its
 framework's own wiring, nothing else. The editor itself is
 [`@trevixal/editor-kit`](../packages/editor-kit), so what differs between

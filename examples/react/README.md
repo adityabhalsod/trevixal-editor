@@ -1,5 +1,9 @@
 # React example
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 Two pages in one. At the top, the whole editor, every package the workspace
 ships, mounted from a `useEffect`. Underneath, the adapter on its own: an
 editor, a toolbar bound to a snapshot, and a counter proving that typing does

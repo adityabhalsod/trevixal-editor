@@ -1,5 +1,9 @@
 # @trevixal/e2e
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 Cross-browser end-to-end tests for the Trevixal editor, driven by Playwright.
 
 The specs in `tests/` drive real pages in `page/`. Those pages load **built**

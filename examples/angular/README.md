@@ -1,5 +1,9 @@
 # Angular example
 
+[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+
+▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+
 The whole editor: every package the workspace ships, mounted from
 `afterNextRender`, and nothing else on the page.
 
