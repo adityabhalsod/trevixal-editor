@@ -14,6 +14,9 @@ pageClass: full-editor-page
 `<script>` tag would load. Menubar, toolbar, panels, panes, every extension.
 Type in it, open the menus, drag a toolbar group, switch a theme.
 
+Like what you see? [⭐ Star Trevixal on GitHub](https://github.com/adityabhalsod/trevixal-editor)
+so other developers can find it.
+
 </div>
 
 <ClientOnly>

@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: Concepts
       link: /concepts/state
+    - theme: alt
+      text: ⭐ Star on GitHub
+      link: https://github.com/adityabhalsod/trevixal-editor
 
 features:
   - title: The document is data
