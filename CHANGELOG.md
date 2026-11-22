@@ -24,6 +24,11 @@ also gain the GitHub stars badge the root README already had, and in all of
 them it now ends the badge row. The package READMEs reach npm with the next
 release.
 
+The root README opens with an animated demo of the editor in use, which
+GitHub plays in place, a one-line install command, and links to the live
+editor and the video. The repository gains a CONTRIBUTING.md, and the docs
+site's home page and full-editor page link to the repository to star it.
+
 ## 1.1.0
 
 Word's long-document, formatting, table and list tools; page layout for print

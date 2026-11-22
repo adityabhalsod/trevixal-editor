@@ -8,11 +8,27 @@
 [![dev.to](https://img.shields.io/badge/dev.to-blog-0A0A0A?logo=devdotto&logoColor=white)](https://dev.to/aditya_bhalsod/i-built-a-rich-text-editor-from-scratch-no-prosemirror-no-dependencies-52b6)
 [![stars](https://img.shields.io/github/stars/adityabhalsod/trevixal-editor?style=social)](https://github.com/adityabhalsod/trevixal-editor/stargazers)
 
-[Documentation](https://trevixal-editor.vercel.app) · [Live editor](https://trevixal-editor.vercel.app/full-editor) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/adityabhalsod/trevixal-editor/issues)
+**The rich-text editor you can read end to end: zero runtime dependencies, no ProseMirror, track changes and Word export in the box.**
 
-[![Watch the Trevixal demo on YouTube](https://img.youtube.com/vi/PF8VchgEAeU/maxresdefault.jpg)](https://youtu.be/PF8VchgEAeU)
+<p align="center">
+  <a href="https://trevixal-editor.vercel.app/full-editor">
+    <img src="docs/public/media/demo.gif" alt="Trevixal demo: typing a heading, bold and italic text and a bullet list, inserting a table from the slash menu, then switching to the dark and sepia themes" width="960" />
+  </a>
+</p>
 
-▶ [Watch the 1-minute demo on YouTube](https://youtu.be/PF8VchgEAeU)
+<p align="center">
+  <a href="https://trevixal-editor.vercel.app/full-editor"><b>▶ Try the live editor</b></a> ·
+  <a href="https://youtu.be/PF8VchgEAeU">Watch the 1-minute video</a> ·
+  <a href="https://trevixal-editor.vercel.app">Documentation</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/adityabhalsod/trevixal-editor/issues">Issues</a>
+</p>
+
+> ⭐ **If Trevixal is useful to you, or you just like seeing an editor built from scratch, please [star the repo](https://github.com/adityabhalsod/trevixal-editor/stargazers).** It is the main way other developers find it.
+
+```sh
+npm install @trevixal/editor-kit @trevixal/core @trevixal/ui
+```
 
 **A WYSIWYG rich-text editor engine, written from scratch.** No ProseMirror,
 Lexical, Slate, Quill or Draft.js code anywhere in it, and no runtime
@@ -350,9 +366,9 @@ edit.
 | pnpm | 11.24.0 | Pinned by `packageManager`; `corepack enable` activates it |
 | A browser | Chrome, or Playwright's Chromium/Firefox/WebKit | Only for the browser tests |
 
-Once published, `npm install @trevixal/core` and friends are all you need; every
-package is public under the `@trevixal` scope. Until the first release has run,
-build against this workspace:
+Every package is published on npm under the `@trevixal` scope, so
+`npm install @trevixal/core` and friends are all an app needs. To work on
+Trevixal itself, or to build against unreleased changes, use this workspace:
 
 ```sh
 git clone git@github.com:adityabhalsod/trevixal-editor.git
@@ -366,8 +382,7 @@ pnpm --filter @trevixal/example-full-editor dev
 To build your own app against the workspace, add a package under `examples/`
 that depends on `"@trevixal/core": "workspace:*"` and the extensions it uses,
 exactly as [`examples/full-editor/package.json`](examples/full-editor/package.json)
-does. The `npm install` lines in the sections below show the intended shape
-once the packages are published.
+does. The `npm install` lines in the sections below install the published packages.
 
 ## Packages
 
@@ -2235,3 +2250,10 @@ features, not collaboration.
 
 ## License
 Apache-2.0: see [`LICENSE`](LICENSE).
+
+---
+
+<p align="center">
+  Built something with Trevixal, or want to? <a href="CONTRIBUTING.md">Contributions are welcome</a>.<br />
+  ⭐ <b><a href="https://github.com/adityabhalsod/trevixal-editor">Star Trevixal on GitHub</a></b> to follow along and help others find it.
+</p>
